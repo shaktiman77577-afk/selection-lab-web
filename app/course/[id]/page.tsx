@@ -35,6 +35,10 @@ export default function CourseDetailPage() {
   const [paying, setPaying] = useState(false);
   const [payMsg, setPayMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [owned, setOwned] = useState(false);
+  const [couponInput, setCouponInput] = useState("");
+  const [applied, setApplied] = useState<{ code: string; discount: number; final: number } | null>(null);
+  const [couponMsg, setCouponMsg] = useState("");
+  const [applying, setApplying] = useState(false);
 
   useEffect(() => {
     const u = getUser();
@@ -111,6 +115,38 @@ export default function CourseDetailPage() {
     setSubmitting(false);
   }
 
+  async function applyCoupon(codeArg?: string) {
+    const code = (codeArg || couponInput).trim().toUpperCase();
+    if (!code || !course) return;
+    setApplying(true);
+    setCouponMsg("");
+    try {
+      const res = await fetch(`${API_URL}/coupons/validate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code, amount: Number(course.price) || 0 }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.valid) {
+        setApplied(null);
+        setCouponMsg(data.reason || data.detail || "Invalid coupon");
+      } else {
+        setApplied({ code, discount: data.discount, final: data.final_amount });
+        setCouponInput(code);
+        setCouponMsg("");
+      }
+    } catch {
+      setCouponMsg("Could not check coupon. Try again.");
+    }
+    setApplying(false);
+  }
+
+  function removeCoupon() {
+    setApplied(null);
+    setCouponInput("");
+    setCouponMsg("");
+  }
+
   async function handleBuy() {
     if (!user) {
       router.push("/login");
@@ -150,7 +186,7 @@ export default function CourseDetailPage() {
       const res = await fetch(`${API_URL}/payments/course-order`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_id: user.id, course_id: courseId }),
+        body: JSON.stringify({ user_id: user.id, course_id: courseId, coupon_code: applied?.code || null }),
       });
       const order = await res.json();
       if (!res.ok) throw new Error(order.detail || "Could not start payment");
@@ -178,6 +214,7 @@ export default function CourseDetailPage() {
                 razorpay_order_id: resp.razorpay_order_id,
                 razorpay_payment_id: resp.razorpay_payment_id,
                 razorpay_signature: resp.razorpay_signature,
+                coupon_code: applied?.code || null,
               }),
             });
             const vdata = await vres.json();
@@ -278,7 +315,7 @@ export default function CourseDetailPage() {
         </div>
 
         {/* Universal coupon banner */}
-        {coupons.length > 0 && price > 0 && (
+        {coupons.length > 0 && price > 0 && !owned && (
           <div
             style={{
               marginTop: 14,
@@ -289,14 +326,62 @@ export default function CourseDetailPage() {
             }}
           >
             {coupons.map((cp) => (
-              <div key={cp.code} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13.5 }}>
+              <div
+                key={cp.code}
+                onClick={() => applyCoupon(cp.code)}
+                style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13.5, cursor: "pointer", padding: "2px 0" }}
+              >
                 <span>🎟️</span>
-                <span>
+                <span style={{ flex: 1 }}>
                   Use code <b style={{ color: GOLD, letterSpacing: 1 }}>{cp.code}</b> for{" "}
                   <b>{cp.discount_type === "percent" ? `${cp.discount_value}% off` : `₹${cp.discount_value} off`}</b>
                 </span>
+                <span style={{ color: GOLD, fontSize: 12, fontWeight: 700 }}>TAP TO APPLY</span>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Coupon input */}
+        {price > 0 && !owned && (
+          <div style={{ marginTop: 12 }}>
+            {applied ? (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  border: "1px solid rgba(93,217,124,0.5)",
+                  background: "rgba(93,217,124,0.08)",
+                  borderRadius: 12,
+                  padding: "12px 14px",
+                }}
+              >
+                <span style={{ color: "#5dd97c", fontSize: 14, flex: 1 }}>
+                  ✓ <b>{applied.code}</b> applied — you save <b>₹{applied.discount}</b>
+                </span>
+                <button onClick={removeCoupon} style={{ ...ghostBtn, padding: "6px 12px", fontSize: 12 }}>
+                  Remove
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: "flex", gap: 10 }}>
+                <input
+                  placeholder="Have a coupon code?"
+                  value={couponInput}
+                  onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
+                  style={{ ...inputStyle, marginBottom: 0, flex: 1, letterSpacing: 1 }}
+                />
+                <button
+                  onClick={() => applyCoupon()}
+                  disabled={applying || !couponInput.trim()}
+                  style={{ ...goldBtn, padding: "12px 18px", opacity: applying || !couponInput.trim() ? 0.6 : 1 }}
+                >
+                  {applying ? "..." : "Apply"}
+                </button>
+              </div>
+            )}
+            {couponMsg && <p style={{ color: "#ff6b6b", fontSize: 13, margin: "8px 0 0" }}>{couponMsg}</p>}
           </div>
         )}
 
@@ -400,6 +485,12 @@ export default function CourseDetailPage() {
         <div style={{ flex: 1 }}>
           {price === 0 ? (
             <span style={{ color: "#5dd97c", fontWeight: 800, fontSize: 18 }}>FREE</span>
+          ) : applied ? (
+            <>
+              <span style={{ color: GOLD, fontWeight: 800, fontSize: 18 }}>₹{applied.final}</span>
+              <span style={{ color: "#7d7461", textDecoration: "line-through", fontSize: 13, marginLeft: 6 }}>₹{price}</span>
+              <div style={{ color: "#5dd97c", fontSize: 11.5, fontWeight: 700 }}>{applied.code} applied</div>
+            </>
           ) : (
             <>
               <span style={{ color: GOLD, fontWeight: 800, fontSize: 18 }}>₹{price}</span>
@@ -521,4 +612,3 @@ const ghostBtn: React.CSSProperties = {
   fontSize: 13,
   cursor: "pointer",
 };
-                    
