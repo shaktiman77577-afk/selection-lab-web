@@ -11,6 +11,12 @@ const BG = "#0d0b08";
 const CARD = "#16130e";
 const BORDER = "rgba(255,171,0,0.25)";
 
+declare global {
+  interface Window {
+    Razorpay: any;
+  }
+}
+
 export default function CourseDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -26,7 +32,8 @@ export default function CourseDetailPage() {
   const [myReview, setMyReview] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitMsg, setSubmitMsg] = useState("");
-  const [showBuy, setShowBuy] = useState(false);
+  const [paying, setPaying] = useState(false);
+  const [payMsg, setPayMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   useEffect(() => {
     setUser(getUser());
@@ -39,6 +46,13 @@ export default function CourseDetailPage() {
       .then((d) => setCoupons(d.coupons || []))
       .catch(() => {});
     loadReviews();
+    // Load Razorpay checkout script once
+    if (!document.getElementById("rzp-script")) {
+      const s = document.createElement("script");
+      s.id = "rzp-script";
+      s.src = "https://checkout.razorpay.com/v1/checkout.js";
+      document.body.appendChild(s);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [courseId]);
 
@@ -86,12 +100,63 @@ export default function CourseDetailPage() {
     setSubmitting(false);
   }
 
-  function handleBuy() {
+  async function handleBuy() {
     if (!user) {
       router.push("/login");
       return;
     }
-    setShowBuy(true);
+    if (!course) return;
+    setPayMsg(null);
+    setPaying(true);
+    try {
+      // 1. Create order on backend (amount comes from DB — secure)
+      const res = await fetch(`${API_URL}/payments/course-order`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: user.id, course_id: courseId }),
+      });
+      const order = await res.json();
+      if (!res.ok) throw new Error(order.detail || "Could not start payment");
+
+      // 2. Open Razorpay checkout
+      if (!window.Razorpay) throw new Error("Payment system is loading, please try again");
+      const rzp = new window.Razorpay({
+        key: order.key_id,
+        amount: order.amount,
+        currency: order.currency,
+        name: "Selection Lab",
+        description: order.title,
+        order_id: order.order_id,
+        prefill: { name: user.name || "", email: user.email || "", contact: user.phone || "" },
+        theme: { color: GOLD },
+        handler: async (resp: any) => {
+          // 3. Verify on backend → unlocks course
+          try {
+            const vres = await fetch(`${API_URL}/payments/verify-course`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                user_id: user.id,
+                course_id: courseId,
+                razorpay_order_id: resp.razorpay_order_id,
+                razorpay_payment_id: resp.razorpay_payment_id,
+                razorpay_signature: resp.razorpay_signature,
+              }),
+            });
+            const vdata = await vres.json();
+            if (!vres.ok) throw new Error(vdata.detail || "Verification failed");
+            setPayMsg({ ok: true, text: "🎉 Payment successful! Course unlocked — open the Selection Lab app to start learning." });
+          } catch (e: any) {
+            setPayMsg({ ok: false, text: e.message || "Payment verification failed. Contact support with your payment ID." });
+          }
+        },
+        modal: { ondismiss: () => setPaying(false) },
+      });
+      rzp.open();
+    } catch (e: any) {
+      setPayMsg({ ok: false, text: e.message || "Could not start payment" });
+    }
+    setPaying(false);
   }
 
   if (loading) {
@@ -306,15 +371,15 @@ export default function CourseDetailPage() {
             </>
           )}
         </div>
-        <button onClick={handleBuy} style={{ ...goldBtn, padding: "13px 28px", fontSize: 15 }}>
-          {price === 0 ? "Enroll Free" : "Buy Now"}
+        <button onClick={handleBuy} disabled={paying} style={{ ...goldBtn, padding: "13px 28px", fontSize: 15, opacity: paying ? 0.6 : 1 }}>
+          {paying ? "Opening..." : price === 0 ? "Enroll Free" : "Buy Now"}
         </button>
       </div>
 
-      {/* Buy modal (interim till web payments go live) */}
-      {showBuy && (
+      {/* Payment result modal */}
+      {payMsg && (
         <div
-          onClick={() => setShowBuy(false)}
+          onClick={() => setPayMsg(null)}
           style={{
             position: "fixed",
             inset: 0,
@@ -328,23 +393,22 @@ export default function CourseDetailPage() {
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 16, padding: 22, maxWidth: 360, width: "100%", textAlign: "center" }}
+            style={{ background: CARD, border: `1px solid ${payMsg.ok ? "rgba(93,217,124,0.5)" : "rgba(255,107,107,0.5)"}`, borderRadius: 16, padding: 22, maxWidth: 360, width: "100%", textAlign: "center" }}
           >
-            <div style={{ fontSize: 34 }}>📱</div>
-            <h3 style={{ margin: "10px 0 6px", fontSize: 17 }}>Complete purchase in the app</h3>
-            <p style={{ color: "#9a917f", fontSize: 13.5, lineHeight: 1.5, margin: "0 0 16px" }}>
-              Web payments are coming soon. For now, purchase this course securely in the Selection Lab app.
+            <div style={{ fontSize: 34 }}>{payMsg.ok ? "✅" : "⚠️"}</div>
+            <p style={{ color: payMsg.ok ? "#5dd97c" : "#ff8a8a", fontSize: 14.5, lineHeight: 1.6, margin: "12px 0 16px" }}>
+              {payMsg.text}
             </p>
-            {course.whatsapp_support && (
+            {!payMsg.ok && course.whatsapp_support && (
               <a
                 href={course.whatsapp_support}
                 target="_blank"
                 style={{ ...goldBtn, display: "block", textDecoration: "none", marginBottom: 10 }}
               >
-                Chat on WhatsApp
+                Contact support on WhatsApp
               </a>
             )}
-            <button onClick={() => setShowBuy(false)} style={{ ...ghostBtn, width: "100%" }}>
+            <button onClick={() => setPayMsg(null)} style={{ ...ghostBtn, width: "100%" }}>
               Close
             </button>
           </div>
@@ -419,3 +483,4 @@ const ghostBtn: React.CSSProperties = {
   fontSize: 13,
   cursor: "pointer",
 };
+          
