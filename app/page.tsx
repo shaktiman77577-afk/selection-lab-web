@@ -24,7 +24,7 @@ const CATEGORIES = [
   { icon: "🎬", label: "Videos" },
   { icon: "📄", label: "PYQs" },
   { icon: "❓", label: "Free Quiz" },
-  { icon: "🏆", label: "Leaderboard" },
+  { icon: "🎯", label: "My Learning" },
 ];
 
 export default function HomePage() {
@@ -235,7 +235,7 @@ export default function HomePage() {
           {CATEGORIES.map((cat) => (
             <div
               key={cat.label}
-              onClick={() => requireLogin()}
+              onClick={() => (cat.label === "My Learning" ? requireLogin("/my-learning") : requireLogin())}
               style={{
                 background: CARD,
                 border: `1px solid ${BORDER}`,
@@ -355,4 +355,4 @@ const footLink: React.CSSProperties = {
   fontSize: 13,
   textDecoration: "none",
 };
-    
+          
