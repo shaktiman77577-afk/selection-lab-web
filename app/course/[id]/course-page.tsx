@@ -1,0 +1,421 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { API_URL } from "@/lib/config";
+import { getUser, User } from "@/lib/api";
+import { getCourses, Course, courseTitle, courseImage } from "@/lib/supabase";
+
+const GOLD = "#FFAB00";
+const BG = "#0d0b08";
+const CARD = "#16130e";
+const BORDER = "rgba(255,171,0,0.25)";
+
+export default function CourseDetailPage() {
+  const params = useParams();
+  const router = useRouter();
+  const courseId = Number(params.id);
+
+  const [course, setCourse] = useState<Course | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<User | null>(null);
+  const [coupons, setCoupons] = useState<any[]>([]);
+  const [reviews, setReviews] = useState<any[]>([]);
+  const [avg, setAvg] = useState(0);
+  const [myRating, setMyRating] = useState(0);
+  const [myReview, setMyReview] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [submitMsg, setSubmitMsg] = useState("");
+  const [showBuy, setShowBuy] = useState(false);
+
+  useEffect(() => {
+    setUser(getUser());
+    getCourses().then((all) => {
+      setCourse(all.find((c) => c.id === courseId) || null);
+      setLoading(false);
+    });
+    fetch(`${API_URL}/coupons/public`)
+      .then((r) => r.json())
+      .then((d) => setCoupons(d.coupons || []))
+      .catch(() => {});
+    loadReviews();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [courseId]);
+
+  function loadReviews() {
+    fetch(`${API_URL}/reviews/${courseId}`)
+      .then((r) => r.json())
+      .then((d) => {
+        setReviews(d.reviews || []);
+        setAvg(d.average || 0);
+      })
+      .catch(() => {});
+  }
+
+  async function submitReview() {
+    if (!user) {
+      router.push("/login");
+      return;
+    }
+    if (!myRating) {
+      setSubmitMsg("Please select a star rating");
+      return;
+    }
+    setSubmitting(true);
+    setSubmitMsg("");
+    try {
+      const res = await fetch(`${API_URL}/reviews/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          course_id: courseId,
+          user_id: user.id,
+          user_name: user.name || "Student",
+          rating: myRating,
+          review: myReview || null,
+        }),
+      });
+      if (!res.ok) throw new Error("Failed to submit");
+      setSubmitMsg("Thank you! Your review has been posted.");
+      setMyReview("");
+      setMyRating(0);
+      loadReviews();
+    } catch {
+      setSubmitMsg("Could not submit review. Please try again.");
+    }
+    setSubmitting(false);
+  }
+
+  function handleBuy() {
+    if (!user) {
+      router.push("/login");
+      return;
+    }
+    setShowBuy(true);
+  }
+
+  if (loading) {
+    return (
+      <Shell>
+        <p style={{ color: "#8d8371", padding: 20 }}>Loading course...</p>
+      </Shell>
+    );
+  }
+
+  if (!course) {
+    return (
+      <Shell>
+        <div style={{ padding: 20, textAlign: "center" }}>
+          <p style={{ color: "#8d8371" }}>Course not found.</p>
+          <button onClick={() => router.push("/")} style={goldBtn}>
+            Back to home
+          </button>
+        </div>
+      </Shell>
+    );
+  }
+
+  const price = Number(course.price) || 0;
+  const original = Number(course.original_price) || 0;
+  const discountPct = original > price && original > 0 ? Math.round(((original - price) / original) * 100) : 0;
+  const features = (course.features || "")
+    .split(",")
+    .map((f: string) => f.trim())
+    .filter(Boolean);
+
+  return (
+    <Shell>
+      {/* Thumbnail */}
+      {courseImage(course) && (
+        <img
+          src={courseImage(course)}
+          alt={courseTitle(course)}
+          style={{ width: "100%", maxHeight: 220, objectFit: "cover" }}
+        />
+      )}
+
+      <div style={{ padding: 16 }}>
+        {/* Title + rating */}
+        <h1 style={{ fontSize: 22, fontWeight: 800, margin: 0, lineHeight: 1.3 }}>{courseTitle(course)}</h1>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8, flexWrap: "wrap" }}>
+          {avg > 0 && (
+            <span style={{ color: GOLD, fontWeight: 800, fontSize: 14 }}>
+              ★ {avg} <span style={{ color: "#9a917f", fontWeight: 600 }}>({reviews.length})</span>
+            </span>
+          )}
+          {course.course_type && (
+            <span style={{ fontSize: 11, color: "#9a917f", border: `1px solid ${BORDER}`, borderRadius: 6, padding: "2px 8px" }}>
+              {course.course_type}
+            </span>
+          )}
+        </div>
+
+        {/* Social proof */}
+        {Number(course.recent_buyers) > 0 && (
+          <div style={{ marginTop: 10, fontSize: 13.5, color: "#ff9c5b", fontWeight: 700 }}>
+            🔥 {course.recent_buyers} people recently purchased this course
+          </div>
+        )}
+
+        {/* Price */}
+        <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginTop: 14 }}>
+          {price === 0 ? (
+            <span style={{ color: "#5dd97c", fontWeight: 800, fontSize: 26 }}>FREE</span>
+          ) : (
+            <>
+              <span style={{ color: GOLD, fontWeight: 800, fontSize: 26 }}>₹{price}</span>
+              {original > price && (
+                <>
+                  <span style={{ color: "#7d7461", textDecoration: "line-through", fontSize: 16 }}>₹{original}</span>
+                  <span style={{ color: "#5dd97c", fontWeight: 800, fontSize: 14 }}>{discountPct}% OFF</span>
+                </>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Universal coupon banner */}
+        {coupons.length > 0 && price > 0 && (
+          <div
+            style={{
+              marginTop: 14,
+              border: `1px dashed ${GOLD}`,
+              borderRadius: 12,
+              padding: "12px 14px",
+              background: "rgba(255,171,0,0.07)",
+            }}
+          >
+            {coupons.map((cp) => (
+              <div key={cp.code} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13.5 }}>
+                <span>🎟️</span>
+                <span>
+                  Use code <b style={{ color: GOLD, letterSpacing: 1 }}>{cp.code}</b> for{" "}
+                  <b>{cp.discount_type === "percent" ? `${cp.discount_value}% off` : `₹${cp.discount_value} off`}</b>
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Description */}
+        {course.description && (
+          <p style={{ color: "#cfc6b3", fontSize: 14.5, lineHeight: 1.6, marginTop: 16 }}>{course.description}</p>
+        )}
+
+        {/* Features */}
+        {features.length > 0 && (
+          <div style={{ marginTop: 16 }}>
+            <h2 style={sectionTitle}>What you get</h2>
+            {features.map((f: string) => (
+              <div key={f} style={{ display: "flex", gap: 8, fontSize: 14, color: "#e0dacb", marginBottom: 8 }}>
+                <span style={{ color: "#5dd97c" }}>✔</span> {f}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Reviews */}
+        <div style={{ marginTop: 22 }}>
+          <h2 style={sectionTitle}>Student Reviews</h2>
+
+          {/* Write review */}
+          <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 14, padding: 14, marginBottom: 14 }}>
+            <div style={{ fontSize: 13.5, color: "#9a917f", marginBottom: 8 }}>
+              {user ? "Rate this course" : "Sign in to write a review"}
+            </div>
+            <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+              {[1, 2, 3, 4, 5].map((s) => (
+                <span
+                  key={s}
+                  onClick={() => user && setMyRating(s)}
+                  style={{
+                    fontSize: 26,
+                    cursor: user ? "pointer" : "default",
+                    color: s <= myRating ? GOLD : "#4a4436",
+                  }}
+                >
+                  ★
+                </span>
+              ))}
+            </div>
+            {user && (
+              <>
+                <textarea
+                  placeholder="Share your experience (optional)"
+                  value={myReview}
+                  onChange={(e) => setMyReview(e.target.value)}
+                  style={{ ...inputStyle, minHeight: 60 }}
+                />
+                <button onClick={submitReview} disabled={submitting} style={{ ...goldBtn, width: "100%" }}>
+                  {submitting ? "Posting..." : "Post review"}
+                </button>
+              </>
+            )}
+            {!user && (
+              <button onClick={() => router.push("/login")} style={{ ...goldBtn, width: "100%" }}>
+                Sign in
+              </button>
+            )}
+            {submitMsg && <p style={{ fontSize: 13, color: submitMsg.startsWith("Thank") ? "#5dd97c" : "#ff6b6b", marginTop: 10 }}>{submitMsg}</p>}
+          </div>
+
+          {/* Review list */}
+          {reviews.length === 0 && <p style={{ color: "#8d8371", fontSize: 13.5 }}>No reviews yet. Be the first!</p>}
+          {reviews.map((r) => (
+            <div key={r.id} style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 14, padding: 12, marginBottom: 10 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontWeight: 700, fontSize: 14 }}>{r.user_name || "Student"}</span>
+                <span style={{ color: GOLD, fontSize: 13 }}>
+                  {"★".repeat(r.rating)}
+                  <span style={{ color: "#4a4436" }}>{"★".repeat(5 - r.rating)}</span>
+                </span>
+              </div>
+              {r.review && <p style={{ fontSize: 13.5, color: "#cfc6b3", margin: "6px 0 0", lineHeight: 1.5 }}>{r.review}</p>}
+            </div>
+          ))}
+        </div>
+
+        <div style={{ height: 90 }} />
+      </div>
+
+      {/* Sticky Buy bar */}
+      <div
+        style={{
+          position: "fixed",
+          bottom: 0,
+          left: 0,
+          right: 0,
+          padding: "12px 16px",
+          background: "rgba(13,11,8,0.97)",
+          borderTop: `1px solid ${BORDER}`,
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          zIndex: 20,
+        }}
+      >
+        <div style={{ flex: 1 }}>
+          {price === 0 ? (
+            <span style={{ color: "#5dd97c", fontWeight: 800, fontSize: 18 }}>FREE</span>
+          ) : (
+            <>
+              <span style={{ color: GOLD, fontWeight: 800, fontSize: 18 }}>₹{price}</span>
+              {original > price && (
+                <span style={{ color: "#7d7461", textDecoration: "line-through", fontSize: 13, marginLeft: 6 }}>₹{original}</span>
+              )}
+            </>
+          )}
+        </div>
+        <button onClick={handleBuy} style={{ ...goldBtn, padding: "13px 28px", fontSize: 15 }}>
+          {price === 0 ? "Enroll Free" : "Buy Now"}
+        </button>
+      </div>
+
+      {/* Buy modal (interim till web payments go live) */}
+      {showBuy && (
+        <div
+          onClick={() => setShowBuy(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.7)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 30,
+            padding: 20,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 16, padding: 22, maxWidth: 360, width: "100%", textAlign: "center" }}
+          >
+            <div style={{ fontSize: 34 }}>📱</div>
+            <h3 style={{ margin: "10px 0 6px", fontSize: 17 }}>Complete purchase in the app</h3>
+            <p style={{ color: "#9a917f", fontSize: 13.5, lineHeight: 1.5, margin: "0 0 16px" }}>
+              Web payments are coming soon. For now, purchase this course securely in the Selection Lab app.
+            </p>
+            {course.whatsapp_support && (
+              <a
+                href={course.whatsapp_support}
+                target="_blank"
+                style={{ ...goldBtn, display: "block", textDecoration: "none", marginBottom: 10 }}
+              >
+                Chat on WhatsApp
+              </a>
+            )}
+            <button onClick={() => setShowBuy(false)} style={{ ...ghostBtn, width: "100%" }}>
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+    </Shell>
+  );
+}
+
+function Shell({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
+  return (
+    <div style={{ minHeight: "100vh", background: BG, color: "#fff" }}>
+      <header
+        style={{
+          position: "sticky",
+          top: 0,
+          zIndex: 10,
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          padding: "10px 16px",
+          background: "rgba(13,11,8,0.95)",
+          borderBottom: `1px solid ${BORDER}`,
+          backdropFilter: "blur(8px)",
+        }}
+      >
+        <button onClick={() => router.push("/")} style={{ ...ghostBtn, padding: "7px 12px" }}>
+          ←
+        </button>
+        <div style={{ fontWeight: 800, fontSize: 16 }}>
+          Selection <span style={{ color: GOLD }}>Lab</span>
+        </div>
+      </header>
+      {children}
+    </div>
+  );
+}
+
+const sectionTitle: React.CSSProperties = { fontSize: 17, fontWeight: 800, margin: "0 0 12px" };
+
+const inputStyle: React.CSSProperties = {
+  width: "100%",
+  padding: "12px",
+  borderRadius: 10,
+  border: "1px solid rgba(255,255,255,0.18)",
+  background: "rgba(0,0,0,0.4)",
+  color: "#fff",
+  fontSize: 14,
+  marginBottom: 12,
+  boxSizing: "border-box",
+};
+
+const goldBtn: React.CSSProperties = {
+  background: GOLD,
+  color: "#1a1a1a",
+  border: "none",
+  borderRadius: 10,
+  padding: "12px 18px",
+  fontWeight: 800,
+  fontSize: 14,
+  cursor: "pointer",
+};
+
+const ghostBtn: React.CSSProperties = {
+  background: "transparent",
+  color: "#fff",
+  border: `1px solid ${BORDER}`,
+  borderRadius: 10,
+  padding: "9px 14px",
+  fontWeight: 700,
+  fontSize: 13,
+  cursor: "pointer",
+};
