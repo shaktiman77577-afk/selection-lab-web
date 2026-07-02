@@ -78,9 +78,14 @@ export default function HomePage() {
           <div style={{ fontSize: 11, color: "#9a917f" }}>Govt. Exam Preparation</div>
         </div>
         {user ? (
-          <button onClick={() => logoutAndRefresh()} style={ghostBtn}>
-            {firstName(user)} ▾
-          </button>
+          <>
+            <button onClick={() => router.push("/my-learning")} style={{ ...goldBtn, padding: "9px 14px", fontSize: 13 }}>
+              My Learning
+            </button>
+            <button onClick={() => logoutAndRefresh()} style={ghostBtn}>
+              {firstName(user)} ▾
+            </button>
+          </>
         ) : (
           <button onClick={() => router.push("/login")} style={goldBtn}>
             Login
@@ -350,3 +355,4 @@ const footLink: React.CSSProperties = {
   fontSize: 13,
   textDecoration: "none",
 };
+    
