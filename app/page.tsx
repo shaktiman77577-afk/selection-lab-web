@@ -23,7 +23,7 @@ const CATEGORIES = [
   { icon: "📝", label: "Mock Tests" },
   { icon: "🎬", label: "Videos" },
   { icon: "📄", label: "PYQs" },
-  { icon: "❓", label: "Free Quiz" },
+  { icon: "📱", label: "Quiz (In App)" },
   { icon: "🎯", label: "My Learning" },
 ];
 
@@ -290,12 +290,18 @@ export default function HomePage() {
         <div style={{ fontWeight: 800, fontSize: 16 }}>
           Selection <span style={{ color: GOLD }}>Lab</span>
         </div>
-        <div style={{ marginTop: 10, display: "flex", justifyContent: "center", gap: 16 }}>
+        <div style={{ marginTop: 10, display: "flex", justifyContent: "center", gap: 16, flexWrap: "wrap" }}>
           <a href="https://t.me/Selection_Lab" target="_blank" style={footLink}>
             Telegram
           </a>
           <a href="https://t.me/englishbynikki07" target="_blank" style={footLink}>
             English by Nikki
+          </a>
+          <a href="/privacy" style={footLink}>
+            Privacy Policy
+          </a>
+          <a href="/terms" style={footLink}>
+            Terms
           </a>
         </div>
         <p style={{ color: "#7d7461", fontSize: 12, marginTop: 12 }}>
@@ -355,4 +361,4 @@ const footLink: React.CSSProperties = {
   fontSize: 13,
   textDecoration: "none",
 };
-          
+                        
