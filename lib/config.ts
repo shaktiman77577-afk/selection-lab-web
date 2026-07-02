@@ -1,7 +1,9 @@
-// API + app config
+// ── Selection Lab web config ──
+
 export const API_URL = "https://api.selectionlab.online/api";
 
 export const COLORS = {
   primary: "#FFAB00",
-  primaryDark: "#FF8E00",
+  bgDark: "#0d0b08",
+  card: "#14120d",
 };
