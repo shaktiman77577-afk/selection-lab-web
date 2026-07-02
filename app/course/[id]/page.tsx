@@ -34,9 +34,20 @@ export default function CourseDetailPage() {
   const [submitMsg, setSubmitMsg] = useState("");
   const [paying, setPaying] = useState(false);
   const [payMsg, setPayMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [owned, setOwned] = useState(false);
 
   useEffect(() => {
-    setUser(getUser());
+    const u = getUser();
+    setUser(u);
+    if (u) {
+      fetch(`${API_URL}/courses/my/${u.id}`)
+        .then((r) => r.json())
+        .then((d) => {
+          const ids = (d.courses || []).map((c: any) => c.id);
+          setOwned(ids.includes(courseId));
+        })
+        .catch(() => {});
+    }
     getCourses().then((all) => {
       setCourse(all.find((c) => c.id === courseId) || null);
       setLoading(false);
@@ -106,7 +117,33 @@ export default function CourseDetailPage() {
       return;
     }
     if (!course) return;
+    if (owned) {
+      router.push("/my-learning");
+      return;
+    }
     setPayMsg(null);
+
+    // Free course → direct enrollment
+    const coursePrice = Number(course.price) || 0;
+    if (coursePrice === 0) {
+      setPaying(true);
+      try {
+        const res = await fetch(`${API_URL}/courses/enroll-free`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ user_id: user.id, course_id: courseId }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || "Enrollment failed");
+        setOwned(true);
+        setPayMsg({ ok: true, text: "🎉 Enrolled! Find this course in My Learning and in the Selection Lab app." });
+      } catch (e: any) {
+        setPayMsg({ ok: false, text: e.message || "Enrollment failed" });
+      }
+      setPaying(false);
+      return;
+    }
+
     setPaying(true);
     try {
       // 1. Create order on backend (amount comes from DB — secure)
@@ -145,6 +182,7 @@ export default function CourseDetailPage() {
             });
             const vdata = await vres.json();
             if (!vres.ok) throw new Error(vdata.detail || "Verification failed");
+            setOwned(true);
             setPayMsg({ ok: true, text: "🎉 Payment successful! Course unlocked — open the Selection Lab app to start learning." });
           } catch (e: any) {
             setPayMsg({ ok: false, text: e.message || "Payment verification failed. Contact support with your payment ID." });
@@ -371,8 +409,8 @@ export default function CourseDetailPage() {
             </>
           )}
         </div>
-        <button onClick={handleBuy} disabled={paying} style={{ ...goldBtn, padding: "13px 28px", fontSize: 15, opacity: paying ? 0.6 : 1 }}>
-          {paying ? "Opening..." : price === 0 ? "Enroll Free" : "Buy Now"}
+        <button onClick={handleBuy} disabled={paying} style={{ ...goldBtn, padding: "13px 28px", fontSize: 15, opacity: paying ? 0.6 : 1, background: owned ? "#2e8b4a" : GOLD, color: owned ? "#fff" : "#1a1a1a" }}>
+          {paying ? "Please wait..." : owned ? "✓ Enrolled — My Learning" : price === 0 ? "Enroll Free" : "Buy Now"}
         </button>
       </div>
 
@@ -483,4 +521,4 @@ const ghostBtn: React.CSSProperties = {
   fontSize: 13,
   cursor: "pointer",
 };
-          
+                    
