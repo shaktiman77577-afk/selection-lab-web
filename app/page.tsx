@@ -1,321 +1,348 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { signInWithGoogle } from "@/lib/firebase";
-import { syncGoogleUser, loginEmail, saveUser } from "@/lib/api";
+import { getUser, logout, User } from "@/lib/api";
+import {
+  getCourses,
+  getBanners,
+  Course,
+  Banner,
+  courseTitle,
+  courseImage,
+  bannerImage,
+} from "@/lib/supabase";
 
 const GOLD = "#FFAB00";
+const BG = "#0d0b08";
+const CARD = "#16130e";
+const BORDER = "rgba(255,171,0,0.25)";
 
-export default function LoginPage() {
+const CATEGORIES = [
+  { icon: "📚", label: "Free Courses" },
+  { icon: "📝", label: "Mock Tests" },
+  { icon: "🎬", label: "Videos" },
+  { icon: "📄", label: "PYQs" },
+  { icon: "❓", label: "Free Quiz" },
+  { icon: "🏆", label: "Leaderboard" },
+];
+
+export default function HomePage() {
   const router = useRouter();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [showEmail, setShowEmail] = useState(false);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [user, setUser] = useState<User | null>(null);
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [banners, setBanners] = useState<Banner[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  function routeAfterAuth(user: any) {
-    saveUser(user);
-    if (user?.profile_completed === false) router.push("/profile-setup");
-    else router.push("/home");
-  }
-
-  async function handleGoogle() {
-    setError("");
-    setLoading(true);
-    try {
-      const g = await signInWithGoogle();
-      const res = await syncGoogleUser(g.googleId, g.email, g.name);
-      if (!res.success || !res.user) {
-        setError(res.detail || "Google login failed");
-        setLoading(false);
-        return;
-      }
-      routeAfterAuth(res.user);
-    } catch (e: any) {
-      setError(e?.message || "Google sign-in cancelled");
+  useEffect(() => {
+    setUser(getUser());
+    Promise.all([getCourses(), getBanners()]).then(([c, b]) => {
+      setCourses(c);
+      setBanners(b);
       setLoading(false);
-    }
-  }
+    });
+  }, []);
 
-  async function handleEmailLogin() {
-    setError("");
-    if (!email || !password) {
-      setError("Email aur password dono daalein");
-      return;
-    }
-    setLoading(true);
-    const res = await loginEmail(email, password);
-    if (!res.success || !res.user) {
-      setError(res.detail || "Login failed");
-      setLoading(false);
-      return;
-    }
-    routeAfterAuth(res.user);
+  function requireLogin(path?: string) {
+    if (!user) router.push("/login");
+    else if (path) router.push(path);
   }
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        width: "100%",
-        position: "relative",
-        display: "flex",
-        flexDirection: "column",
-        backgroundImage: "url('/library_bg.jpg')",
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        backgroundColor: "#0d0b08",
-        overflow: "hidden",
-      }}
-    >
-      {/* Dark overlay */}
-      <div
+    <div style={{ minHeight: "100vh", background: BG, color: "#fff", fontFamily: "inherit" }}>
+      {/* ── Header ── */}
+      <header
         style={{
-          position: "absolute",
-          inset: 0,
-          background:
-            "linear-gradient(180deg, rgba(13,11,8,0.55) 0%, rgba(13,11,8,0.30) 35%, rgba(13,11,8,0.90) 100%)",
-        }}
-      />
-
-      {/* Nikki Ma'am foreground (transparent PNG) */}
-      <img
-        src="/nikki_maam.png"
-        alt=""
-        style={{
-          position: "absolute",
-          bottom: 300,
-          left: "50%",
-          transform: "translateX(-50%)",
-          width: 260,
-          maxWidth: "70%",
-          objectFit: "contain",
-          zIndex: 1,
-          pointerEvents: "none",
-        }}
-        onError={(e) => {
-          (e.target as HTMLImageElement).style.display = "none";
-        }}
-      />
-
-      {/* Content */}
-      <div
-        style={{
-          position: "relative",
-          zIndex: 2,
-          flex: 1,
+          position: "sticky",
+          top: 0,
+          zIndex: 10,
           display: "flex",
-          flexDirection: "column",
           alignItems: "center",
-          padding: "0 20px",
-          color: "#fff",
+          gap: 10,
+          padding: "10px 16px",
+          background: "rgba(13,11,8,0.95)",
+          borderBottom: `1px solid ${BORDER}`,
+          backdropFilter: "blur(8px)",
         }}
       >
-        {/* Trusted badge top-right */}
-        <div
-          style={{
-            alignSelf: "flex-end",
-            marginTop: 20,
-            border: `1px solid ${GOLD}`,
-            borderRadius: 12,
-            padding: "8px 12px",
-            fontSize: 12,
-            fontWeight: 600,
-            textAlign: "center",
-            background: "rgba(0,0,0,0.35)",
-          }}
-        >
-          <span style={{ color: GOLD }}>✔</span> Trusted by
-          <br />
-          Aspirants
-        </div>
-
-        {/* Logo */}
         <img
           src="/logo.png"
           alt="Selection Lab"
-          style={{ width: 130, height: 130, objectFit: "contain", marginTop: 24 }}
-          onError={(e) => {
-            (e.target as HTMLImageElement).style.display = "none";
-          }}
+          style={{ width: 42, height: 42, objectFit: "contain" }}
+          onError={(e) => ((e.target as HTMLImageElement).style.display = "none")}
         />
+        <div style={{ flex: 1 }}>
+          <div style={{ fontWeight: 800, fontSize: 17, lineHeight: 1.1 }}>
+            Selection <span style={{ color: GOLD }}>Lab</span>
+          </div>
+          <div style={{ fontSize: 11, color: "#9a917f" }}>Govt. Exam Preparation</div>
+        </div>
+        {user ? (
+          <button onClick={() => logoutAndRefresh()} style={ghostBtn}>
+            {firstName(user)} ▾
+          </button>
+        ) : (
+          <button onClick={() => router.push("/login")} style={goldBtn}>
+            Login
+          </button>
+        )}
+      </header>
 
-        {/* Welcome */}
-        <h1 style={{ fontSize: 38, fontWeight: 800, margin: "16px 0 0", letterSpacing: 1 }}>
-          WELCOME <span style={{ color: GOLD }}>BACK!</span>
-        </h1>
-        <p
-          style={{
-            color: "#dcdcdc",
-            fontSize: 19,
-            textAlign: "center",
-            margin: "8px 0 0",
-            lineHeight: 1.3,
-          }}
-        >
-          Sign in to continue your
-          <br />
-          learning journey
-        </p>
-
-        {/* Spacer */}
-        <div style={{ flex: 1, minHeight: 40 }} />
-
-        {/* Card */}
+      {/* ── Banners ── */}
+      {banners.length > 0 && (
         <div
           style={{
-            width: "100%",
-            maxWidth: 440,
-            background: "rgba(18,16,13,0.94)",
-            border: `1px solid rgba(255,171,0,0.35)`,
-            borderRadius: 24,
-            padding: "26px 22px",
-            marginBottom: 24,
-            backdropFilter: "blur(6px)",
+            display: "flex",
+            gap: 12,
+            overflowX: "auto",
+            padding: "16px 16px 4px",
+            scrollSnapType: "x mandatory",
           }}
         >
-          <p
-            style={{
-              textAlign: "center",
-              fontWeight: 700,
-              fontSize: 19,
-              margin: "0 0 18px",
-            }}
-          >
-            Sign in with
-          </p>
+          {banners.map((b) => (
+            <img
+              key={b.id}
+              src={bannerImage(b)}
+              alt={b.title || "Banner"}
+              style={{
+                height: 150,
+                borderRadius: 14,
+                border: `1px solid ${BORDER}`,
+                scrollSnapAlign: "start",
+                flexShrink: 0,
+                maxWidth: "88%",
+                objectFit: "cover",
+              }}
+            />
+          ))}
+        </div>
+      )}
 
-          {/* Google button */}
-          <button
-            onClick={handleGoogle}
-            disabled={loading}
+      {/* ── Hero (shown when no banners yet) ── */}
+      {!loading && banners.length === 0 && (
+        <div
+          style={{
+            margin: 16,
+            padding: "26px 20px",
+            borderRadius: 16,
+            border: `1px solid ${BORDER}`,
+            background: `linear-gradient(135deg, ${CARD} 0%, #1d180f 100%)`,
+          }}
+        >
+          <div style={{ fontSize: 24, fontWeight: 800, lineHeight: 1.25 }}>
+            Crack your <span style={{ color: GOLD }}>Government Exam</span>
+          </div>
+          <p style={{ color: "#b5ab97", fontSize: 14, margin: "8px 0 0" }}>
+            Courses, mock tests, PYQs and daily quizzes — built for serious aspirants.
+          </p>
+        </div>
+      )}
+
+      {/* ── Popular Courses ── */}
+      <Section title="Popular Courses">
+        {loading ? (
+          <p style={mutedText}>Loading courses...</p>
+        ) : courses.length === 0 ? (
+          <p style={mutedText}>Courses will appear here soon.</p>
+        ) : (
+          <div
             style={{
-              width: "100%",
-              padding: "16px",
-              borderRadius: 14,
-              border: "none",
-              background: "#fff",
-              color: "#1a1a1a",
-              fontWeight: 700,
-              fontSize: 18,
-              cursor: loading ? "not-allowed" : "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
               gap: 12,
-              opacity: loading ? 0.6 : 1,
             }}
           >
-            <span style={{ color: "#4285F4", fontWeight: 800, fontSize: 22 }}>G</span>
-            {loading ? "Please wait..." : "Continue with Google"}
-          </button>
-
-          {/* OR divider */}
-          <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "20px 0" }}>
-            <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.2)" }} />
-            <span style={{ color: "#999", fontSize: 13, fontWeight: 600 }}>OR</span>
-            <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.2)" }} />
-          </div>
-
-          {/* Trust badges */}
-          <div style={{ display: "flex", justifyContent: "space-around" }}>
-            {[
-              { icon: "🛡", label: "Secure\n& Safe" },
-              { icon: "👥", label: "Easy\n& Fast" },
-              { icon: "🎖", label: "Trusted by\nAspirants" },
-            ].map((b, i) => (
-              <div key={i} style={{ textAlign: "center", flex: 1 }}>
-                <div
-                  style={{
-                    width: 54,
-                    height: 54,
-                    borderRadius: "50%",
-                    border: `2px solid ${GOLD}`,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: 22,
-                    margin: "0 auto 8px",
-                  }}
-                >
-                  {b.icon}
-                </div>
-                <div style={{ fontSize: 13, color: "#ccc", whiteSpace: "pre-line" }}>{b.label}</div>
-              </div>
-            ))}
-          </div>
-
-          {/* Email login toggle */}
-          <p
-            onClick={() => setShowEmail(!showEmail)}
-            style={{ textAlign: "center", color: GOLD, fontSize: 13, marginTop: 18, cursor: "pointer" }}
-          >
-            {showEmail ? "Chhupayein" : "Email se login karein"}
-          </p>
-
-          {showEmail && (
-            <div style={{ marginTop: 12 }}>
-              <input
-                type="email"
-                placeholder="Email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                style={inputStyle}
-              />
-              <input
-                type="password"
-                placeholder="Password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                style={inputStyle}
-              />
-              <button
-                onClick={handleEmailLogin}
-                disabled={loading}
+            {courses.map((c) => (
+              <div
+                key={c.id}
+                onClick={() => requireLogin(`/course/${c.id}`)}
                 style={{
-                  width: "100%",
-                  padding: "14px",
-                  borderRadius: 12,
-                  border: "none",
-                  background: GOLD,
-                  color: "#1a1a1a",
-                  fontWeight: 700,
-                  fontSize: 16,
+                  background: CARD,
+                  border: `1px solid ${BORDER}`,
+                  borderRadius: 14,
+                  overflow: "hidden",
                   cursor: "pointer",
                 }}
               >
-                Login
-              </button>
+                {courseImage(c) ? (
+                  <img
+                    src={courseImage(c)}
+                    alt={courseTitle(c)}
+                    style={{ width: "100%", height: 96, objectFit: "cover" }}
+                  />
+                ) : (
+                  <div
+                    style={{
+                      width: "100%",
+                      height: 96,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: 30,
+                      background: "#1d180f",
+                    }}
+                  >
+                    📘
+                  </div>
+                )}
+                <div style={{ padding: "10px 10px 12px" }}>
+                  <div
+                    style={{
+                      fontSize: 13.5,
+                      fontWeight: 700,
+                      lineHeight: 1.3,
+                      minHeight: 35,
+                      overflow: "hidden",
+                    }}
+                  >
+                    {courseTitle(c)}
+                  </div>
+                  <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 6 }}>
+                    {c.is_free || c.price === 0 ? (
+                      <span style={{ color: "#5dd97c", fontWeight: 800, fontSize: 14 }}>FREE</span>
+                    ) : (
+                      <span style={{ color: GOLD, fontWeight: 800, fontSize: 14 }}>
+                        ₹{c.price ?? "--"}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Section>
+
+      {/* ── Categories ── */}
+      <Section title="Explore">
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(3, 1fr)",
+            gap: 12,
+          }}
+        >
+          {CATEGORIES.map((cat) => (
+            <div
+              key={cat.label}
+              onClick={() => requireLogin()}
+              style={{
+                background: CARD,
+                border: `1px solid ${BORDER}`,
+                borderRadius: 14,
+                padding: "16px 8px",
+                textAlign: "center",
+                cursor: "pointer",
+              }}
+            >
+              <div style={{ fontSize: 26 }}>{cat.icon}</div>
+              <div style={{ fontSize: 12.5, marginTop: 6, color: "#e8e2d5" }}>{cat.label}</div>
             </div>
-          )}
-
-          {error && (
-            <p style={{ color: "#ff6b6b", fontSize: 13, textAlign: "center", marginTop: 14 }}>{error}</p>
-          )}
-
-          {/* Terms */}
-          <p style={{ textAlign: "center", color: "#999", fontSize: 13, marginTop: 18, lineHeight: 1.5 }}>
-            By continuing, you agree to our
-            <br />
-            <span style={{ color: GOLD }}>Terms of Service</span> and{" "}
-            <span style={{ color: GOLD }}>Privacy Policy</span>
-          </p>
+          ))}
         </div>
-      </div>
+      </Section>
+
+      {/* ── Why Selection Lab ── */}
+      <Section title="Why Selection Lab">
+        <div style={{ display: "flex", gap: 12 }}>
+          {[
+            { icon: "🛡", label: "Secure & Safe" },
+            { icon: "👥", label: "Easy & Fast" },
+            { icon: "🎖", label: "Trusted by Aspirants" },
+          ].map((b) => (
+            <div
+              key={b.label}
+              style={{
+                flex: 1,
+                background: CARD,
+                border: `1px solid ${BORDER}`,
+                borderRadius: 14,
+                padding: "14px 8px",
+                textAlign: "center",
+              }}
+            >
+              <div style={{ fontSize: 22 }}>{b.icon}</div>
+              <div style={{ fontSize: 12, marginTop: 6, color: "#cfc6b3" }}>{b.label}</div>
+            </div>
+          ))}
+        </div>
+      </Section>
+
+      {/* ── Footer ── */}
+      <footer
+        style={{
+          marginTop: 28,
+          padding: "22px 16px 30px",
+          borderTop: `1px solid ${BORDER}`,
+          textAlign: "center",
+        }}
+      >
+        <div style={{ fontWeight: 800, fontSize: 16 }}>
+          Selection <span style={{ color: GOLD }}>Lab</span>
+        </div>
+        <div style={{ marginTop: 10, display: "flex", justifyContent: "center", gap: 16 }}>
+          <a href="https://t.me/Selection_Lab" target="_blank" style={footLink}>
+            Telegram
+          </a>
+          <a href="https://t.me/englishbynikki07" target="_blank" style={footLink}>
+            English by Nikki
+          </a>
+        </div>
+        <p style={{ color: "#7d7461", fontSize: 12, marginTop: 12 }}>
+          © {new Date().getFullYear()} Selection Lab. All rights reserved.
+        </p>
+      </footer>
     </div>
+  );
+
+  function logoutAndRefresh() {
+    logout();
+    setUser(null);
+  }
+}
+
+function firstName(u: User): string {
+  return (u.name || "Account").split(" ")[0];
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section style={{ padding: "18px 16px 4px" }}>
+      <h2 style={{ fontSize: 18, fontWeight: 800, margin: "0 0 12px" }}>
+        <span style={{ borderBottom: `3px solid ${GOLD}`, paddingBottom: 4 }}>{title}</span>
+      </h2>
+      {children}
+    </section>
   );
 }
 
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "13px",
-  borderRadius: 12,
-  border: "1px solid rgba(255,255,255,0.2)",
-  background: "rgba(0,0,0,0.4)",
-  color: "#fff",
-  fontSize: 15,
-  marginBottom: 12,
-  boxSizing: "border-box",
+const goldBtn: React.CSSProperties = {
+  background: GOLD,
+  color: "#1a1a1a",
+  border: "none",
+  borderRadius: 10,
+  padding: "9px 18px",
+  fontWeight: 800,
+  fontSize: 14,
+  cursor: "pointer",
 };
+
+const ghostBtn: React.CSSProperties = {
+  background: "transparent",
+  color: "#fff",
+  border: `1px solid ${BORDER}`,
+  borderRadius: 10,
+  padding: "9px 14px",
+  fontWeight: 700,
+  fontSize: 13,
+  cursor: "pointer",
+};
+
+const mutedText: React.CSSProperties = { color: "#8d8371", fontSize: 14 };
+
+const footLink: React.CSSProperties = {
+  color: "#FFAB00",
+  fontSize: 13,
+  textDecoration: "none",
+};
+      
