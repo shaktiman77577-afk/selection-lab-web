@@ -299,8 +299,8 @@ export default function LoginPage() {
           <p style={{ textAlign: "center", color: "#999", fontSize: 13, marginTop: 18, lineHeight: 1.5 }}>
             By continuing, you agree to our
             <br />
-            <span style={{ color: GOLD }}>Terms of Service</span> and{" "}
-            <span style={{ color: GOLD }}>Privacy Policy</span>
+            <a href="/terms" style={{ color: GOLD, textDecoration: "none" }}>Terms of Service</a> and{" "}
+            <a href="/privacy" style={{ color: GOLD, textDecoration: "none" }}>Privacy Policy</a>
           </p>
         </div>
       </div>
@@ -319,4 +319,4 @@ const inputStyle: React.CSSProperties = {
   marginBottom: 12,
   boxSizing: "border-box",
 };
-          
+    
