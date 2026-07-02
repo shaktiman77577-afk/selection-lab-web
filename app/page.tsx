@@ -1,210 +1,321 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { loginEmail, signupEmail, saveUser, getUser } from "@/lib/api";
+import { signInWithGoogle } from "@/lib/firebase";
+import { syncGoogleUser, loginEmail, saveUser } from "@/lib/api";
 
-export default function AuthPage() {
+const GOLD = "#FFAB00";
+
+export default function LoginPage() {
   const router = useRouter();
-  const [mode, setMode] = useState<"login" | "signup">("login");
-  const [dark, setDark] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  // form fields
-  const [name, setName] = useState("");
+  const [error, setError] = useState("");
+  const [showEmail, setShowEmail] = useState(false);
   const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
-  const [confirm, setConfirm] = useState("");
-  const [showPass, setShowPass] = useState(false);
 
-  // redirect if already logged in
-  useEffect(() => {
-    if (getUser()) router.push("/home");
-  }, [router]);
+  function routeAfterAuth(user: any) {
+    saveUser(user);
+    if (user?.profile_completed === false) router.push("/profile-setup");
+    else router.push("/home");
+  }
 
-  async function handleSubmit() {
-    setError(null);
-
-    if (mode === "signup") {
-      if (!name.trim()) return setError("Please enter your name");
-      if (phone.trim().length !== 10) return setError("Enter a valid 10-digit mobile number");
-      if (password.length < 6) return setError("Password must be at least 6 characters");
-      if (password !== confirm) return setError("Passwords do not match");
-    } else {
-      if (!email.trim()) return setError("Please enter your email");
-      if (!password) return setError("Please enter your password");
-    }
-
+  async function handleGoogle() {
+    setError("");
     setLoading(true);
-    const res =
-      mode === "login"
-        ? await loginEmail(email.trim(), password)
-        : await signupEmail(name.trim(), email.trim(), phone.trim(), password);
-    setLoading(false);
-
-    if (res.success && res.user) {
-      saveUser(res.user);
-      router.push("/home");
-    } else {
-      setError(res.detail || "Something went wrong");
+    try {
+      const g = await signInWithGoogle();
+      const res = await syncGoogleUser(g.googleId, g.email, g.name);
+      if (!res.success || !res.user) {
+        setError(res.detail || "Google login failed");
+        setLoading(false);
+        return;
+      }
+      routeAfterAuth(res.user);
+    } catch (e: any) {
+      setError(e?.message || "Google sign-in cancelled");
+      setLoading(false);
     }
   }
 
-  const bg = dark ? "#0A0A0A" : "#F5F6FA";
-  const cardBg = dark ? "#141414" : "#FFFFFF";
-  const textColor = dark ? "#FFFFFF" : "#1A1A1A";
-  const subText = dark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.5)";
-  const border = dark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)";
-  const inputBg = dark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.03)";
+  async function handleEmailLogin() {
+    setError("");
+    if (!email || !password) {
+      setError("Email aur password dono daalein");
+      return;
+    }
+    setLoading(true);
+    const res = await loginEmail(email, password);
+    if (!res.success || !res.user) {
+      setError(res.detail || "Login failed");
+      setLoading(false);
+      return;
+    }
+    routeAfterAuth(res.user);
+  }
 
   return (
     <div
-      style={{ minHeight: "100vh", background: bg, transition: "background 0.3s" }}
-      className="flex items-center justify-center p-4"
+      style={{
+        minHeight: "100vh",
+        width: "100%",
+        position: "relative",
+        display: "flex",
+        flexDirection: "column",
+        backgroundImage: "url('/library_bg.jpg')",
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        backgroundColor: "#0d0b08",
+        overflow: "hidden",
+      }}
     >
-      <div className="w-full max-w-md">
-        {/* Theme toggle */}
-        <div className="flex justify-end mb-3">
-          <button
-            onClick={() => setDark(!dark)}
-            style={{ background: cardBg, border: `1px solid ${border}`, color: textColor }}
-            className="w-10 h-10 rounded-full flex items-center justify-center text-lg"
-          >
-            {dark ? "☀️" : "🌙"}
-          </button>
+      {/* Dark overlay */}
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          background:
+            "linear-gradient(180deg, rgba(13,11,8,0.55) 0%, rgba(13,11,8,0.30) 35%, rgba(13,11,8,0.90) 100%)",
+        }}
+      />
+
+      {/* Nikki Ma'am foreground (transparent PNG) */}
+      <img
+        src="/nikki_maam.png"
+        alt=""
+        style={{
+          position: "absolute",
+          bottom: 300,
+          left: "50%",
+          transform: "translateX(-50%)",
+          width: 260,
+          maxWidth: "70%",
+          objectFit: "contain",
+          zIndex: 1,
+          pointerEvents: "none",
+        }}
+        onError={(e) => {
+          (e.target as HTMLImageElement).style.display = "none";
+        }}
+      />
+
+      {/* Content */}
+      <div
+        style={{
+          position: "relative",
+          zIndex: 2,
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          padding: "0 20px",
+          color: "#fff",
+        }}
+      >
+        {/* Trusted badge top-right */}
+        <div
+          style={{
+            alignSelf: "flex-end",
+            marginTop: 20,
+            border: `1px solid ${GOLD}`,
+            borderRadius: 12,
+            padding: "8px 12px",
+            fontSize: 12,
+            fontWeight: 600,
+            textAlign: "center",
+            background: "rgba(0,0,0,0.35)",
+          }}
+        >
+          <span style={{ color: GOLD }}>✔</span> Trusted by
+          <br />
+          Aspirants
         </div>
+
+        {/* Logo */}
+        <img
+          src="/logo.png"
+          alt="Selection Lab"
+          style={{ width: 130, height: 130, objectFit: "contain", marginTop: 24 }}
+          onError={(e) => {
+            (e.target as HTMLImageElement).style.display = "none";
+          }}
+        />
+
+        {/* Welcome */}
+        <h1 style={{ fontSize: 38, fontWeight: 800, margin: "16px 0 0", letterSpacing: 1 }}>
+          WELCOME <span style={{ color: GOLD }}>BACK!</span>
+        </h1>
+        <p
+          style={{
+            color: "#dcdcdc",
+            fontSize: 19,
+            textAlign: "center",
+            margin: "8px 0 0",
+            lineHeight: 1.3,
+          }}
+        >
+          Sign in to continue your
+          <br />
+          learning journey
+        </p>
+
+        {/* Spacer */}
+        <div style={{ flex: 1, minHeight: 40 }} />
 
         {/* Card */}
         <div
           style={{
-            background: cardBg,
-            border: `1px solid ${dark ? "rgba(255,171,0,0.2)" : border}`,
-            boxShadow: "0 20px 60px rgba(0,0,0,0.15)",
+            width: "100%",
+            maxWidth: 440,
+            background: "rgba(18,16,13,0.94)",
+            border: `1px solid rgba(255,171,0,0.35)`,
+            borderRadius: 24,
+            padding: "26px 22px",
+            marginBottom: 24,
+            backdropFilter: "blur(6px)",
           }}
-          className="rounded-3xl p-8"
         >
-          {/* Logo + title */}
-          <div className="text-center mb-6">
-            <div
-              style={{ background: "linear-gradient(135deg, #FFAB00, #FF8E00)" }}
-              className="w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center text-3xl font-black text-white"
-            >
-              SL
-            </div>
-            <h1 className="text-2xl font-black" style={{ color: textColor }}>
-              {mode === "login" ? "Welcome Back!" : "Create Account"}
-            </h1>
-            <p className="text-sm mt-1" style={{ color: subText }}>
-              {mode === "login"
-                ? "Sign in to continue learning"
-                : "Join Selection Lab today"}
-            </p>
+          <p
+            style={{
+              textAlign: "center",
+              fontWeight: 700,
+              fontSize: 19,
+              margin: "0 0 18px",
+            }}
+          >
+            Sign in with
+          </p>
+
+          {/* Google button */}
+          <button
+            onClick={handleGoogle}
+            disabled={loading}
+            style={{
+              width: "100%",
+              padding: "16px",
+              borderRadius: 14,
+              border: "none",
+              background: "#fff",
+              color: "#1a1a1a",
+              fontWeight: 700,
+              fontSize: 18,
+              cursor: loading ? "not-allowed" : "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 12,
+              opacity: loading ? 0.6 : 1,
+            }}
+          >
+            <span style={{ color: "#4285F4", fontWeight: 800, fontSize: 22 }}>G</span>
+            {loading ? "Please wait..." : "Continue with Google"}
+          </button>
+
+          {/* OR divider */}
+          <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "20px 0" }}>
+            <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.2)" }} />
+            <span style={{ color: "#999", fontSize: 13, fontWeight: 600 }}>OR</span>
+            <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.2)" }} />
           </div>
 
-          {/* Error */}
-          {error && (
-            <div className="mb-4 p-3 rounded-xl text-sm text-center" style={{ background: "rgba(255,0,0,0.1)", color: "#E53935" }}>
-              {error}
+          {/* Trust badges */}
+          <div style={{ display: "flex", justifyContent: "space-around" }}>
+            {[
+              { icon: "🛡", label: "Secure\n& Safe" },
+              { icon: "👥", label: "Easy\n& Fast" },
+              { icon: "🎖", label: "Trusted by\nAspirants" },
+            ].map((b, i) => (
+              <div key={i} style={{ textAlign: "center", flex: 1 }}>
+                <div
+                  style={{
+                    width: 54,
+                    height: 54,
+                    borderRadius: "50%",
+                    border: `2px solid ${GOLD}`,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 22,
+                    margin: "0 auto 8px",
+                  }}
+                >
+                  {b.icon}
+                </div>
+                <div style={{ fontSize: 13, color: "#ccc", whiteSpace: "pre-line" }}>{b.label}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Email login toggle */}
+          <p
+            onClick={() => setShowEmail(!showEmail)}
+            style={{ textAlign: "center", color: GOLD, fontSize: 13, marginTop: 18, cursor: "pointer" }}
+          >
+            {showEmail ? "Chhupayein" : "Email se login karein"}
+          </p>
+
+          {showEmail && (
+            <div style={{ marginTop: 12 }}>
+              <input
+                type="email"
+                placeholder="Email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                style={inputStyle}
+              />
+              <input
+                type="password"
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                style={inputStyle}
+              />
+              <button
+                onClick={handleEmailLogin}
+                disabled={loading}
+                style={{
+                  width: "100%",
+                  padding: "14px",
+                  borderRadius: 12,
+                  border: "none",
+                  background: GOLD,
+                  color: "#1a1a1a",
+                  fontWeight: 700,
+                  fontSize: 16,
+                  cursor: "pointer",
+                }}
+              >
+                Login
+              </button>
             </div>
           )}
 
-          {/* Fields */}
-          <div className="space-y-4">
-            {mode === "signup" && (
-              <Field label="Full Name" value={name} onChange={setName} placeholder="Enter your name"
-                {...{ textColor, subText, inputBg, border }} />
-            )}
+          {error && (
+            <p style={{ color: "#ff6b6b", fontSize: 13, textAlign: "center", marginTop: 14 }}>{error}</p>
+          )}
 
-            <Field label="Email" value={email} onChange={setEmail} placeholder="you@example.com" type="email"
-              {...{ textColor, subText, inputBg, border }} />
-
-            {mode === "signup" && (
-              <Field label="Mobile Number" value={phone} onChange={(v) => setPhone(v.replace(/\D/g, "").slice(0, 10))} placeholder="10-digit number" type="tel"
-                {...{ textColor, subText, inputBg, border }} />
-            )}
-
-            <div>
-              <label className="block text-xs font-semibold mb-2" style={{ color: subText }}>
-                Password
-              </label>
-              <div className="relative">
-                <input
-                  type={showPass ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder={mode === "signup" ? "At least 6 characters" : "Your password"}
-                  style={{ background: inputBg, border: `1px solid ${border}`, color: textColor }}
-                  className="w-full px-4 py-3 rounded-xl outline-none focus:border-[#FFAB00] transition"
-                />
-                <button
-                  onClick={() => setShowPass(!showPass)}
-                  style={{ color: subText }}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-sm"
-                >
-                  {showPass ? "Hide" : "Show"}
-                </button>
-              </div>
-            </div>
-
-            {mode === "signup" && (
-              <Field label="Confirm Password" value={confirm} onChange={setConfirm} placeholder="Re-enter password" type={showPass ? "text" : "password"}
-                {...{ textColor, subText, inputBg, border }} />
-            )}
-          </div>
-
-          {/* Submit */}
-          <button
-            onClick={handleSubmit}
-            disabled={loading}
-            style={{ background: "linear-gradient(135deg, #FFAB00, #FF8E00)", color: "#000" }}
-            className="w-full mt-6 py-3.5 rounded-xl font-black text-base disabled:opacity-60 transition"
-          >
-            {loading ? "Please wait..." : mode === "login" ? "Sign In" : "Create Account"}
-          </button>
-
-          {/* Switch mode */}
-          <div className="text-center mt-5 text-sm" style={{ color: subText }}>
-            {mode === "login" ? "Don't have an account? " : "Already have an account? "}
-            <button
-              onClick={() => { setMode(mode === "login" ? "signup" : "login"); setError(null); }}
-              style={{ color: "#FFAB00" }}
-              className="font-bold"
-            >
-              {mode === "login" ? "Sign Up" : "Sign In"}
-            </button>
-          </div>
+          {/* Terms */}
+          <p style={{ textAlign: "center", color: "#999", fontSize: 13, marginTop: 18, lineHeight: 1.5 }}>
+            By continuing, you agree to our
+            <br />
+            <span style={{ color: GOLD }}>Terms of Service</span> and{" "}
+            <span style={{ color: GOLD }}>Privacy Policy</span>
+          </p>
         </div>
-
-        <p className="text-center mt-6 text-xs" style={{ color: subText }}>
-          Selection Lab — Made with care for aspirants
-        </p>
       </div>
     </div>
   );
 }
 
-function Field({
-  label, value, onChange, placeholder, type = "text",
-  textColor, subText, inputBg, border,
-}: {
-  label: string; value: string; onChange: (v: string) => void; placeholder: string; type?: string;
-  textColor: string; subText: string; inputBg: string; border: string;
-}) {
-  return (
-    <div>
-      <label className="block text-xs font-semibold mb-2" style={{ color: subText }}>
-        {label}
-      </label>
-      <input
-        type={type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        style={{ background: inputBg, border: `1px solid ${border}`, color: textColor }}
-        className="w-full px-4 py-3 rounded-xl outline-none focus:border-[#FFAB00] transition"
-      />
-    </div>
-  );
-}
+const inputStyle: React.CSSProperties = {
+  width: "100%",
+  padding: "13px",
+  borderRadius: 12,
+  border: "1px solid rgba(255,255,255,0.2)",
+  background: "rgba(0,0,0,0.4)",
+  color: "#fff",
+  fontSize: 15,
+  marginBottom: 12,
+  boxSizing: "border-box",
+};
