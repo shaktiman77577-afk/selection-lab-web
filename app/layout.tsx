@@ -68,10 +68,26 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0d0b08",
+  themeColor: "#f6f4ee",
   width: "device-width",
   initialScale: 1,
 };
+
+const themeCss = `
+:root{
+  --bg:#f6f4ee; --card:#ffffff; --text:#221c10; --text2:#4c4536; --muted:#776f5c;
+  --border:rgba(180,130,0,0.4); --line:rgba(0,0,0,0.1); --chip:rgba(0,0,0,0.05);
+  --header:rgba(250,248,242,0.97); --shadow:0 1px 8px rgba(0,0,0,0.06);
+}
+html[data-theme="dark"]{
+  --bg:#0d0b08; --card:#16130e; --text:#ffffff; --text2:#cfc6b3; --muted:#9a917f;
+  --border:rgba(255,171,0,0.25); --line:rgba(255,255,255,0.1); --chip:rgba(255,255,255,0.07);
+  --header:rgba(13,11,8,0.97); --shadow:none;
+}
+body{background:var(--bg);color:var(--text);}
+`;
+
+const themeScript = `try{if(localStorage.getItem('sl-theme')==='dark'){document.documentElement.setAttribute('data-theme','dark');}}catch(e){}`;
 
 export default function RootLayout({
   children,
@@ -79,8 +95,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable}`} style={{ margin: 0, background: "#0d0b08" }}>
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+        <style dangerouslySetInnerHTML={{ __html: themeCss }} />
+      </head>
+      <body className={`${geistSans.variable} ${geistMono.variable}`} style={{ margin: 0 }}>
         {children}
       </body>
     </html>
