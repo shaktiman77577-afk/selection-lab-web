@@ -34,24 +34,9 @@ export default function CourseDetailPage() {
   const [submitMsg, setSubmitMsg] = useState("");
   const [paying, setPaying] = useState(false);
   const [payMsg, setPayMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  const [owned, setOwned] = useState(false);
-  const [couponInput, setCouponInput] = useState("");
-  const [applied, setApplied] = useState<{ code: string; discount: number; final: number } | null>(null);
-  const [couponMsg, setCouponMsg] = useState("");
-  const [applying, setApplying] = useState(false);
 
   useEffect(() => {
-    const u = getUser();
-    setUser(u);
-    if (u) {
-      fetch(`${API_URL}/courses/my/${u.id}`)
-        .then((r) => r.json())
-        .then((d) => {
-          const ids = (d.courses || []).map((c: any) => c.id);
-          setOwned(ids.includes(courseId));
-        })
-        .catch(() => {});
-    }
+    setUser(getUser());
     getCourses().then((all) => {
       setCourse(all.find((c) => c.id === courseId) || null);
       setLoading(false);
@@ -115,78 +100,20 @@ export default function CourseDetailPage() {
     setSubmitting(false);
   }
 
-  async function applyCoupon(codeArg?: string) {
-    const code = (codeArg || couponInput).trim().toUpperCase();
-    if (!code || !course) return;
-    setApplying(true);
-    setCouponMsg("");
-    try {
-      const res = await fetch(`${API_URL}/coupons/validate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code, amount: Number(course.price) || 0 }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.valid) {
-        setApplied(null);
-        setCouponMsg(data.reason || data.detail || "Invalid coupon");
-      } else {
-        setApplied({ code, discount: data.discount, final: data.final_amount });
-        setCouponInput(code);
-        setCouponMsg("");
-      }
-    } catch {
-      setCouponMsg("Could not check coupon. Try again.");
-    }
-    setApplying(false);
-  }
-
-  function removeCoupon() {
-    setApplied(null);
-    setCouponInput("");
-    setCouponMsg("");
-  }
-
   async function handleBuy() {
     if (!user) {
       router.push("/login");
       return;
     }
     if (!course) return;
-    if (owned) {
-      router.push("/my-learning");
-      return;
-    }
     setPayMsg(null);
-
-    // Free course → direct enrollment
-    const coursePrice = Number(course.price) || 0;
-    if (coursePrice === 0) {
-      setPaying(true);
-      try {
-        const res = await fetch(`${API_URL}/courses/enroll-free`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ user_id: user.id, course_id: courseId }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.detail || "Enrollment failed");
-        setOwned(true);
-        setPayMsg({ ok: true, text: "🎉 Enrolled! Find this course in My Learning and in the Selection Lab app." });
-      } catch (e: any) {
-        setPayMsg({ ok: false, text: e.message || "Enrollment failed" });
-      }
-      setPaying(false);
-      return;
-    }
-
     setPaying(true);
     try {
       // 1. Create order on backend (amount comes from DB — secure)
       const res = await fetch(`${API_URL}/payments/course-order`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_id: user.id, course_id: courseId, coupon_code: applied?.code || null }),
+        body: JSON.stringify({ user_id: user.id, course_id: courseId }),
       });
       const order = await res.json();
       if (!res.ok) throw new Error(order.detail || "Could not start payment");
@@ -214,12 +141,10 @@ export default function CourseDetailPage() {
                 razorpay_order_id: resp.razorpay_order_id,
                 razorpay_payment_id: resp.razorpay_payment_id,
                 razorpay_signature: resp.razorpay_signature,
-                coupon_code: applied?.code || null,
               }),
             });
             const vdata = await vres.json();
             if (!vres.ok) throw new Error(vdata.detail || "Verification failed");
-            setOwned(true);
             setPayMsg({ ok: true, text: "🎉 Payment successful! Course unlocked — open the Selection Lab app to start learning." });
           } catch (e: any) {
             setPayMsg({ ok: false, text: e.message || "Payment verification failed. Contact support with your payment ID." });
@@ -315,7 +240,7 @@ export default function CourseDetailPage() {
         </div>
 
         {/* Universal coupon banner */}
-        {coupons.length > 0 && price > 0 && !owned && (
+        {coupons.length > 0 && price > 0 && (
           <div
             style={{
               marginTop: 14,
@@ -326,62 +251,14 @@ export default function CourseDetailPage() {
             }}
           >
             {coupons.map((cp) => (
-              <div
-                key={cp.code}
-                onClick={() => applyCoupon(cp.code)}
-                style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13.5, cursor: "pointer", padding: "2px 0" }}
-              >
+              <div key={cp.code} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13.5 }}>
                 <span>🎟️</span>
-                <span style={{ flex: 1 }}>
+                <span>
                   Use code <b style={{ color: GOLD, letterSpacing: 1 }}>{cp.code}</b> for{" "}
                   <b>{cp.discount_type === "percent" ? `${cp.discount_value}% off` : `₹${cp.discount_value} off`}</b>
                 </span>
-                <span style={{ color: GOLD, fontSize: 12, fontWeight: 700 }}>TAP TO APPLY</span>
               </div>
             ))}
-          </div>
-        )}
-
-        {/* Coupon input */}
-        {price > 0 && !owned && (
-          <div style={{ marginTop: 12 }}>
-            {applied ? (
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 10,
-                  border: "1px solid rgba(93,217,124,0.5)",
-                  background: "rgba(93,217,124,0.08)",
-                  borderRadius: 12,
-                  padding: "12px 14px",
-                }}
-              >
-                <span style={{ color: "#5dd97c", fontSize: 14, flex: 1 }}>
-                  ✓ <b>{applied.code}</b> applied — you save <b>₹{applied.discount}</b>
-                </span>
-                <button onClick={removeCoupon} style={{ ...ghostBtn, padding: "6px 12px", fontSize: 12 }}>
-                  Remove
-                </button>
-              </div>
-            ) : (
-              <div style={{ display: "flex", gap: 10 }}>
-                <input
-                  placeholder="Have a coupon code?"
-                  value={couponInput}
-                  onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
-                  style={{ ...inputStyle, marginBottom: 0, flex: 1, letterSpacing: 1 }}
-                />
-                <button
-                  onClick={() => applyCoupon()}
-                  disabled={applying || !couponInput.trim()}
-                  style={{ ...goldBtn, padding: "12px 18px", opacity: applying || !couponInput.trim() ? 0.6 : 1 }}
-                >
-                  {applying ? "..." : "Apply"}
-                </button>
-              </div>
-            )}
-            {couponMsg && <p style={{ color: "#ff6b6b", fontSize: 13, margin: "8px 0 0" }}>{couponMsg}</p>}
           </div>
         )}
 
@@ -485,12 +362,6 @@ export default function CourseDetailPage() {
         <div style={{ flex: 1 }}>
           {price === 0 ? (
             <span style={{ color: "#5dd97c", fontWeight: 800, fontSize: 18 }}>FREE</span>
-          ) : applied ? (
-            <>
-              <span style={{ color: GOLD, fontWeight: 800, fontSize: 18 }}>₹{applied.final}</span>
-              <span style={{ color: "#7d7461", textDecoration: "line-through", fontSize: 13, marginLeft: 6 }}>₹{price}</span>
-              <div style={{ color: "#5dd97c", fontSize: 11.5, fontWeight: 700 }}>{applied.code} applied</div>
-            </>
           ) : (
             <>
               <span style={{ color: GOLD, fontWeight: 800, fontSize: 18 }}>₹{price}</span>
@@ -500,8 +371,8 @@ export default function CourseDetailPage() {
             </>
           )}
         </div>
-        <button onClick={handleBuy} disabled={paying} style={{ ...goldBtn, padding: "13px 28px", fontSize: 15, opacity: paying ? 0.6 : 1, background: owned ? "#2e8b4a" : GOLD, color: owned ? "#fff" : "#1a1a1a" }}>
-          {paying ? "Please wait..." : owned ? "✓ Enrolled — My Learning" : price === 0 ? "Enroll Free" : "Buy Now"}
+        <button onClick={handleBuy} disabled={paying} style={{ ...goldBtn, padding: "13px 28px", fontSize: 15, opacity: paying ? 0.6 : 1 }}>
+          {paying ? "Opening..." : price === 0 ? "Enroll Free" : "Buy Now"}
         </button>
       </div>
 
@@ -612,3 +483,4 @@ const ghostBtn: React.CSSProperties = {
   fontSize: 13,
   cursor: "pointer",
 };
+          
