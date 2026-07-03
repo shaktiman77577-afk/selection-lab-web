@@ -337,3 +337,4 @@ const commCard: React.CSSProperties = {
   color: "var(--text)",
   boxShadow: "var(--shadow)",
 };
+                                                                              
