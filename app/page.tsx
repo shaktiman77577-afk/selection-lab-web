@@ -235,7 +235,13 @@ export default function HomePage() {
           {CATEGORIES.map((cat) => (
             <div
               key={cat.label}
-              onClick={() => (cat.label === "My Learning" ? requireLogin("/my-learning") : requireLogin())}
+              onClick={() =>
+                cat.label === "My Learning"
+                  ? requireLogin("/my-learning")
+                  : cat.label === "Mock Tests"
+                  ? router.push("/mock-tests")
+                  : requireLogin()
+              }
               style={{
                 background: CARD,
                 border: `1px solid ${BORDER}`,
@@ -361,4 +367,4 @@ const footLink: React.CSSProperties = {
   fontSize: 13,
   textDecoration: "none",
 };
-                        
+                
