@@ -118,4 +118,4 @@ export default function SideMenu({ open, onClose }: { open: boolean; onClose: ()
       </div>
     </div>
   );
-        }
+          }
