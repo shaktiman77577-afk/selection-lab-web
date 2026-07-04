@@ -97,7 +97,8 @@ export default function PrivacyPage() {
 
         <h2 style={h2}>8. Contact us</h2>
         <p>
-          For questions or requests about this policy, reach us on Telegram at{" "}
+          For questions or requests about this policy, reach us at{" "}
+          <a href="mailto:team.selectionlab@gmail.com" style={{ color: GOLD }}>team.selectionlab@gmail.com</a> or on Telegram at{" "}
           <a href="https://t.me/Selection_Lab" style={{ color: GOLD }}>
             t.me/Selection_Lab
           </a>
@@ -109,4 +110,3 @@ export default function PrivacyPage() {
 }
 
 const h2: React.CSSProperties = { color: "var(--text)", fontSize: 18, marginTop: 28 };
-            
