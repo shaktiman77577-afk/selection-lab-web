@@ -119,13 +119,28 @@ export default function LearnPage() {
               <div style={{ marginBottom: 16 }}>
                 {active.content_type === "video" ? (
                   ytId(active.url) ? (
-                    <div style={{ position: "relative", paddingBottom: "56.25%", height: 0, borderRadius: 14, overflow: "hidden", background: "#000" }}>
+                    <div
+                      onContextMenu={(e) => e.preventDefault()}
+                      style={{ position: "relative", paddingBottom: "56.25%", height: 0, borderRadius: 14, overflow: "hidden", background: "#000" }}
+                    >
                       <iframe
-                        src={`https://www.youtube.com/embed/${ytId(active.url)}?rel=0&modestbranding=1`}
+                        src={`https://www.youtube-nocookie.com/embed/${ytId(active.url)}?rel=0&modestbranding=1&showinfo=0&controls=1&fs=1&disablekb=1&iv_load_policy=3`}
                         title={active.title}
                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                         allowFullScreen
                         style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", border: 0 }}
+                      />
+                      {/* Cover ONLY the top-right corner where YouTube shows the
+                          share, watch-later and channel/watch-on-YouTube links.
+                          Center and bottom stay fully usable (play, seek, fullscreen). */}
+                      <div
+                        style={{ position: "absolute", top: 0, right: 0, width: 160, height: 66, zIndex: 6, background: "transparent" }}
+                        onContextMenu={(e) => e.preventDefault()}
+                      />
+                      {/* Cover the top-left title/channel link too */}
+                      <div
+                        style={{ position: "absolute", top: 0, left: 0, width: 200, height: 60, zIndex: 6, background: "transparent" }}
+                        onContextMenu={(e) => e.preventDefault()}
                       />
                     </div>
                   ) : (
@@ -217,4 +232,3 @@ const goldBtn: React.CSSProperties = {
   cursor: "pointer",
   marginTop: 12,
 };
-                   
