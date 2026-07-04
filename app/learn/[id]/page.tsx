@@ -42,6 +42,8 @@ function YouTubeLocked({ id }: { id: string }) {
   const [seeking, setSeeking] = useState(false);
   const playerRef = useRef<any>(null);
   const pollRef = useRef<any>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [isFull, setIsFull] = useState(false);
   const divId = `ytp_${id}`;
 
   useEffect(() => {
@@ -115,13 +117,47 @@ function YouTubeLocked({ id }: { id: string }) {
     setShowSpeed(false);
   }
 
+  function toggleFullscreen() {
+    const el: any = containerRef.current;
+    if (!el) return;
+    const doc: any = document;
+    const isFs = doc.fullscreenElement || doc.webkitFullscreenElement;
+    if (!isFs) {
+      const req = el.requestFullscreen || el.webkitRequestFullscreen || el.webkitEnterFullscreen;
+      if (req) req.call(el);
+    } else {
+      const exit = doc.exitFullscreen || doc.webkitExitFullscreen;
+      if (exit) exit.call(doc);
+    }
+  }
+
+  useEffect(() => {
+    const onFsChange = () => {
+      const doc: any = document;
+      setIsFull(!!(doc.fullscreenElement || doc.webkitFullscreenElement));
+    };
+    document.addEventListener("fullscreenchange", onFsChange);
+    document.addEventListener("webkitfullscreenchange", onFsChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", onFsChange);
+      document.removeEventListener("webkitfullscreenchange", onFsChange);
+    };
+  }, []);
+
   return (
     <div
+      ref={containerRef}
       onContextMenu={(e) => e.preventDefault()}
-      style={{ position: "relative", borderRadius: 14, overflow: "hidden", background: "#000", userSelect: "none" }}
+      style={{
+        position: "relative", borderRadius: isFull ? 0 : 14, overflow: "hidden",
+        background: "#000", userSelect: "none",
+        display: isFull ? "flex" : "block",
+        flexDirection: "column", justifyContent: "center",
+        height: isFull ? "100%" : "auto", width: isFull ? "100%" : "auto",
+      }}
     >
       {/* Video area */}
-      <div style={{ position: "relative", paddingBottom: "56.25%", height: 0 }}>
+      <div style={{ position: "relative", paddingBottom: isFull ? 0 : "56.25%", height: isFull ? "100%" : 0, width: "100%" }}>
         <div id={divId} style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%" }} />
 
         {/* Full overlay — blocks ALL YouTube UI; tap = play/pause.
@@ -159,7 +195,7 @@ function YouTubeLocked({ id }: { id: string }) {
       </div>
 
       {/* Custom control bar */}
-      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: "#111", zIndex: 6, position: "relative" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: "#111", zIndex: 6, position: isFull ? "absolute" : "relative", bottom: isFull ? 0 : "auto", left: 0, right: 0 }}>
         <button
           onClick={togglePlay}
           style={{ background: "none", border: "none", color: "#fff", fontSize: 18, cursor: "pointer", width: 26, flexShrink: 0 }}
@@ -217,6 +253,15 @@ function YouTubeLocked({ id }: { id: string }) {
             </div>
           )}
         </div>
+
+        {/* Fullscreen */}
+        <button
+          onClick={toggleFullscreen}
+          aria-label="Fullscreen"
+          style={{ background: "none", border: "none", color: "#fff", fontSize: 17, cursor: "pointer", flexShrink: 0, width: 26 }}
+        >
+          {isFull ? "⛶" : "⛶"}
+        </button>
       </div>
     </div>
   );
@@ -426,4 +471,4 @@ const goldBtn: React.CSSProperties = {
   cursor: "pointer",
   marginTop: 12,
 };
-      
+                          
