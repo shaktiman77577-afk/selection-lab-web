@@ -21,8 +21,8 @@ const EXAMS = ["SSC CGL", "SSC CHSL", "IB Security Assistant", "Railways RRB", "
 
 const FACULTY = [
   { name: "Nikki Ma'am", subject: "English & Interview", img: "/nikki_maam.png" },
-  { name: "Ravi Sir", subject: "GK/GS & Current Affairs", img: "/ravi_sir.jpeg" },
-  { name: "Ashutosh Sir", subject: "Maths", img: "/ashutosh_sir.jpeg" },
+  { name: "Ravi Sir", subject: "GK/GS & Current Affairs", img: "/ravi_sir.jpg" },
+  { name: "Ashutosh Sir", subject: "Maths", img: "/ashutosh_sir.jpg" },
 ];
 
 export default function HomePage() {
