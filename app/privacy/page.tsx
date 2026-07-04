@@ -10,7 +10,7 @@ const GOLD = "#FFAB00";
 
 export default function PrivacyPage() {
   return (
-    <div style={{ minHeight: "100vh", background: "#0d0b08", color: "#e8e2d5" }}>
+    <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--text)" }}>
       <header
         style={{
           position: "sticky",
@@ -19,24 +19,24 @@ export default function PrivacyPage() {
           alignItems: "center",
           gap: 10,
           padding: "12px 16px",
-          background: "rgba(13,11,8,0.95)",
+          background: "var(--header)",
           borderBottom: "1px solid rgba(255,171,0,0.25)",
         }}
       >
-        <Link href="/" style={{ color: "#fff", textDecoration: "none", fontSize: 18 }}>
+        <Link href="/" style={{ color: "var(--text)", textDecoration: "none", fontSize: 18 }}>
           ←
         </Link>
-        <div style={{ fontWeight: 800, fontSize: 16, color: "#fff" }}>
+        <div style={{ fontWeight: 800, fontSize: 16, color: "var(--text)" }}>
           Selection <span style={{ color: GOLD }}>Lab</span>
         </div>
       </header>
 
       <main style={{ maxWidth: 760, margin: "0 auto", padding: "24px 18px 60px", lineHeight: 1.7, fontSize: 14.5 }}>
-        <h1 style={{ color: "#fff", fontSize: 26 }}>Privacy Policy</h1>
-        <p style={{ color: "#9a917f" }}>Last updated: 2 July 2026</p>
+        <h1 style={{ color: "var(--text)", fontSize: 26 }}>Privacy Policy</h1>
+        <p style={{ color: "var(--muted)" }}>Last updated: 2 July 2026</p>
 
         <p>
-          Selection Lab ("we", "our", "us") operates the website selectionlab.online and the Selection Lab
+          Selection Lab ("we", "our", "us") operates the website selectionlab.in and the Selection Lab
           mobile application (together, the "Platform"). This policy explains what information we collect,
           how we use it, and the choices you have.
         </p>
@@ -108,5 +108,5 @@ export default function PrivacyPage() {
   );
 }
 
-const h2: React.CSSProperties = { color: "#fff", fontSize: 18, marginTop: 28 };
-                     
+const h2: React.CSSProperties = { color: "var(--text)", fontSize: 18, marginTop: 28 };
+            
