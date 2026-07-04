@@ -9,6 +9,7 @@ export const metadata: Metadata = {
 const GOLD = "#FFAB00";
 
 const CHANNELS = [
+  { icon: "✉️", title: "Email", desc: "For support, payment issues, refunds and general queries.", href: "mailto:team.selectionlab@gmail.com", label: "team.selectionlab@gmail.com" },
   { icon: "✈️", title: "Telegram (fastest)", desc: "Support, doubts, payment issues — usually replied within a few hours.", href: "https://t.me/Selection_Lab", label: "t.me/Selection_Lab" },
   { icon: "▶️", title: "YouTube", desc: "Free lessons and announcements by Nikki Ma'am.", href: "https://youtube.com/@englishbynikki", label: "English by Nikki" },
 ];
@@ -49,7 +50,8 @@ export default function ContactPage() {
 
         <h2 style={{ fontSize: 17, marginTop: 30 }}>Payment / refund issues</h2>
         <p>
-          If money was deducted but the course didn't unlock, message us on Telegram with your <b>payment ID</b>{" "}
+          If money was deducted but the course didn't unlock, message us on Telegram or email{" "}
+          <a href="mailto:team.selectionlab@gmail.com" style={{ color: GOLD }}>team.selectionlab@gmail.com</a> with your <b>payment ID</b>{" "}
           (visible in your UPI/bank app). Genuine cases are refunded as per our{" "}
           <Link href="/terms" style={{ color: GOLD }}>refund policy</Link> — usually within 5-7 working days.
         </p>
