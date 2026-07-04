@@ -43,7 +43,7 @@ function parseInline(text: string, keyPrefix: string) {
   while ((m = regex.exec(text)) !== null) {
     if (m.index > last) parts.push(text.slice(last, m.index));
     const href = m[2];
-    const internal = href.startsWith("/") || href.includes("selectionlab.online");
+    const internal = href.startsWith("/") || href.includes("selectionlab.in");
     parts.push(
       <a
         key={`${keyPrefix}-${k++}`}
@@ -80,7 +80,7 @@ function renderContent(content: string) {
     const onlyLink = t.match(/^\[([^\]]+)\]\(([^)\s]+)\)$/);
     if (onlyLink) {
       const href = onlyLink[2];
-      const internal = href.startsWith("/") || href.includes("selectionlab.online");
+      const internal = href.startsWith("/") || href.includes("selectionlab.in");
       return (
         <div key={i} style={{ textAlign: "center", margin: "18px 0" }}>
           <a
@@ -161,4 +161,5 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
       </main>
     </div>
   );
-}
+              }
+          
