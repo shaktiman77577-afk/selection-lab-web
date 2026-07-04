@@ -101,7 +101,8 @@ export default function TermsPage() {
 
         <h2 style={h2}>9. Governing law and contact</h2>
         <p>
-          These terms are governed by the laws of India. For any questions, reach us on Telegram at{" "}
+          These terms are governed by the laws of India. For any questions, reach us at{" "}
+          <a href="mailto:team.selectionlab@gmail.com" style={{ color: GOLD }}>team.selectionlab@gmail.com</a> or on Telegram at{" "}
           <a href="https://t.me/Selection_Lab" style={{ color: GOLD }}>
             t.me/Selection_Lab
           </a>
