@@ -1,11 +1,221 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { API_URL } from "@/lib/config";
 import { getUser, User } from "@/lib/api";
 
 const GOLD = "#FFAB00";
+
+// Loads the YouTube IFrame API once
+let ytApiPromise: Promise<void> | null = null;
+function loadYouTubeAPI(): Promise<void> {
+  if (typeof window === "undefined") return Promise.resolve();
+  if ((window as any).YT && (window as any).YT.Player) return Promise.resolve();
+  if (ytApiPromise) return ytApiPromise;
+  ytApiPromise = new Promise((resolve) => {
+    const tag = document.createElement("script");
+    tag.src = "https://www.youtube.com/iframe_api";
+    document.head.appendChild(tag);
+    (window as any).onYouTubeIframeAPIReady = () => resolve();
+  });
+  return ytApiPromise;
+}
+
+function fmtTime(s: number): string {
+  if (!s || isNaN(s)) return "0:00";
+  const m = Math.floor(s / 60);
+  const sec = Math.floor(s % 60);
+  return `${m}:${sec.toString().padStart(2, "0")}`;
+}
+
+const SPEEDS = [0.5, 1, 1.25, 1.5, 2];
+
+function YouTubeLocked({ id }: { id: string }) {
+  const [ready, setReady] = useState(false);
+  const [playing, setPlaying] = useState(false);
+  const [current, setCurrent] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [speed, setSpeed] = useState(1);
+  const [showSpeed, setShowSpeed] = useState(false);
+  const [seeking, setSeeking] = useState(false);
+  const playerRef = useRef<any>(null);
+  const pollRef = useRef<any>(null);
+  const divId = `ytp_${id}`;
+
+  useEffect(() => {
+    let cancelled = false;
+    loadYouTubeAPI().then(() => {
+      if (cancelled) return;
+      const YT = (window as any).YT;
+      playerRef.current = new YT.Player(divId, {
+        videoId: id,
+        playerVars: {
+          rel: 0, modestbranding: 1, showinfo: 0, controls: 0,
+          disablekb: 1, fs: 0, iv_load_policy: 3, playsinline: 1,
+        },
+        events: {
+          onReady: (e: any) => {
+            setReady(true);
+            setDuration(e.target.getDuration() || 0);
+          },
+          onStateChange: (e: any) => {
+            const st = e.data;
+            setPlaying(st === YT.PlayerState.PLAYING);
+            if (st === YT.PlayerState.PLAYING && !duration) {
+              setDuration(playerRef.current?.getDuration?.() || 0);
+            }
+          },
+        },
+      });
+    });
+
+    // Poll current time every 500ms
+    pollRef.current = setInterval(() => {
+      const p = playerRef.current;
+      if (p && p.getCurrentTime && !seeking) {
+        setCurrent(p.getCurrentTime() || 0);
+        if (!duration && p.getDuration) setDuration(p.getDuration() || 0);
+      }
+    }, 500);
+
+    return () => {
+      cancelled = true;
+      clearInterval(pollRef.current);
+      try { playerRef.current?.destroy?.(); } catch {}
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  function togglePlay() {
+    const p = playerRef.current;
+    if (!p) return;
+    if (playing) p.pauseVideo();
+    else p.playVideo();
+  }
+
+  function onSeek(e: React.ChangeEvent<HTMLInputElement>) {
+    const t = Number(e.target.value);
+    setCurrent(t);
+  }
+  function onSeekStart() { setSeeking(true); }
+  function onSeekEnd(e: React.ChangeEvent<HTMLInputElement> | React.MouseEvent | React.TouchEvent) {
+    const p = playerRef.current;
+    const t = (e as any).target ? Number((e as any).target.value) : current;
+    if (p?.seekTo) p.seekTo(t, true);
+    setSeeking(false);
+  }
+
+  function setPlaybackSpeed(s: number) {
+    const p = playerRef.current;
+    if (p?.setPlaybackRate) p.setPlaybackRate(s);
+    setSpeed(s);
+    setShowSpeed(false);
+  }
+
+  return (
+    <div
+      onContextMenu={(e) => e.preventDefault()}
+      style={{ position: "relative", borderRadius: 14, overflow: "hidden", background: "#000", userSelect: "none" }}
+    >
+      {/* Video area */}
+      <div style={{ position: "relative", paddingBottom: "56.25%", height: 0 }}>
+        <div id={divId} style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%" }} />
+
+        {/* Full transparent overlay — blocks ALL YouTube UI; tap = play/pause */}
+        <button
+          onClick={togglePlay}
+          onContextMenu={(e) => e.preventDefault()}
+          aria-label={playing ? "Pause" : "Play"}
+          style={{
+            position: "absolute", top: 0, left: 0, width: "100%", height: "100%",
+            zIndex: 5, background: "transparent", border: "none", cursor: "pointer",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}
+        >
+          <span
+            style={{
+              width: 62, height: 62, borderRadius: "50%", background: "rgba(0,0,0,0.55)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 24, color: "#fff", opacity: playing ? 0 : 1, transition: "opacity 0.2s",
+            }}
+          >
+            ▶
+          </span>
+        </button>
+
+        {!ready && (
+          <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "#888", fontSize: 13, zIndex: 4 }}>
+            Loading…
+          </div>
+        )}
+      </div>
+
+      {/* Custom control bar */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: "#111", zIndex: 6, position: "relative" }}>
+        <button
+          onClick={togglePlay}
+          style={{ background: "none", border: "none", color: "#fff", fontSize: 18, cursor: "pointer", width: 26, flexShrink: 0 }}
+          aria-label={playing ? "Pause" : "Play"}
+        >
+          {playing ? "⏸" : "▶"}
+        </button>
+
+        <span style={{ color: "#ccc", fontSize: 11.5, flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>
+          {fmtTime(current)}
+        </span>
+
+        <input
+          type="range"
+          min={0}
+          max={duration || 0}
+          step={0.1}
+          value={current}
+          onChange={onSeek}
+          onMouseDown={onSeekStart}
+          onTouchStart={onSeekStart}
+          onMouseUp={onSeekEnd as any}
+          onTouchEnd={onSeekEnd as any}
+          style={{ flex: 1, accentColor: GOLD, height: 4, cursor: "pointer" }}
+        />
+
+        <span style={{ color: "#ccc", fontSize: 11.5, flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>
+          {fmtTime(duration)}
+        </span>
+
+        {/* Speed */}
+        <div style={{ position: "relative", flexShrink: 0 }}>
+          <button
+            onClick={() => setShowSpeed((v) => !v)}
+            style={{ background: "none", border: "1px solid #444", color: "#fff", fontSize: 11.5, fontWeight: 700, borderRadius: 6, padding: "3px 7px", cursor: "pointer", minWidth: 38 }}
+          >
+            {speed}x
+          </button>
+          {showSpeed && (
+            <div style={{ position: "absolute", bottom: "120%", right: 0, background: "#1c1c1c", border: "1px solid #333", borderRadius: 8, overflow: "hidden", zIndex: 20 }}>
+              {SPEEDS.map((s) => (
+                <button
+                  key={s}
+                  onClick={() => setPlaybackSpeed(s)}
+                  style={{
+                    display: "block", width: 60, textAlign: "center", padding: "8px 0",
+                    background: s === speed ? "rgba(255,171,0,0.15)" : "transparent",
+                    color: s === speed ? GOLD : "#fff", border: "none",
+                    fontSize: 12.5, fontWeight: s === speed ? 800 : 500, cursor: "pointer",
+                  }}
+                >
+                  {s}x
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 
 type Content = {
   id: number;
@@ -119,30 +329,7 @@ export default function LearnPage() {
               <div style={{ marginBottom: 16 }}>
                 {active.content_type === "video" ? (
                   ytId(active.url) ? (
-                    <div
-                      onContextMenu={(e) => e.preventDefault()}
-                      style={{ position: "relative", paddingBottom: "56.25%", height: 0, borderRadius: 14, overflow: "hidden", background: "#000" }}
-                    >
-                      <iframe
-                        src={`https://www.youtube-nocookie.com/embed/${ytId(active.url)}?rel=0&modestbranding=1&showinfo=0&controls=1&fs=1&disablekb=1&iv_load_policy=3`}
-                        title={active.title}
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                        allowFullScreen
-                        style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", border: 0 }}
-                      />
-                      {/* Cover ONLY the top-right corner where YouTube shows the
-                          share, watch-later and channel/watch-on-YouTube links.
-                          Center and bottom stay fully usable (play, seek, fullscreen). */}
-                      <div
-                        style={{ position: "absolute", top: 0, right: 0, width: 160, height: 66, zIndex: 6, background: "transparent" }}
-                        onContextMenu={(e) => e.preventDefault()}
-                      />
-                      {/* Cover the top-left title/channel link too */}
-                      <div
-                        style={{ position: "absolute", top: 0, left: 0, width: 200, height: 60, zIndex: 6, background: "transparent" }}
-                        onContextMenu={(e) => e.preventDefault()}
-                      />
-                    </div>
+                    <YouTubeLocked id={ytId(active.url)!} />
                   ) : (
                     <div style={{ padding: 20, background: "var(--card)", border: "1px solid var(--line)", borderRadius: 14 }}>
                       <p style={{ fontSize: 14 }}>This video can't be embedded here.</p>
