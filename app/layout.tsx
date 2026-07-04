@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://www.selectionlab.online"),
+  metadataBase: new URL("https://selectionlab.in"),
   title: {
     default: "Selection Lab — Government Exam Preparation | SSC, IB, Railways",
     template: "%s | Selection Lab",
@@ -35,7 +35,7 @@ export const metadata: Metadata = {
   authors: [{ name: "Selection Lab" }],
   openGraph: {
     type: "website",
-    url: "https://www.selectionlab.online",
+    url: "https://selectionlab.in",
     siteName: "Selection Lab",
     title: "Selection Lab — Government Exam Preparation",
     description:
