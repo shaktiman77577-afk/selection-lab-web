@@ -267,11 +267,13 @@ export default function CourseDetailPage() {
     <Shell>
       {/* Thumbnail */}
       {courseImage(course) && (
-        <img
-          src={courseImage(course)}
-          alt={courseTitle(course)}
-          style={{ width: "100%", maxHeight: 220, objectFit: "cover" }}
-        />
+        <div style={{ width: "100%", background: "#000", display: "flex", justifyContent: "center" }}>
+          <img
+            src={courseImage(course)}
+            alt={courseTitle(course)}
+            style={{ width: "100%", maxWidth: 780, aspectRatio: "16 / 9", objectFit: "cover", display: "block" }}
+          />
+        </div>
       )}
 
       <div style={{ padding: 16 }}>
