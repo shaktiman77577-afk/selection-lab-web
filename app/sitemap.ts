@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next";
 
-const BASE = "https://www.selectionlab.online";
+const BASE = "https://selectionlab.in";
 const API_URL = "https://api.selectionlab.online/api";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
