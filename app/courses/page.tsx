@@ -99,8 +99,8 @@ export default function CoursesPage() {
                 onClick={() => router.push(`/course/${c.id}`)}
                 style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: 14, overflow: "hidden", cursor: "pointer", boxShadow: "var(--shadow)" }}
               >
-                <div style={{ height: 92, background: "var(--chip)", overflow: "hidden" }}>
-                  {courseImage(c) && <img src={courseImage(c)} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
+                <div style={{ width: "100%", aspectRatio: "16 / 9", background: "var(--chip)", overflow: "hidden" }}>
+                  {courseImage(c) && <img src={courseImage(c)} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />}
                 </div>
                 <div style={{ padding: 10 }}>
                   <div style={{ fontSize: 13, fontWeight: 700, lineHeight: 1.4, minHeight: 36, overflow: "hidden" }}>{courseTitle(c)}</div>
@@ -124,4 +124,4 @@ export default function CoursesPage() {
       </main>
     </div>
   );
-        }
+          }
