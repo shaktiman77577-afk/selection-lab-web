@@ -7,6 +7,6 @@ export default function robots(): MetadataRoute.Robots {
       allow: "/",
       disallow: ["/admin", "/profile-setup", "/my-learning"],
     },
-    sitemap: "https://www.selectionlab.online/sitemap.xml",
+    sitemap: "https://selectionlab.in/sitemap.xml",
   };
 }
