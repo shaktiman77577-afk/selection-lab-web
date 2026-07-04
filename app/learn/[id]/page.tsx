@@ -34,6 +34,7 @@ const SPEEDS = [0.5, 1, 1.25, 1.5, 2];
 function YouTubeLocked({ id }: { id: string }) {
   const [ready, setReady] = useState(false);
   const [playing, setPlaying] = useState(false);
+  const [hasPlayed, setHasPlayed] = useState(false);
   const [current, setCurrent] = useState(0);
   const [duration, setDuration] = useState(0);
   const [speed, setSpeed] = useState(1);
@@ -62,8 +63,9 @@ function YouTubeLocked({ id }: { id: string }) {
           onStateChange: (e: any) => {
             const st = e.data;
             setPlaying(st === YT.PlayerState.PLAYING);
-            if (st === YT.PlayerState.PLAYING && !duration) {
-              setDuration(playerRef.current?.getDuration?.() || 0);
+            if (st === YT.PlayerState.PLAYING) {
+              setHasPlayed(true);
+              if (!duration) setDuration(playerRef.current?.getDuration?.() || 0);
             }
           },
         },
@@ -122,22 +124,27 @@ function YouTubeLocked({ id }: { id: string }) {
       <div style={{ position: "relative", paddingBottom: "56.25%", height: 0 }}>
         <div id={divId} style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%" }} />
 
-        {/* Full transparent overlay — blocks ALL YouTube UI; tap = play/pause */}
+        {/* Full overlay — blocks ALL YouTube UI; tap = play/pause.
+            Before first play it's a SOLID black poster so the YouTube
+            thumbnail (title, Watch-on-YouTube, share, logo) never shows. */}
         <button
           onClick={togglePlay}
           onContextMenu={(e) => e.preventDefault()}
           aria-label={playing ? "Pause" : "Play"}
           style={{
             position: "absolute", top: 0, left: 0, width: "100%", height: "100%",
-            zIndex: 5, background: "transparent", border: "none", cursor: "pointer",
+            zIndex: 5, border: "none", cursor: "pointer",
+            background: hasPlayed ? (playing ? "transparent" : "rgba(0,0,0,0.35)") : "#000",
             display: "flex", alignItems: "center", justifyContent: "center",
           }}
         >
           <span
             style={{
-              width: 62, height: 62, borderRadius: "50%", background: "rgba(0,0,0,0.55)",
+              width: 72, height: 72, borderRadius: "50%", background: "rgba(255,171,0,0.92)",
               display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 24, color: "#fff", opacity: playing ? 0 : 1, transition: "opacity 0.2s",
+              fontSize: 30, color: "#1a1a1a", paddingLeft: 4,
+              opacity: playing ? 0 : 1, transition: "opacity 0.2s",
+              boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
             }}
           >
             ▶
@@ -419,3 +426,4 @@ const goldBtn: React.CSSProperties = {
   cursor: "pointer",
   marginTop: 12,
 };
+      
