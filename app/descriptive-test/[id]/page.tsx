@@ -8,6 +8,14 @@ import { API_URL } from "@/lib/config";
 const GOLD = "#FFAB00";
 const NAVY = "#1a2f55";
 
+const SECTION_ORDER = ["Essay", "Letter", "Precis", "Translation"];
+const SECTION_LABEL: Record<string, string> = {
+  Essay: "Essay",
+  Letter: "Letter",
+  Precis: "Précis",
+  Translation: "Translation",
+};
+
 function loadScript(src: string): Promise<boolean> {
   return new Promise((resolve) => {
     if (document.querySelector(`script[src="${src}"]`)) return resolve(true);
@@ -36,8 +44,11 @@ export default function DescriptiveTestPlayer() {
   const testId = Number((params as any)?.id);
 
   const [test, setTest] = useState<any>(null);
-  const [questions, setQuestions] = useState<any[]>([]);
+  const [sections, setSections] = useState<{ type: string; questions: any[] }[]>([]);
+  const [selected, setSelected] = useState<Record<string, number>>({}); // section type -> chosen question id
   const [answers, setAnswers] = useState<Record<number, string>>({});
+  const [curSection, setCurSection] = useState(0);
+  const [paused, setPaused] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [locked, setLocked] = useState(false);
@@ -50,6 +61,7 @@ export default function DescriptiveTestPlayer() {
   const [timeUsedSec, setTimeUsedSec] = useState(0);
 
   const submittedRef = useRef(false);
+  const durationRef = useRef(0);
 
   // ── load test ─────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -71,8 +83,24 @@ export default function DescriptiveTestPlayer() {
         if (!d) return;
         setTest(d.test);
         setSeriesId(d.test?.series_id ?? null);
-        setQuestions(d.questions || []);
-        const dur = Number(d.test?.duration_min || 30);
+        const qs: any[] = d.questions || [];
+        // group by q_type into ordered sections
+        const groups: Record<string, any[]> = {};
+        qs.forEach((q) => {
+          const t = q.q_type || "Essay";
+          (groups[t] = groups[t] || []).push(q);
+        });
+        const ordered: { type: string; questions: any[] }[] = [];
+        SECTION_ORDER.forEach((t) => {
+          if (groups[t]) { ordered.push({ type: t, questions: groups[t] }); delete groups[t]; }
+        });
+        Object.keys(groups).forEach((t) => ordered.push({ type: t, questions: groups[t] }));
+        setSections(ordered);
+        const sel: Record<string, number> = {};
+        ordered.forEach((s) => { if (s.questions[0]) sel[s.type] = s.questions[0].id; });
+        setSelected(sel);
+        const dur = Number(d.test?.duration_min || 40);
+        durationRef.current = dur * 60;
         setSecondsLeft(dur * 60);
       })
       .catch((e) => setError(e?.message || "Could not load test."))
@@ -80,9 +108,9 @@ export default function DescriptiveTestPlayer() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [testId]);
 
-  // ── countdown ───────────────────────────────────────────────────────────────
+  // ── countdown (pauses on Pause) ───────────────────────────────────────────
   useEffect(() => {
-    if (phase !== "writing" || loading || locked || !test) return;
+    if (phase !== "writing" || loading || locked || !test || paused) return;
     if (secondsLeft <= 0) {
       submit();
       return;
@@ -90,26 +118,27 @@ export default function DescriptiveTestPlayer() {
     const id = setTimeout(() => setSecondsLeft((s) => s - 1), 1000);
     return () => clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [secondsLeft, phase, loading, locked, test]);
+  }, [secondsLeft, phase, loading, locked, test, paused]);
 
   async function submit() {
     if (submittedRef.current) return;
     submittedRef.current = true;
     setPhase("submitting");
     setError("");
-    const dur = Number(test?.duration_min || 30) * 60;
-    setTimeUsedSec(Math.max(0, dur - secondsLeft));
+    setTimeUsedSec(Math.max(0, durationRef.current - secondsLeft));
     const u = getUser();
     try {
-      const payload = {
-        user_id: (u as any)?.id,
-        test_id: testId,
-        answers: questions.map((q) => ({ question_id: q.id, answer_text: answers[q.id] || "" })),
-      };
+      // exactly one chosen question per section
+      const payloadAnswers = sections
+        .map((s) => {
+          const qid = selected[s.type] ?? s.questions[0]?.id;
+          return { question_id: qid, answer_text: answers[qid] || "" };
+        })
+        .filter((a) => a.question_id != null);
       const res = await fetch(`${API_URL}/descriptive/submit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ user_id: (u as any)?.id, test_id: testId, answers: payloadAnswers }),
       }).then((r) => r.json());
       if (res?.success === false) throw new Error(res.detail || "Submit failed");
       setResult(res);
@@ -237,103 +266,126 @@ export default function DescriptiveTestPlayer() {
     return <Centered>{error}</Centered>;
   }
 
-  const totalWords = questions.reduce((n, q) => n + countWords(answers[q.id] || ""), 0);
+  const sec = sections[curSection];
+  const isLast = curSection >= sections.length - 1;
+  const selQid = sec ? (selected[sec.type] ?? sec.questions[0]?.id) : undefined;
+  const selQ = sec ? (sec.questions.find((q) => q.id === selQid) || sec.questions[0]) : undefined;
+  const wc = selQid != null ? countWords(answers[selQid] || "") : 0;
+  const target = selQ?.word_limit ?? 250;
+
+  const smallGold: React.CSSProperties = { ...goldBtn, padding: "7px 12px", fontSize: 13 };
+  const ghostBtn: React.CSSProperties = { background: "var(--card)", color: "var(--text)", border: "1px solid var(--line)", borderRadius: 10, padding: "9px 14px", fontWeight: 700, fontSize: 13, cursor: "pointer" };
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--text)" }}>
-      {/* Sticky timer bar */}
-      <header
-        style={{
-          position: "sticky",
-          top: 0,
-          zIndex: 50,
-          display: "flex",
-          alignItems: "center",
-          gap: 10,
-          padding: "10px 14px",
-          background: "var(--header)",
-          backdropFilter: "blur(8px)",
-          borderBottom: "1px solid var(--line)",
-        }}
-      >
+      {/* Pause overlay */}
+      {paused && phase === "writing" && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(0,0,0,0.78)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", textAlign: "center", padding: 20 }}>
+          <div>
+            <div style={{ fontSize: 44 }}>⏸️</div>
+            <p style={{ fontSize: 17, fontWeight: 800, margin: "10px 0 4px" }}>Test paused</p>
+            <p style={{ fontSize: 13, opacity: 0.8, marginBottom: 18 }}>Timer stopped at {mmss(secondsLeft)}</p>
+            <button onClick={() => setPaused(false)} style={goldBtn}>▶ Resume test</button>
+          </div>
+        </div>
+      )}
+
+      {/* Header: title · timer · pause · submit */}
+      <header style={{ position: "sticky", top: 0, zIndex: 50, display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", background: "var(--header)", backdropFilter: "blur(8px)", borderBottom: "1px solid var(--line)" }}>
         <div style={{ fontWeight: 800, fontSize: 15, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {test?.title || "Descriptive Test"}
         </div>
         {phase !== "done" && (
-          <div
-            style={{
-              fontWeight: 800,
-              fontSize: 15,
-              color: secondsLeft <= 60 ? "#e05555" : "var(--text)",
-              background: "var(--chip)",
-              borderRadius: 10,
-              padding: "6px 12px",
-              minWidth: 74,
-              textAlign: "center",
-            }}
-          >
-            ⏱ {mmss(secondsLeft)}
-          </div>
+          <>
+            <div style={{ fontWeight: 800, fontSize: 15, color: secondsLeft <= 60 ? "#e05555" : "var(--text)", background: "var(--chip)", borderRadius: 10, padding: "6px 10px", minWidth: 72, textAlign: "center" }}>
+              ⏱ {mmss(secondsLeft)}
+            </div>
+            <button onClick={() => setPaused((p) => !p)} aria-label="Pause" style={{ ...ghostBtn, padding: "7px 11px" }}>{paused ? "▶" : "⏸"}</button>
+            <button onClick={() => { if (confirm("Submit the whole test? You can't edit after this.")) submit(); }} disabled={phase === "submitting"} style={smallGold}>Submit</button>
+          </>
         )}
       </header>
 
-      <main style={{ maxWidth: 820, margin: "0 auto", padding: "16px 16px 60px" }}>
+      {/* Section tabs */}
+      {phase !== "done" && sections.length > 0 && (
+        <nav style={{ display: "flex", gap: 8, padding: "10px 14px", overflowX: "auto", borderBottom: "1px solid var(--line)", background: "var(--header)", whiteSpace: "nowrap" }}>
+          {sections.map((s, i) => {
+            const sq = selected[s.type] ?? s.questions[0]?.id;
+            const done = (answers[sq] || "").trim() !== "";
+            const active = i === curSection;
+            return (
+              <button key={s.type} onClick={() => setCurSection(i)} style={{ borderRadius: 20, padding: "7px 14px", fontSize: 13, fontWeight: 800, cursor: "pointer", flexShrink: 0, border: active ? "none" : "1px solid var(--line)", background: active ? GOLD : "var(--card)", color: active ? "#1a1a1a" : "var(--text)" }}>
+                {done ? "● " : "○ "}{SECTION_LABEL[s.type] || s.type}
+              </button>
+            );
+          })}
+        </nav>
+      )}
+
+      <main style={{ maxWidth: 820, margin: "0 auto", padding: "16px 16px 90px" }}>
         {error ? <p style={{ color: "#c0392b", fontSize: 13, marginBottom: 12 }}>{error}</p> : null}
 
         {phase === "done" && result ? (
           <ResultView result={result} onPdf={downloadPdf} pdfBusy={pdfBusy} timeUsedSec={timeUsedSec} onExit={() => router.push(seriesId ? `/descriptive/${seriesId}` : "/descriptive")} />
-        ) : (
+        ) : sec ? (
           <>
-            {questions.map((q, i) => {
-              const wc = countWords(answers[q.id] || "");
-              const target = q.word_limit ?? 250;
-              return (
-                <div key={q.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: 14, padding: 16, boxShadow: "var(--shadow)", marginBottom: 16 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                    <span style={{ fontSize: 11, fontWeight: 800, color: "#1a1a1a", background: GOLD, borderRadius: 6, padding: "2px 8px" }}>{q.q_type || "Essay"}</span>
-                    <span style={{ fontSize: 12, color: "var(--muted)" }}>Question {i + 1} of {questions.length}</span>
-                  </div>
-                  <p style={{ fontSize: 15, fontWeight: 600, lineHeight: 1.5, margin: "0 0 12px" }}>{q.question}</p>
-                  <textarea
-                    value={answers[q.id] || ""}
-                    onChange={(e) => setAnswers((a) => ({ ...a, [q.id]: e.target.value }))}
-                    placeholder="Write your answer here…"
-                    rows={10}
-                    disabled={phase === "submitting"}
-                    style={{
-                      width: "100%",
-                      boxSizing: "border-box",
-                      borderRadius: 10,
-                      border: "1px solid var(--line)",
-                      background: "var(--bg)",
-                      color: "var(--text)",
-                      padding: 12,
-                      fontSize: 14.5,
-                      lineHeight: 1.6,
-                      resize: "vertical",
-                    }}
-                  />
-                  <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6, fontSize: 12, color: "var(--muted)" }}>
-                    <span>
-                      Words: <b style={{ color: wc > target ? "#e07b00" : "var(--text)" }}>{wc}</b> / {target}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 18, fontWeight: 800 }}>{SECTION_LABEL[sec.type] || sec.type}</div>
+              {sec.questions.length > 1 ? (
+                <div style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 2 }}>Attempt any ONE of the {sec.questions.length} topics below.</div>
+              ) : null}
+            </div>
 
-            <div style={{ position: "sticky", bottom: 0, background: "var(--bg)", paddingTop: 8 }}>
-              <button
-                onClick={() => {
-                  if (confirm("Submit your answers? You can't edit after this.")) submit();
-                }}
+            {sec.questions.length > 1 && (
+              <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
+                {sec.questions.map((q, qi) => {
+                  const active = q.id === selQid;
+                  const done = (answers[q.id] || "").trim() !== "";
+                  return (
+                    <button key={q.id} onClick={() => setSelected((p) => ({ ...p, [sec.type]: q.id }))} style={{ borderRadius: 10, padding: "9px 14px", fontSize: 13, fontWeight: 800, cursor: "pointer", background: "var(--card)", color: "var(--text)", border: active ? `2px solid ${GOLD}` : "1px solid var(--line)" }}>
+                      Topic {qi + 1}{done ? " ✓" : ""}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            <div style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: 14, padding: 16, boxShadow: "var(--shadow)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                <span style={{ fontSize: 11, fontWeight: 800, color: "#1a1a1a", background: GOLD, borderRadius: 6, padding: "2px 8px" }}>{SECTION_LABEL[sec.type] || sec.type}</span>
+                {selQ?.marks != null ? <span style={{ fontSize: 12, color: "var(--muted)" }}>{selQ.marks} marks</span> : null}
+              </div>
+              <p style={{ fontSize: 15, fontWeight: 600, lineHeight: 1.55, margin: "0 0 12px", whiteSpace: "pre-wrap" }}>{selQ?.question}</p>
+              <textarea
+                value={selQid != null ? answers[selQid] || "" : ""}
+                onChange={(e) => { if (selQid != null) setAnswers((a) => ({ ...a, [selQid]: e.target.value })); }}
+                placeholder="Write your answer here…"
+                rows={12}
                 disabled={phase === "submitting"}
-                style={{ ...goldBtn, width: "100%", padding: "14px", fontSize: 15, opacity: phase === "submitting" ? 0.6 : 1 }}
-              >
-                {phase === "submitting" ? "Scoring your answers…" : `Submit test (${totalWords} words)`}
-              </button>
+                style={{ width: "100%", boxSizing: "border-box", borderRadius: 10, border: "1px solid var(--line)", background: "var(--bg)", color: "var(--text)", padding: 12, fontSize: 14.5, lineHeight: 1.6, resize: "vertical" }}
+              />
+              <div style={{ marginTop: 6, fontSize: 12, color: "var(--muted)" }}>
+                Words: <b style={{ color: wc > target ? "#e07b00" : "var(--text)" }}>{wc}</b> / {target}
+              </div>
+            </div>
+
+            <div style={{ position: "sticky", bottom: 0, background: "var(--bg)", paddingTop: 10, marginTop: 4, display: "flex", gap: 10 }}>
+              {curSection > 0 && (
+                <button onClick={() => setCurSection((c) => c - 1)} style={ghostBtn}>← Previous</button>
+              )}
+              {isLast ? (
+                <button onClick={() => { if (confirm("Submit the whole test? You can't edit after this.")) submit(); }} disabled={phase === "submitting"} style={{ ...goldBtn, flex: 1, padding: "14px", fontSize: 15, opacity: phase === "submitting" ? 0.6 : 1 }}>
+                  {phase === "submitting" ? "Scoring your answers…" : "Submit test"}
+                </button>
+              ) : (
+                <button onClick={() => setCurSection((c) => c + 1)} style={{ ...goldBtn, flex: 1, padding: "14px", fontSize: 15 }}>
+                  Save &amp; Next section →
+                </button>
+              )}
             </div>
           </>
+        ) : (
+          <p style={{ color: "var(--muted)", fontSize: 14 }}>This test has no questions yet.</p>
         )}
       </main>
     </div>
@@ -376,7 +428,7 @@ function ResultView({ result, onPdf, pdfBusy, onExit, timeUsedSec }: { result: a
         <div style={{ display: "flex", gap: 10, marginTop: 16, flexWrap: "wrap" }}>
           <HeroStat label="Time taken" value={mmss(timeUsedSec)} />
           <HeroStat label="Words written" value={String(agg.words)} />
-          <HeroStat label="Attempted" value={`${agg.attempted}/${results.length}`} />
+         <HeroStat label="Attempted" value={`${agg.attempted}/${results.length}`} />
         </div>
 
         <div style={{ display: "flex", gap: 10, marginTop: 16, flexWrap: "wrap" }}>
