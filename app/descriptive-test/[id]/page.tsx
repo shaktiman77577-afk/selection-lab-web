@@ -47,6 +47,7 @@ export default function DescriptiveTestPlayer() {
   const [secondsLeft, setSecondsLeft] = useState<number>(0);
   const [result, setResult] = useState<any>(null);
   const [pdfBusy, setPdfBusy] = useState(false);
+  const [timeUsedSec, setTimeUsedSec] = useState(0);
 
   const submittedRef = useRef(false);
 
@@ -96,6 +97,8 @@ export default function DescriptiveTestPlayer() {
     submittedRef.current = true;
     setPhase("submitting");
     setError("");
+    const dur = Number(test?.duration_min || 30) * 60;
+    setTimeUsedSec(Math.max(0, dur - secondsLeft));
     const u = getUser();
     try {
       const payload = {
@@ -184,6 +187,21 @@ export default function DescriptiveTestPlayer() {
         write("Your Answer:", 11, "bold");
         write(r.your_answer || "(left blank)", 11, "normal", [60, 60, 60]);
         gap(4);
+        write("Grammar feedback:", 11, "bold");
+        if (s.grammar_checked === false) {
+          write("Grammar check was unavailable.", 10, "normal", [110, 110, 110]);
+        } else if (s.grammar_word_capped) {
+          write("Many words were not recognised as English; grammar could not be fully assessed.", 10, "normal", [110, 110, 110]);
+        } else if (!s.grammar_issues || s.grammar_issues.length === 0) {
+          write("No major grammar error found.", 10, "normal", [46, 139, 74]);
+        } else {
+          s.grammar_issues.forEach((it: any, k: number) => {
+            const sugg = (it.suggestions || []).filter(Boolean);
+            const line = `${k + 1}. ${it.short || it.message || "Issue"}` + (sugg.length ? `  ->  ${sugg.join(", ")}` : "");
+            write(line, 10, "normal", [90, 70, 70]);
+          });
+        }
+        gap(4);
         write("Model Answer:", 11, "bold");
         write(r.sample_answer || "—", 11, "normal", [60, 60, 60]);
         gap(8);
@@ -263,7 +281,7 @@ export default function DescriptiveTestPlayer() {
         {error ? <p style={{ color: "#c0392b", fontSize: 13, marginBottom: 12 }}>{error}</p> : null}
 
         {phase === "done" && result ? (
-          <ResultView result={result} onPdf={downloadPdf} pdfBusy={pdfBusy} onExit={() => router.push(seriesId ? `/descriptive/${seriesId}` : "/descriptive")} />
+          <ResultView result={result} onPdf={downloadPdf} pdfBusy={pdfBusy} timeUsedSec={timeUsedSec} onExit={() => router.push(seriesId ? `/descriptive/${seriesId}` : "/descriptive")} />
         ) : (
           <>
             {questions.map((q, i) => {
@@ -323,23 +341,45 @@ export default function DescriptiveTestPlayer() {
 }
 
 // ── Result view ───────────────────────────────────────────────────────────────
-function ResultView({ result, onPdf, pdfBusy, onExit }: { result: any; onPdf: () => void; pdfBusy: boolean; onExit: () => void }) {
+function ResultView({ result, onPdf, pdfBusy, onExit, timeUsedSec }: { result: any; onPdf: () => void; pdfBusy: boolean; onExit: () => void; timeUsedSec: number }) {
+  const results: any[] = result.results || [];
+  const agg = results.reduce(
+    (a: any, r: any) => {
+      const s = r.score || {};
+      a.w += Number(s.word_count_score || 0); a.wm += Number(s.max_word_marks || 0);
+      a.sp += Number(s.spelling_score || 0); a.spm += Number(s.max_spelling_marks || 0);
+      a.gr += Number(s.grammar_score || 0); a.grm += Number(s.max_grammar_marks || 0);
+      a.words += Number(s.word_count || 0);
+      if ((r.your_answer || "").trim()) a.attempted += 1;
+      return a;
+    },
+    { w: 0, wm: 0, sp: 0, spm: 0, gr: 0, grm: 0, words: 0, attempted: 0 }
+  );
+  const pct = result.grand_max > 0 ? (result.grand_total / result.grand_max) * 100 : 0;
+  const v = verdictBand(pct);
+
   return (
     <div>
-      <section
-        style={{
-          background: `linear-gradient(135deg, ${NAVY}, #2c4a85)`,
-          borderRadius: 18,
-          padding: "22px 20px",
-          color: "#fff",
-          textAlign: "center",
-        }}
-      >
-        <div style={{ fontSize: 13, opacity: 0.85 }}>Your total score</div>
-        <div style={{ fontSize: 34, fontWeight: 800, margin: "4px 0" }}>
-          {result.grand_total} <span style={{ fontSize: 18, opacity: 0.8 }}>/ {result.grand_max}</span>
+      {/* Hero scorecard */}
+      <section style={{ background: `linear-gradient(135deg, ${NAVY}, #2c4a85)`, borderRadius: 18, padding: "22px 20px", color: "#fff" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap" }}>
+          <ScoreRing pct={pct} color={v.color} />
+          <div style={{ flex: 1, minWidth: 170 }}>
+            <span style={{ display: "inline-block", background: v.color, color: "#10240f", fontWeight: 800, fontSize: 12.5, padding: "4px 12px", borderRadius: 20 }}>{v.label}</span>
+            <div style={{ fontSize: 30, fontWeight: 800, margin: "8px 0 2px" }}>
+              {result.grand_total} <span style={{ fontSize: 17, opacity: 0.75 }}>/ {result.grand_max}</span>
+            </div>
+            <div style={{ fontSize: 12.5, opacity: 0.8 }}>marks scored</div>
+          </div>
         </div>
-        <div style={{ display: "flex", gap: 10, justifyContent: "center", marginTop: 12, flexWrap: "wrap" }}>
+
+        <div style={{ display: "flex", gap: 10, marginTop: 16, flexWrap: "wrap" }}>
+          <HeroStat label="Time taken" value={mmss(timeUsedSec)} />
+          <HeroStat label="Words written" value={String(agg.words)} />
+          <HeroStat label="Attempted" value={`${agg.attempted}/${results.length}`} />
+        </div>
+
+        <div style={{ display: "flex", gap: 10, marginTop: 16, flexWrap: "wrap" }}>
           <button onClick={onPdf} disabled={pdfBusy} style={{ ...goldBtn, opacity: pdfBusy ? 0.6 : 1 }}>
             {pdfBusy ? "Preparing…" : "⬇ Download PDF"}
           </button>
@@ -349,14 +389,24 @@ function ResultView({ result, onPdf, pdfBusy, onExit }: { result: any; onPdf: ()
         </div>
       </section>
 
-      {(result.results || []).map((r: any, i: number) => {
+      {/* Aggregated breakdown — only when there are multiple questions */}
+      {results.length > 1 && (
+        <div style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: 14, padding: 16, boxShadow: "var(--shadow)", marginTop: 16 }}>
+          <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 12 }}>Performance breakdown</div>
+          <ScoreBar label="Word count" got={agg.w} max={agg.wm} />
+          <ScoreBar label="Spelling" got={agg.sp} max={agg.spm} />
+          <ScoreBar label="Grammar" got={agg.gr} max={agg.grm} />
+        </div>
+      )}
+
+      {results.map((r: any, i: number) => {
         const s = r.score || {};
         return (
           <div key={r.question_id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: 14, padding: 16, boxShadow: "var(--shadow)", marginTop: 16 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
               <span style={{ fontSize: 11, fontWeight: 800, color: "#1a1a1a", background: GOLD, borderRadius: 6, padding: "2px 8px" }}>{r.q_type || "Essay"}</span>
               <span style={{ fontSize: 12, color: "var(--muted)" }}>Question {i + 1}</span>
-              <span style={{ marginLeft: "auto", fontWeight: 800, fontSize: 15, color: GOLD }}>{s.total_score ?? 0}/{s.total_max ?? 0}</span>
+              <span style={{ marginLeft: "auto", fontWeight: 800, fontSize: 15, color: barColor(s.total_score, s.total_max) }}>{s.total_score ?? 0}/{s.total_max ?? 0}</span>
             </div>
             <p style={{ fontSize: 14.5, fontWeight: 600, lineHeight: 1.5, margin: "0 0 12px" }}>{r.question}</p>
 
@@ -365,10 +415,6 @@ function ResultView({ result, onPdf, pdfBusy, onExit }: { result: any; onPdf: ()
             <ScoreBar label="Spelling" got={s.spelling_score} max={s.max_spelling_marks} extra={`${s.spelling_correct ?? 0}/${s.spelling_total ?? 0} correct`} />
             <ScoreBar label="Grammar" got={s.grammar_score} max={s.max_grammar_marks} extra={s.grammar_checked === false ? "check unavailable" : s.grammar_word_capped ? "non-English words" : `${s.grammar_errors ?? 0} issue${(s.grammar_errors ?? 0) === 1 ? "" : "s"}`} />
 
-            {s.grammar_checked === false && (
-              <p style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 6 }}>Grammar service was busy — full grammar marks awarded for this attempt.</p>
-            )}
-
             {/* answers comparison */}
             <div style={{ marginTop: 14 }}>
               <div style={{ fontSize: 12.5, fontWeight: 800, color: "var(--muted)", marginBottom: 4 }}>YOUR ANSWER</div>
@@ -376,6 +422,9 @@ function ResultView({ result, onPdf, pdfBusy, onExit }: { result: any; onPdf: ()
                 {r.your_answer || <span style={{ color: "var(--muted)" }}>(left blank)</span>}
               </div>
             </div>
+
+            <GrammarFeedback s={s} />
+
             <div style={{ marginTop: 12 }}>
               <div style={{ fontSize: 12.5, fontWeight: 800, color: "#2e8b4a", marginBottom: 4 }}>MODEL ANSWER</div>
               <div style={{ background: "rgba(46,139,74,0.06)", border: "1px solid rgba(46,139,74,0.3)", borderRadius: 10, padding: 12, fontSize: 13.5, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
@@ -389,10 +438,57 @@ function ResultView({ result, onPdf, pdfBusy, onExit }: { result: any; onPdf: ()
   );
 }
 
+function GrammarFeedback({ s }: { s: any }) {
+  const box: React.CSSProperties = {
+    background: "var(--bg)",
+    border: "1px solid var(--line)",
+    borderRadius: 10,
+    padding: 12,
+    fontSize: 13,
+    lineHeight: 1.6,
+  };
+  const issues: any[] = s?.grammar_issues || [];
+
+  let body: React.ReactNode;
+  if (s?.grammar_checked === false) {
+    body = <div style={{ ...box, color: "var(--muted)" }}>Grammar check was unavailable for this attempt.</div>;
+  } else if (s?.grammar_word_capped) {
+    body = <div style={{ ...box, color: "var(--muted)" }}>Many words weren&apos;t recognised as English, so grammar couldn&apos;t be fully assessed.</div>;
+  } else if (issues.length === 0) {
+    body = <div style={{ ...box, color: "#2e8b4a", fontWeight: 600 }}>✓ No major grammar error found.</div>;
+  } else {
+    body = (
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {issues.map((it, i) => {
+          const sugg = (it.suggestions || []).filter(Boolean);
+          return (
+            <div key={i} style={box}>
+              <div style={{ fontWeight: 700 }}>{i + 1}. {it.short || it.message || "Issue"}</div>
+              {it.short && it.message && it.message !== it.short ? (
+                <div style={{ color: "var(--muted)", marginTop: 2 }}>{it.message}</div>
+              ) : null}
+              {it.text ? <div style={{ marginTop: 4, fontStyle: "italic" }}>“…{it.text}…”</div> : null}
+              {sugg.length ? <div style={{ marginTop: 4, color: "#2e8b4a" }}>Suggestion: {sugg.join(", ")}</div> : null}
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ marginTop: 12 }}>
+      <div style={{ fontSize: 12.5, fontWeight: 800, color: "#7c3aed", marginBottom: 4 }}>GRAMMAR CORRECTION</div>
+      {body}
+    </div>
+  );
+}
+
 function ScoreBar({ label, got, max, extra }: { label: string; got: number; max: number; extra?: string }) {
   const g = Number(got || 0);
   const m = Number(max || 0);
   const pct = m > 0 ? Math.max(0, Math.min(100, (g / m) * 100)) : 0;
+  const fill = barColor(g, m);
   return (
     <div style={{ marginBottom: 8 }}>
       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, marginBottom: 3 }}>
@@ -403,9 +499,46 @@ function ScoreBar({ label, got, max, extra }: { label: string; got: number; max:
         </span>
       </div>
       <div style={{ height: 7, borderRadius: 6, background: "var(--chip)", overflow: "hidden" }}>
-        <div style={{ width: `${pct}%`, height: "100%", background: GOLD }} />
+        <div style={{ width: `${pct}%`, height: "100%", background: fill }} />
       </div>
     </div>
+  );
+}
+
+function barColor(got: number, max: number): string {
+  const m = Number(max || 0);
+  const ratio = m > 0 ? Number(got || 0) / m : 0;
+  return ratio >= 0.8 ? "#2e8b4a" : ratio >= 0.5 ? GOLD : "#e05555";
+}
+
+function verdictBand(pct: number): { label: string; color: string } {
+  if (pct >= 80) return { label: "Excellent", color: "#4cc46a" };
+  if (pct >= 60) return { label: "Good", color: GOLD };
+  if (pct >= 40) return { label: "Needs work", color: "#f0932b" };
+  return { label: "Keep practising", color: "#ff8a8a" };
+}
+
+function HeroStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={{ flex: 1, minWidth: 92, background: "rgba(255,255,255,0.1)", borderRadius: 12, padding: "10px 12px" }}>
+      <div style={{ fontSize: 17, fontWeight: 800 }}>{value}</div>
+      <div style={{ fontSize: 11, opacity: 0.8, marginTop: 1 }}>{label}</div>
+    </div>
+  );
+}
+
+function ScoreRing({ pct, color }: { pct: number; color: string }) {
+  const r = 46;
+  const c = 2 * Math.PI * r;
+  const p = Math.max(0, Math.min(100, pct));
+  const off = c * (1 - p / 100);
+  return (
+    <svg width="118" height="118" viewBox="0 0 118 118" style={{ flexShrink: 0 }}>
+      <circle cx="59" cy="59" r={r} fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="10" />
+      <circle cx="59" cy="59" r={r} fill="none" stroke={color} strokeWidth="10" strokeLinecap="round" strokeDasharray={c} strokeDashoffset={off} transform="rotate(-90 59 59)" />
+      <text x="59" y="55" textAnchor="middle" fontSize="27" fontWeight="800" fill="#fff">{Math.round(p)}%</text>
+      <text x="59" y="75" textAnchor="middle" fontSize="10.5" fill="rgba(255,255,255,0.7)">score</text>
+    </svg>
   );
 }
 
