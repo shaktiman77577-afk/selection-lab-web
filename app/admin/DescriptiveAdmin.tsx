@@ -187,7 +187,7 @@ function SeriesLevel(props: {
   const [form, setForm] = useState<any>(blank());
 
   function blank() {
-    return { title: "", description: "", thumbnail_url: "", price: 0, original_price: 0, validity_days: 180, is_active: true, display_order: 0 };
+    return { title: "", description: "", thumbnail_url: "", price: 0, original_price: 0, validity_days: 180, is_active: true, display_order: 0, bundle_ids: "" };
   }
   function startEdit(s: any) {
     setEditId(s.id);
@@ -195,6 +195,7 @@ function SeriesLevel(props: {
       title: s.title || "", description: s.description || "", thumbnail_url: s.thumbnail_url || "",
       price: s.price ?? 0, original_price: s.original_price ?? 0, validity_days: s.validity_days ?? 180,
       is_active: s.is_active ?? true, display_order: s.display_order ?? 0,
+      bundle_ids: (s.bundle_series_ids || []).join(", "),
     });
     setShowForm(true);
   }
@@ -202,12 +203,15 @@ function SeriesLevel(props: {
     if (!form.title.trim()) return alert("Series title is required.");
     setBusy(true);
     try {
-      const body = {
-        ...form,
+      const body: any = {
+        title: form.title, description: form.description, thumbnail_url: form.thumbnail_url,
+        is_active: form.is_active,
         price: Number(form.price) || 0,
         original_price: Number(form.original_price) || 0,
         validity_days: Number(form.validity_days) || 180,
         display_order: Number(form.display_order) || 0,
+        bundle_series_ids: String(form.bundle_ids || "")
+          .split(",").map((x: string) => parseInt(x.trim(), 10)).filter((n: number) => !isNaN(n)),
       };
       if (editId) await api(`/admin-extra/desc/series/${editId}`, "PUT", body);
       else await api("/admin-extra/desc/series", "POST", body);
@@ -243,6 +247,9 @@ function SeriesLevel(props: {
             <Field label="Display order"><input type="number" style={inputStyle} value={form.display_order} onChange={(e) => setForm({ ...form, display_order: e.target.value })} /></Field>
           </div>
           <Field label="Description"><textarea rows={2} style={inputStyle} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></Field>
+          <Field label="Bundle — included series IDs (optional)" hint="Comma-separated IDs, e.g. 2, 5, 7. Buying THIS series will also unlock those series.">
+            <input style={inputStyle} value={form.bundle_ids} onChange={(e) => setForm({ ...form, bundle_ids: e.target.value })} placeholder="e.g. 2, 5, 7" />
+          </Field>
           <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13.5, margin: "4px 0 12px", cursor: "pointer" }}>
             <input type="checkbox" checked={!!form.is_active} onChange={(e) => setForm({ ...form, is_active: e.target.checked })} />
             Active (visible to students)
@@ -262,7 +269,8 @@ function SeriesLevel(props: {
                 {!s.is_active ? <span style={{ fontSize: 10, color: MUTED, border: `1px solid ${BORDER}`, borderRadius: 6, padding: "1px 6px", marginLeft: 4 }}>HIDDEN</span> : null}
               </div>
               <div style={{ fontSize: 12, color: MUTED, marginTop: 2 }}>
-                {Number(s.price) > 0 ? `₹${s.price}` : "Free"} · {s.validity_days ?? 180}d
+                ID {s.id} · {Number(s.price) > 0 ? `₹${s.price}` : "Free"} · {s.validity_days ?? 180}d
+                {(s.bundle_series_ids || []).length > 0 ? ` · 📦 bundle of ${(s.bundle_series_ids || []).length}` : ""}
               </div>
             </div>
             <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
