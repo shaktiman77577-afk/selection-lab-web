@@ -363,7 +363,7 @@ function ResultView({ result, onPdf, pdfBusy, onExit }: { result: any; onPdf: ()
             {/* score bars */}
             <ScoreBar label="Word count" got={s.word_count_score} max={s.max_word_marks} extra={`${s.word_count ?? 0} / ${s.target_words ?? 0} words`} />
             <ScoreBar label="Spelling" got={s.spelling_score} max={s.max_spelling_marks} extra={`${s.spelling_correct ?? 0}/${s.spelling_total ?? 0} correct`} />
-            <ScoreBar label="Grammar" got={s.grammar_score} max={s.max_grammar_marks} extra={s.grammar_checked === false ? "check unavailable" : `${s.grammar_errors ?? 0} issue${(s.grammar_errors ?? 0) === 1 ? "" : "s"}`} />
+            <ScoreBar label="Grammar" got={s.grammar_score} max={s.max_grammar_marks} extra={s.grammar_checked === false ? "check unavailable" : s.grammar_word_capped ? "non-English words" : `${s.grammar_errors ?? 0} issue${(s.grammar_errors ?? 0) === 1 ? "" : "s"}`} />
 
             {s.grammar_checked === false && (
               <p style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 6 }}>Grammar service was busy — full grammar marks awarded for this attempt.</p>
@@ -427,4 +427,3 @@ const goldBtn: React.CSSProperties = {
   fontSize: 14,
   cursor: "pointer",
 };
-        
