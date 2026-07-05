@@ -18,7 +18,7 @@ const GOLD = "#FFAB00";
 const CARD = "#16130e";
 const BORDER = "rgba(255,171,0,0.25)";
 const MUTED = "#9a917f";
-const Q_TYPES = ["Essay", "Precis", "Letter"];
+const Q_TYPES = ["Essay", "Letter", "Precis", "Translation"];
 
 const inputStyle: CSSProperties = {
   width: "100%",
@@ -365,7 +365,7 @@ function QuestionsLevel(props: {
   const [form, setForm] = useState<any>(blank());
 
   function blank() {
-    return { q_type: "Essay", question: "", word_limit: 250, sample_answer: "", max_word_marks: 5, max_spelling_marks: 10, max_grammar_marks: 10, display_order: 0 };
+    return { q_type: "Essay", question: "", word_limit: 250, sample_answer: "", explanation: "", max_word_marks: 5, max_spelling_marks: 10, max_grammar_marks: 10, display_order: 0 };
   }
   const totalMarks = (Number(form.max_word_marks) || 0) + (Number(form.max_spelling_marks) || 0) + (Number(form.max_grammar_marks) || 0);
 
@@ -376,6 +376,7 @@ function QuestionsLevel(props: {
       await api("/admin-extra/desc/questions", "POST", {
         test_id: test.id, q_type: form.q_type, question: form.question,
         word_limit: Number(form.word_limit) || 250, sample_answer: form.sample_answer,
+        explanation: form.explanation,
         max_word_marks: Number(form.max_word_marks) || 0,
         max_spelling_marks: Number(form.max_spelling_marks) || 0,
         max_grammar_marks: Number(form.max_grammar_marks) || 0,
@@ -410,6 +411,7 @@ function QuestionsLevel(props: {
           </div>
           <Field label="Question"><textarea rows={2} style={inputStyle} value={form.question} onChange={(e) => setForm({ ...form, question: e.target.value })} /></Field>
           <Field label="Sample / model answer" hint="Shown to student after submit for comparison."><textarea rows={5} style={inputStyle} value={form.sample_answer} onChange={(e) => setForm({ ...form, sample_answer: e.target.value })} /></Field>
+          <Field label="Examiner's Tips (optional)" hint="Keywords, vocabulary, quotations, pro-tips, common mistakes — shown below the model answer."><textarea rows={4} style={inputStyle} value={form.explanation} onChange={(e) => setForm({ ...form, explanation: e.target.value })} /></Field>
 
           <div style={{ background: "rgba(255,171,0,0.07)", border: `1px solid ${BORDER}`, borderRadius: 10, padding: 12, marginBottom: 10 }}>
             <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 8 }}>Auto-score marks · total {totalMarks}</div>
