@@ -227,6 +227,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         {tab === "users" && <UsersTab />}
         {tab === "coupons" && <CouponsTab />}
         {tab === "descriptive" && <DescriptiveAdmin api={api} />}
+        {tab === "appcontent" && <AppContentAdmin api={api} />}
       </main>
     </div>
   );
