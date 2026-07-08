@@ -1896,6 +1896,147 @@ function CouponsTab() {
         <div style={{ display: "flex", gap: 10 }}>
           <Field label="How many" style={{ flex: 1 }}>
             <input type="number" style={inputStyle} value={gen.count} onChange={(e) => setGen({ ...gen, count: e.target.value })} />
+          </Field>function CouponsTab() {
+  const [coupons, setCoupons] = useState<any[]>([]);
+  const [error, setError] = useState("");
+  const [pub, setPub] = useState({ code: "", discount_type: "percent", discount_value: "", scope_type: "all", scope_id: "" });
+  const [gen, setGen] = useState({ count: "10", prefix: "SL", discount_type: "percent", discount_value: "", scope_type: "all", scope_id: "" });
+  const [generated, setGenerated] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [report, setReport] = useState<any>(null);
+
+  function load() {
+    api("/admin/coupons")
+      .then((d) => setCoupons(d.coupons || []))
+      .catch((e) => setError(e.message));
+    api("/admin-extra/coupons/report").then(setReport).catch(() => {});
+  }
+  useEffect(load, []);
+
+  async function createPublic() {
+    if (!pub.code || !pub.discount_value) return;
+    setBusy(true);
+    setError("");
+    try {
+      await api("/admin-extra/coupons/public", "POST", {
+        code: pub.code,
+        discount_type: pub.discount_type,
+        discount_value: Number(pub.discount_value),
+        is_public: true,
+        scope_type: pub.scope_type,
+        scope_id: pub.scope_type === "all" ? null : pub.scope_id,
+      });
+      setPub({ code: "", discount_type: "percent", discount_value: "", scope_type: "all", scope_id: "" });
+      load();
+    } catch (e: any) {
+      setError(e.message);
+    }
+    setBusy(false);
+  }
+
+  async function generate() {
+    if (!gen.discount_value) return;
+    setBusy(true);
+    setError("");
+    setGenerated([]);
+    try {
+      const d = await api("/admin-extra/coupons/generate", "POST", {
+        count: Number(gen.count) || 10,
+        prefix: gen.prefix || "SL",
+        discount_type: gen.discount_type,
+        discount_value: Number(gen.discount_value),
+        scope_type: gen.scope_type,
+        scope_id: gen.scope_type === "all" ? null : gen.scope_id,
+      });
+      setGenerated(d.codes || []);
+      load();
+    } catch (e: any) {
+      setError(e.message);
+    }
+    setBusy(false);
+  }
+
+  async function remove(id: number) {
+    if (!confirm("Deactivate this coupon?")) return;
+    try {
+      await api(`/admin/coupons/${id}`, "DELETE");
+      load();
+    } catch (e: any) {
+      setError(e.message);
+    }
+  }
+
+  function copyAll() {
+    navigator.clipboard?.writeText(generated.join("\n"));
+  }
+
+  return (
+    <div>
+      {report && report.report.length > 0 && (
+        <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 14, padding: 14, marginBottom: 14 }}>
+          <h3 style={{ margin: "0 0 4px", fontSize: 15 }}>📈 Coupon usage ({report.total_redemptions} total redemptions)</h3>
+          <div style={{ marginTop: 8 }}>
+            {report.report.slice(0, 20).map((r: any) => (
+              <div key={r.code} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid rgba(128,128,128,0.15)", fontSize: 12.5 }}>
+                <span><b style={{ color: GOLD }}>{r.code}</b> <span style={{ color: "#9a917f" }}>({r.discount_type === "percent" ? `${r.discount_value}%` : `₹${r.discount_value}`}{r.is_active === false ? " · inactive" : ""})</span></span>
+                <b>{r.times_used} used</b>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Universal (public) coupon */}
+      <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 14, padding: 14, marginBottom: 14 }}>
+        <h3 style={{ margin: "0 0 4px", fontSize: 15 }}>Universal coupon</h3>
+        <p style={{ margin: "0 0 12px", fontSize: 12.5, color: "#9a917f" }}>
+          Shows automatically on course pages for everyone.
+        </p>
+        <input style={inputStyle} placeholder="Code (e.g. NIKKI50)" value={pub.code} onChange={(e) => setPub({ ...pub, code: e.target.value })} />
+        <div style={{ display: "flex", gap: 10 }}>
+          <select style={{ ...inputStyle, flex: 1 }} value={pub.discount_type} onChange={(e) => setPub({ ...pub, discount_type: e.target.value })}>
+            <option value="percent">Percent (%)</option>
+            <option value="flat">Flat (₹)</option>
+          </select>
+          <input
+            type="number"
+            style={{ ...inputStyle, flex: 1 }}
+            placeholder="Value"
+            value={pub.discount_value}
+            onChange={(e) => setPub({ ...pub, discount_value: e.target.value })}
+          />
+        </div>
+        <div style={{ display: "flex", gap: 10 }}>
+          <select style={{ ...inputStyle, flex: 1 }} value={pub.scope_type} onChange={(e) => setPub({ ...pub, scope_type: e.target.value, scope_id: "" })}>
+            <option value="all">All products</option>
+            <option value="course">Specific Course</option>
+            <option value="mock">Specific Mock Series</option>
+            <option value="descriptive">Specific Descriptive Series</option>
+          </select>
+          {pub.scope_type !== "all" && (
+            <input
+              type="number"
+              style={{ ...inputStyle, flex: 1 }}
+              placeholder={`${pub.scope_type} ID`}
+              value={pub.scope_id}
+              onChange={(e) => setPub({ ...pub, scope_id: e.target.value })}
+            />
+          )}
+        </div>
+        <button onClick={createPublic} disabled={busy} style={{ ...goldBtn, width: "100%" }}>
+          + Create universal coupon
+        </button>
+      </div>
+
+      {/* Unique single-use generator */}
+      <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 14, padding: 14, marginBottom: 14 }}>
+        <h3 style={{ margin: "0 0 4px", fontSize: 15 }}>Generate unique coupons</h3>
+        <p style={{ margin: "0 0 12px", fontSize: 12.5, color: "#9a917f" }}>
+          Random one-time codes — each works only once.
+        </p>
+        <div style={{ display: "flex", gap: 10 }}>
+          <Field label="How many" style={{ flex: 1 }}>
+            <input type="number" style={inputStyle} value={gen.count} onChange={(e) => setGen({ ...gen, count: e.target.value })} />
           </Field>
           <Field label="Prefix" style={{ flex: 1 }}>
             <input style={inputStyle} value={gen.prefix} onChange={(e) => setGen({ ...gen, prefix: e.target.value })} />
@@ -1913,6 +2054,23 @@ function CouponsTab() {
             value={gen.discount_value}
             onChange={(e) => setGen({ ...gen, discount_value: e.target.value })}
           />
+        </div>
+        <div style={{ display: "flex", gap: 10 }}>
+          <select style={{ ...inputStyle, flex: 1 }} value={gen.scope_type} onChange={(e) => setGen({ ...gen, scope_type: e.target.value, scope_id: "" })}>
+            <option value="all">All products</option>
+            <option value="course">Specific Course</option>
+            <option value="mock">Specific Mock Series</option>
+            <option value="descriptive">Specific Descriptive Series</option>
+          </select>
+          {gen.scope_type !== "all" && (
+            <input
+              type="number"
+              style={{ ...inputStyle, flex: 1 }}
+              placeholder={`${gen.scope_type} ID`}
+              value={gen.scope_id}
+              onChange={(e) => setGen({ ...gen, scope_id: e.target.value })}
+            />
+          )}
         </div>
         <button onClick={generate} disabled={busy} style={{ ...goldBtn, width: "100%" }}>
           {busy ? "Generating..." : "Generate codes"}
@@ -1957,7 +2115,6 @@ function CouponsTab() {
     </div>
   );
 }
-
 // ── Shared UI ────────────────────────────────────────────────────────────────
 function Field({ label, children, style }: { label: string; children: React.ReactNode; style?: React.CSSProperties }) {
   return (
