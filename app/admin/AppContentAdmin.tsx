@@ -183,7 +183,9 @@ export default function AppContentAdmin({ api }: { api: ApiFn }) {
       {/* HERO SLIDES */}
       <div style={box}>
         <div style={head}>🎠 Hero Slides (home carousel)</div>
-        {(cfg.hero_slides || []).map((sd: any, i: number) => (
+        {(cfg.hero_slides || []).map((sd: any, i: number) => {
+          const isImage = (sd.type || "content") === "image";
+          return (
           <div key={i} style={card}>
             <div style={{ ...row, justifyContent: "space-between", marginBottom: 6 }}>
               <b style={{ fontSize: 12, color: TEXT }}>Slide {i + 1}</b>
@@ -193,39 +195,71 @@ export default function AppContentAdmin({ api }: { api: ApiFn }) {
                 <button style={delBtn} onClick={() => removeItem("hero_slides", i)}>Delete</button>
               </div>
             </div>
-            <span style={lbl}>Emoji</span>
-            <Field value={sd.emoji} onChange={(v) => updateItem("hero_slides", i, { emoji: v })} placeholder="🏆" />
-            <span style={lbl}>Title</span>
-            <Field value={sd.title} onChange={(v) => updateItem("hero_slides", i, { title: v })} placeholder="Big headline" />
-            <span style={lbl}>Subtitle</span>
-            <Field area value={sd.subtitle} onChange={(v) => updateItem("hero_slides", i, { subtitle: v })} placeholder="Description line" />
-            <div style={row}>
-              <div style={{ flex: 1 }}>
-                <span style={lbl}>Button 1 text</span>
-                <Field value={sd.primary_label} onChange={(v) => updateItem("hero_slides", i, { primary_label: v })} placeholder="Start Mock →" />
-              </div>
-              <div style={{ flex: 1 }}>
-                <span style={lbl}>Button 1 goes to</span>
+
+            <span style={lbl}>Slide Type</span>
+            <div style={{ ...row, marginBottom: 10 }}>
+              <button
+                style={!isImage ? goldBtn : darkBtn}
+                onClick={() => updateItem("hero_slides", i, { type: "content" })}
+              >
+                📝 Text Slide
+              </button>
+              <button
+                style={isImage ? goldBtn : darkBtn}
+                onClick={() => updateItem("hero_slides", i, { type: "image" })}
+              >
+                🖼️ Image Ad
+              </button>
+            </div>
+
+            {isImage ? (
+              <>
+                <span style={lbl}>Image URL (1200×800px recommended)</span>
+                <Field value={sd.image_url} onChange={(v) => updateItem("hero_slides", i, { image_url: v })} placeholder="https://…/ad-banner.jpg" />
+                <span style={lbl}>Tap goes to</span>
                 <select style={input} value={sd.primary_action || ""} onChange={(e) => updateItem("hero_slides", i, { primary_action: e.target.value })}>
                   {ACTIONS.map((a) => <option key={a} value={a}>{a || "(none)"}</option>)}
                 </select>
-              </div>
-            </div>
-            <div style={row}>
-              <div style={{ flex: 1 }}>
-                <span style={lbl}>Button 2 text (optional)</span>
-                <Field value={sd.secondary_label} onChange={(v) => updateItem("hero_slides", i, { secondary_label: v })} />
-              </div>
-              <div style={{ flex: 1 }}>
-                <span style={lbl}>Button 2 goes to</span>
-                <select style={input} value={sd.secondary_action || ""} onChange={(e) => updateItem("hero_slides", i, { secondary_action: e.target.value })}>
-                  {ACTIONS.map((a) => <option key={a} value={a}>{a || "(none)"}</option>)}
-                </select>
-              </div>
-            </div>
-            <div style={{ fontSize: 11, color: MUTED }}>Tip: "goes to" me mock / descriptive / courses chuno, ya poora URL paste karo (https://…)</div>
+                <div style={{ fontSize: 11, color: MUTED, marginTop: 4 }}>Poori image dikhegi (auto-fit, koi crop nahi). "goes to" me mock/descriptive/courses chuno ya URL paste karo.</div>
+              </>
+            ) : (
+              <>
+                <span style={lbl}>Emoji</span>
+                <Field value={sd.emoji} onChange={(v) => updateItem("hero_slides", i, { emoji: v })} placeholder="🏆" />
+                <span style={lbl}>Title</span>
+                <Field value={sd.title} onChange={(v) => updateItem("hero_slides", i, { title: v })} placeholder="Big headline" />
+                <span style={lbl}>Subtitle</span>
+                <Field area value={sd.subtitle} onChange={(v) => updateItem("hero_slides", i, { subtitle: v })} placeholder="Description line" />
+                <div style={row}>
+                  <div style={{ flex: 1 }}>
+                    <span style={lbl}>Button 1 text</span>
+                    <Field value={sd.primary_label} onChange={(v) => updateItem("hero_slides", i, { primary_label: v })} placeholder="Start Mock →" />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <span style={lbl}>Button 1 goes to</span>
+                    <select style={input} value={sd.primary_action || ""} onChange={(e) => updateItem("hero_slides", i, { primary_action: e.target.value })}>
+                      {ACTIONS.map((a) => <option key={a} value={a}>{a || "(none)"}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div style={row}>
+                  <div style={{ flex: 1 }}>
+                    <span style={lbl}>Button 2 text (optional)</span>
+                    <Field value={sd.secondary_label} onChange={(v) => updateItem("hero_slides", i, { secondary_label: v })} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <span style={lbl}>Button 2 goes to</span>
+                    <select style={input} value={sd.secondary_action || ""} onChange={(e) => updateItem("hero_slides", i, { secondary_action: e.target.value })}>
+                      {ACTIONS.map((a) => <option key={a} value={a}>{a || "(none)"}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div style={{ fontSize: 11, color: MUTED }}>Tip: "goes to" me mock / descriptive / courses chuno, ya poora URL paste karo (https://…)</div>
+              </>
+            )}
           </div>
-        ))}
+          );
+        })}
         <button style={darkBtn} onClick={() => addItem("hero_slides", { emoji: "🎯", title: "", subtitle: "", primary_label: "", primary_action: "mock", secondary_label: "", secondary_action: "" })}>+ Add slide</button>
       </div>
 
