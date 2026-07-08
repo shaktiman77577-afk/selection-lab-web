@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { API_URL } from "@/lib/config";
 import DescriptiveAdmin from "./DescriptiveAdmin";
+import AppContentAdmin from "./AppContentAdmin";
 
 const GOLD = "#FFAB00";
 const BG = "#0d0b08";
@@ -10,7 +11,7 @@ const CARD = "#16130e";
 const BORDER = "rgba(255,171,0,0.25)";
 const TOKEN_KEY = "sl_admin_token";
 
-type Tab = "dashboard" | "courses" | "questions" | "qbank" | "mocktests" | "blog" | "banners" | "notifications" | "reviews" | "users" | "coupons" | "descriptive";
+type Tab = "dashboard" | "courses" | "questions" | "qbank" | "mocktests" | "blog" | "banners" | "notifications" | "reviews" | "users" | "coupons" | "descriptive" | "appcontent";
 
 // ── API helpers ──────────────────────────────────────────────────────────────
 function token(): string {
@@ -161,6 +162,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     { id: "users", label: "Users" },
     { id: "coupons", label: "Coupons" },
     { id: "descriptive", label: "Descriptive" },
+    { id: "appcontent", label: "App Content" },
   ];
 
   return (
