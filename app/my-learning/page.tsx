@@ -14,6 +14,7 @@ export default function MyLearningPage() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [courses, setCourses] = useState<any[]>([]);
+  const [liveResults, setLiveResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -28,6 +29,12 @@ export default function MyLearningPage() {
       .then((d) => setCourses(d.courses || []))
       .catch(() => {})
       .finally(() => setLoading(false));
+
+    // Purane live tests — result kabhi bhi yahan se dekh sakte hain
+    fetch(`${API_URL}/mock-tests/my-live-results?user_id=${u.id}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setLiveResults(d?.results || []))
+      .catch(() => {});
   }, [router]);
 
   function fmtDate(iso?: string) {
@@ -66,7 +73,7 @@ export default function MyLearningPage() {
       <div style={{ padding: 16 }}>
         {loading && <p style={{ color: "var(--muted)", fontSize: 14 }}>Loading your courses...</p>}
 
-        {!loading && courses.length === 0 && (
+        {!loading && courses.length === 0 && liveResults.length === 0 && (
           <div style={{ textAlign: "center", padding: "60px 20px" }}>
             <div style={{ fontSize: 44 }}>📚</div>
             <h2 style={{ fontSize: 18, fontWeight: 800, margin: "14px 0 6px" }}>No courses yet</h2>
@@ -77,6 +84,48 @@ export default function MyLearningPage() {
               Browse courses
             </button>
           </div>
+        )}
+
+        {/* Live test results — publish hone ke baad kabhi bhi dekh sakte hain */}
+        {liveResults.length > 0 && (
+          <div style={{ marginBottom: 22 }}>
+            <h2 style={{ fontSize: 15, fontWeight: 800, margin: "0 0 10px" }}>
+              🏆 Live Test <span style={{ color: GOLD }}>Results</span>
+            </h2>
+            {liveResults.map((r) => (
+              <div
+                key={r.mock_test_id}
+                onClick={() => r.results_published && router.push(`/mock-test/${r.mock_test_id}/result`)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 12,
+                  background: CARD, border: `1px solid ${BORDER}`, borderRadius: 14,
+                  padding: 14, marginBottom: 9,
+                  cursor: r.results_published ? "pointer" : "default",
+                  opacity: r.results_published ? 1 : 0.75,
+                }}
+              >
+                <span style={{ fontSize: 22 }}>{r.results_published ? "🏆" : "⏳"}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {r.title}
+                  </div>
+                  <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 2 }}>
+                    {r.results_published
+                      ? `Score ${r.score}${r.total_marks ? ` / ${r.total_marks}` : ""} · tap to see rank`
+                      : "Result awaited"}
+                    {r.live_start_at ? ` · ${fmtDate(r.live_start_at)}` : ""}
+                  </div>
+                </div>
+                {r.results_published && <span style={{ color: GOLD, fontWeight: 800 }}>→</span>}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {courses.length > 0 && liveResults.length > 0 && (
+          <h2 style={{ fontSize: 15, fontWeight: 800, margin: "0 0 10px" }}>
+            📚 My <span style={{ color: GOLD }}>Courses</span>
+          </h2>
         )}
 
         {courses.map((c) => (
@@ -160,4 +209,5 @@ const ghostBtn: React.CSSProperties = {
   fontSize: 13,
   cursor: "pointer",
 };
-      
+
+            
