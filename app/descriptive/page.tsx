@@ -26,6 +26,7 @@ interface Series {
   original_price?: number;
   validity_days?: number;
   // lock status may arrive under any of these keys depending on backend:
+  is_purchased?: boolean;
   unlocked?: boolean;
   is_unlocked?: boolean;
   purchased?: boolean;
@@ -35,7 +36,8 @@ interface Series {
 
 function isLocked(s: Series): boolean {
   if (Number(s.price ?? 0) <= 0) return false; // free series never locked
-  return !(s.unlocked ?? s.is_unlocked ?? s.purchased ?? false);
+  // Backend `is_purchased` bhejta hai; baaki naam purane builds ke liye rakhe hain
+  return !(s.is_purchased ?? s.unlocked ?? s.is_unlocked ?? s.purchased ?? false);
 }
 
 export default function DescriptiveListPage() {
@@ -319,3 +321,4 @@ export default function DescriptiveListPage() {
 }
 
 const h2: React.CSSProperties = { fontSize: 18, fontWeight: 800, margin: "26px 0 10px" };
+    
