@@ -15,6 +15,8 @@ export default function MyLearningPage() {
   const [user, setUser] = useState<User | null>(null);
   const [courses, setCourses] = useState<any[]>([]);
   const [liveResults, setLiveResults] = useState<any[]>([]);
+  const [mockSeries, setMockSeries] = useState<any[]>([]);
+  const [descSeries, setDescSeries] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -29,6 +31,18 @@ export default function MyLearningPage() {
       .then((d) => setCourses(d.courses || []))
       .catch(() => {})
       .finally(() => setLoading(false));
+
+    // Mock series jo kharidi hui hain
+    fetch(`${API_URL}/mock-tests/series?platform=web&user_id=${u.id}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setMockSeries((d?.series || []).filter((s: any) => s.is_purchased)))
+      .catch(() => {});
+
+    // Descriptive series jo kharidi hui hain
+    fetch(`${API_URL}/descriptive/series?platform=web&user_id=${u.id}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setDescSeries((d?.series || []).filter((s: any) => s.is_purchased)))
+      .catch(() => {});
 
     // Purane live tests — result kabhi bhi yahan se dekh sakte hain
     fetch(`${API_URL}/mock-tests/my-live-results?user_id=${u.id}`)
@@ -73,7 +87,7 @@ export default function MyLearningPage() {
       <div style={{ padding: 16 }}>
         {loading && <p style={{ color: "var(--muted)", fontSize: 14 }}>Loading your courses...</p>}
 
-        {!loading && courses.length === 0 && liveResults.length === 0 && (
+        {!loading && courses.length === 0 && liveResults.length === 0 && mockSeries.length === 0 && descSeries.length === 0 && (
           <div style={{ textAlign: "center", padding: "60px 20px" }}>
             <div style={{ fontSize: 44 }}>📚</div>
             <h2 style={{ fontSize: 18, fontWeight: 800, margin: "14px 0 6px" }}>No courses yet</h2>
@@ -122,7 +136,57 @@ export default function MyLearningPage() {
           </div>
         )}
 
-        {courses.length > 0 && liveResults.length > 0 && (
+        {/* Mock test series */}
+        {mockSeries.length > 0 && (
+          <div style={{ marginBottom: 22 }}>
+            <h2 style={{ fontSize: 15, fontWeight: 800, margin: "0 0 10px" }}>
+              📝 Mock <span style={{ color: GOLD }}>Test Series</span>
+            </h2>
+            {mockSeries.map((s) => (
+              <div
+                key={s.id}
+                onClick={() => router.push(`/mock-tests/${s.id}`)}
+                style={{ display: "flex", alignItems: "center", gap: 12, background: CARD, border: `1px solid ${BORDER}`, borderRadius: 14, padding: 14, marginBottom: 9, cursor: "pointer" }}
+              >
+                <span style={{ fontSize: 22 }}>📝</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title}</div>
+                  <div style={{ fontSize: 11.5, color: "#2e8b4a", marginTop: 2 }}>
+                    ✓ Purchased · {s.tests_count || 0} tests
+                  </div>
+                </div>
+                <span style={{ color: GOLD, fontWeight: 800 }}>→</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Descriptive series */}
+        {descSeries.length > 0 && (
+          <div style={{ marginBottom: 22 }}>
+            <h2 style={{ fontSize: 15, fontWeight: 800, margin: "0 0 10px" }}>
+              ✍️ Descriptive <span style={{ color: GOLD }}>Series</span>
+            </h2>
+            {descSeries.map((s) => (
+              <div
+                key={s.id}
+                onClick={() => router.push(`/descriptive/${s.id}`)}
+                style={{ display: "flex", alignItems: "center", gap: 12, background: CARD, border: `1px solid ${BORDER}`, borderRadius: 14, padding: 14, marginBottom: 9, cursor: "pointer" }}
+              >
+                <span style={{ fontSize: 22 }}>✍️</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title}</div>
+                  <div style={{ fontSize: 11.5, color: "#2e8b4a", marginTop: 2 }}>
+                    ✓ Purchased · {s.test_count || 0} tests
+                  </div>
+                </div>
+                <span style={{ color: GOLD, fontWeight: 800 }}>→</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {courses.length > 0 && (
           <h2 style={{ fontSize: 15, fontWeight: 800, margin: "0 0 10px" }}>
             📚 My <span style={{ color: GOLD }}>Courses</span>
           </h2>
@@ -209,5 +273,4 @@ const ghostBtn: React.CSSProperties = {
   fontSize: 13,
   cursor: "pointer",
 };
-
-            
+      
