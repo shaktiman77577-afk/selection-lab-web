@@ -123,14 +123,30 @@ export default function MyLearningPage() {
                   <div style={{ fontWeight: 700, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {r.title}
                   </div>
-                  <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 2 }}>
+                  <div style={{ fontSize: 11.5, color: r.results_published ? "#2e8b4a" : "var(--muted)", marginTop: 2, fontWeight: r.results_published ? 700 : 400 }}>
                     {r.results_published
-                      ? `Score ${r.score}${r.total_marks ? ` / ${r.total_marks}` : ""} · tap to see rank`
-                      : "Result awaited"}
+                      ? `Score ${r.score}${r.total_marks ? ` / ${r.total_marks}` : ""}`
+                      : "Result awaited — we will publish it soon"}
                     {r.live_start_at ? ` · ${fmtDate(r.live_start_at)}` : ""}
                   </div>
+
+                  {r.results_published && (
+                    <div style={{ display: "flex", gap: 7, marginTop: 8 }}>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); router.push(`/mock-test/${r.mock_test_id}/result`); }}
+                        style={{ background: GOLD, color: "#1a1a1a", border: "none", borderRadius: 8, padding: "6px 12px", fontSize: 11.5, fontWeight: 800, cursor: "pointer" }}
+                      >
+                        Result & Rank
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); router.push(`/mock-test/${r.mock_test_id}?review=1`); }}
+                        style={{ background: "transparent", color: "var(--text2)", border: "1px solid var(--line)", borderRadius: 8, padding: "6px 12px", fontSize: 11.5, fontWeight: 700, cursor: "pointer" }}
+                      >
+                        Solutions
+                      </button>
+                    </div>
+                  )}
                 </div>
-                {r.results_published && <span style={{ color: GOLD, fontWeight: 800 }}>→</span>}
               </div>
             ))}
           </div>
@@ -273,4 +289,5 @@ const ghostBtn: React.CSSProperties = {
   fontSize: 13,
   cursor: "pointer",
 };
-      
+
+                                
