@@ -5,7 +5,7 @@ import { getUser, logout } from "@/lib/api";
 
 const GOLD = "#FFAB00";
 
-const MENU: { icon: string; label: string; path: string; auth?: boolean }[] = [
+const MENU: { icon: string; label: string; path: string; auth?: boolean; highlight?: boolean }[] = [
   { icon: "🏠", label: "Home", path: "/" },
   { icon: "📚", label: "Courses", path: "/courses" },
   { icon: "📝", label: "Mock Tests", path: "/mock-tests" },
@@ -13,8 +13,11 @@ const MENU: { icon: string; label: string; path: string; auth?: boolean }[] = [
   { icon: "🎯", label: "My Learning", path: "/my-learning", auth: true },
   { icon: "📱", label: "Quiz (In App)", path: "/" },
   { icon: "📰", label: "Blog", path: "/blog" },
+  // Support ko baaki links ke saath rakha hai taaki dhoondhna na pade —
+  // gold border se alag dikhta hai par shor nahi karta.
+  { icon: "🎫", label: "Help & Raise a Ticket", path: "/support", highlight: true },
   { icon: "ℹ️", label: "About Us", path: "/about" },
-  { icon: "💬", label: "Contact & Support", path: "/contact" },
+  { icon: "💬", label: "Contact", path: "/contact" },
   { icon: "🔒", label: "Privacy Policy", path: "/privacy" },
   { icon: "📃", label: "Terms of Service", path: "/terms" },
 ];
@@ -91,7 +94,18 @@ export default function SideMenu({ open, onClose }: { open: boolean; onClose: ()
             <div
               key={m.label}
               onClick={() => go(m)}
-              style={{ display: "flex", alignItems: "center", gap: 14, padding: "13px 18px", fontSize: 14.5, fontWeight: 600, cursor: "pointer", borderBottom: "1px solid var(--line)" }}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 14,
+                padding: "13px 18px",
+                fontSize: 14.5,
+                fontWeight: 600,
+                cursor: "pointer",
+                borderBottom: "1px solid var(--line)",
+                borderLeft: m.highlight ? `3px solid ${GOLD}` : "3px solid transparent",
+                color: m.highlight ? GOLD : undefined,
+              }}
             >
               <span style={{ fontSize: 18 }}>{m.icon}</span> {m.label}
             </div>
@@ -119,4 +133,4 @@ export default function SideMenu({ open, onClose }: { open: boolean; onClose: ()
       </div>
     </div>
   );
-          }
+}
