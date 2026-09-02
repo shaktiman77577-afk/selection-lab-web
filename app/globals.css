@@ -1,0 +1,37 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* KrutiDev typing-test response box — is legacy non-Unicode font ke bina
+   KrutiDev typist ko apna khud ka typed text bhi English jaisa dikhta,
+   jabki Unicode/Gboard typist ko poora samay Hindi hi dikhta hai. Passage
+   display ya results screen ko iski zaroorat nahi — wahan text pehle hi
+   Unicode me convert ho chuka hota hai (backend, submit se pehle nahi). */
+@font-face {
+  font-family: "KrutiDev010";
+  src: url("/fonts/KrutiDev010.ttf") format("truetype");
+  font-display: swap;
+}
