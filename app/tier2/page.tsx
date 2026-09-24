@@ -18,6 +18,10 @@ import ThemeToggle from "@/app/components/ThemeToggle";
 import SideMenu from "@/app/components/SideMenu";
 import CheckoutSheet from "@/app/components/CheckoutSheet";
 import Disclaimer from "@/app/components/Disclaimer";
+import { WORD_TASKS, PPT_TASKS } from "@/lib/officeTasks";
+
+const WORD_TASK_COUNT = WORD_TASKS.length;
+const PPT_TASK_COUNT = PPT_TASKS.length;
 
 declare global {
   interface Window {
@@ -369,7 +373,22 @@ export default function Tier2Page() {
               ].filter(Boolean).join(" · ") || "Passages coming soon"}
               onClick={openTyping}
             />
-            {(open.chart_count || open.excel_test_count) ? (
+            {/* NBEMS: Excel + Word + PowerPoint ek hi section me (skill test me
+                teeno aate hain). Baaki exams me Word/PPT nahi — wahan pehle jaisa
+                sirf Excel. Word/PPT hamesha free aur ready, isliye card hamesha. */}
+            {/nbems/i.test(open.title || "") ? (
+              <SectionCard
+                emoji="💻"
+                title="Computer skills: Excel · Word · PowerPoint"
+                sub={[
+                  open.excel_test_count ? `${open.excel_test_count} Excel mocks` : "",
+                  `${WORD_TASK_COUNT} Word tasks`,
+                  `${PPT_TASK_COUNT} PowerPoint tasks`,
+                  "checked instantly",
+                ].filter(Boolean).join(" · ")}
+                onClick={() => router.push(`/office-practice?s=${open.id}`)}
+              />
+            ) : (open.chart_count || open.excel_test_count) ? (
               <SectionCard
                 emoji="📊"
                 title="Excel / CPT practice"
