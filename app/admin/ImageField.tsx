@@ -7,12 +7,54 @@
 // deta hai ki size sahi hai ya nahi, aur mobile + desktop dono ka preview
 // dikha deta hai — crop kahan lagega wo aankhon se dikh jata hai.
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { API_URL } from "@/lib/config";
 
 const GOLD = "#FFAB00";
 const GREEN = "#5dd97c";
 const RED = "#ff6b6b";
 const BORDER = "rgba(255,255,255,0.12)";
+const MAX_KB = 300;
+
+/**
+ * Upload se pehle image ko browser me hi chhota karo — phone ki photo 3-5 MB
+ * ki hoti hai, field ko 300 KB se kam ki JPEG chahiye. Sirf CHHOTA karte
+ * hain, kabhi crop nahi (galat ratio ho to neeche wala checker bata deta hai).
+ * GIF ko nahi chhedte (animation toot jaati).
+ */
+async function shrink(file: File, maxW: number, maxH: number): Promise<File> {
+  if (!file.type.startsWith("image/") || file.type === "image/gif") return file;
+  const src = URL.createObjectURL(file);
+  try {
+    const img = await new Promise<HTMLImageElement>((res, rej) => {
+      const i = new Image();
+      i.onload = () => res(i);
+      i.onerror = () => rej(new Error("This image could not be opened."));
+      i.src = src;
+    });
+    let scale = Math.min(1, maxW / img.naturalWidth, maxH / img.naturalHeight);
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return file;
+    for (let round = 0; round < 6; round++) {
+      canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
+      canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+      ctx.fillStyle = "#ffffff";                      // PNG ki transparency JPEG me kaali na ho
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      for (const q of [0.85, 0.75, 0.65, 0.55]) {
+        const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, "image/jpeg", q));
+        if (blob && blob.size <= MAX_KB * 1024) {
+          return new File([blob], file.name.replace(/\.[^.]+$/, "") + ".jpg", { type: "image/jpeg" });
+        }
+      }
+      scale *= 0.85;                                  // phir bhi bhari — thoda aur chhota
+    }
+    return file;
+  } finally {
+    URL.revokeObjectURL(src);
+  }
+}
 
 type Info = {
   w: number;
@@ -40,7 +82,36 @@ export default function ImageField({
   hint?: string;
 }) {
   const [info, setInfo] = useState<Info | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [upErr, setUpErr] = useState("");
+  const fileRef = useRef<HTMLInputElement | null>(null);
   const url = (value || "").trim();
+
+  // Phone/computer se seedha ImgBB par — backend /uploads/image (IMGBB_API_KEY)
+  // image bhej kar link lautata hai, wahi link is field me bhar jaata hai.
+  async function upload(f: File | undefined) {
+    if (!f) return;
+    setUpErr("");
+    setUploading(true);
+    try {
+      const small = await shrink(f, reqW, reqH);
+      const fd = new FormData();
+      fd.append("file", small);
+      const r = await fetch(`${API_URL}/uploads/image`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${localStorage.getItem("sl_admin_token") || ""}` },
+        body: fd,
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok || !d.url) throw new Error(d.detail || `Upload failed (HTTP ${r.status})`);
+      onChange(d.url);
+    } catch (e: any) {
+      setUpErr(e?.message || "Upload failed. Please try again.");
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  }
   const reqRatio = reqW / reqH;
 
   useEffect(() => {
@@ -108,17 +179,41 @@ export default function ImageField({
         </div>
       )}
 
-      <input
-        style={{
-          background: "rgba(255,255,255,0.05)", color: "#fff",
-          border: `1px solid ${info?.error ? RED : perfect ? GREEN : BORDER}`,
-          borderRadius: 10, padding: "12px 14px", fontSize: 14, width: "100%",
-          boxSizing: "border-box", outline: "none",
-        }}
-        placeholder={`https://i.ibb.co/... (${reqW}×${reqH})`}
-        value={value || ""}
-        onChange={(e) => onChange(e.target.value)}
-      />
+      <div style={{ display: "flex", gap: 8, alignItems: "stretch" }}>
+        <input
+          style={{
+            background: "rgba(255,255,255,0.05)", color: "#fff",
+            border: `1px solid ${info?.error ? RED : perfect ? GREEN : BORDER}`,
+            borderRadius: 10, padding: "12px 14px", fontSize: 14, width: "100%",
+            boxSizing: "border-box", outline: "none", minWidth: 0, flex: 1,
+          }}
+          placeholder={`Upload, or paste a link (${reqW}×${reqH})`}
+          value={value || ""}
+          onChange={(e) => onChange(e.target.value)}
+        />
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
+          disabled={uploading}
+          style={{
+            flexShrink: 0, borderRadius: 10, padding: "0 14px", fontSize: 13, fontWeight: 800,
+            border: `1px solid ${GOLD}`, background: uploading ? "transparent" : "rgba(255,171,0,0.12)",
+            color: GOLD, cursor: uploading ? "wait" : "pointer", whiteSpace: "nowrap",
+          }}
+        >
+          {uploading ? "Uploading…" : "📤 Upload"}
+        </button>
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/png,image/jpeg,image/webp,image/gif"
+          style={{ display: "none" }}
+          onChange={(e) => upload(e.target.files?.[0])}
+        />
+      </div>
+      {upErr ? (
+        <div style={{ fontSize: 11.5, color: RED, marginTop: 5, lineHeight: 1.5 }}>{upErr}</div>
+      ) : null}
 
       {hint && !url && (
         <div style={{ fontSize: 11, color: "#7a7263", marginTop: 5, lineHeight: 1.5 }}>{hint}</div>
