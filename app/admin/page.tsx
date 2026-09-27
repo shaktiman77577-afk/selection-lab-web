@@ -11,6 +11,7 @@ import ExcelAdmin from "./ExcelAdmin";
 import NbemsMockAdmin from "./NbemsMockAdmin";
 import SearchAdmin from "./SearchAdmin";
 import BlogEditor from "./BlogEditor";
+import TeamAdmin from "./TeamAdmin";
 import EmailAdmin from "./EmailAdmin";
 import PartnersAdmin from "./PartnersAdmin";
 import ScoreCheckerAdmin from "./ScoreCheckerAdmin";
@@ -23,8 +24,35 @@ const BG = "#0d0b08";
 const CARD = "#16130e";
 const BORDER = "rgba(255,171,0,0.25)";
 const TOKEN_KEY = "sl_admin_token";
+const ME_KEY = "sl_admin_me";
 
-type Tab = "home" | "health" | "seo" | "live" | "tickets" | "dashboard" | "courses" | "questions" | "qbank" | "mocktests" | "blog" | "banners" | "notifications" | "reviews" | "users" | "coupons" | "descriptive" | "appcontent" | "approvals" | "tier2" | "excel" | "nbemsmock" | "search" | "email" | "partners" | "scorechecker" | "composer" | "extractor" | "volatile";
+// ── Team ke rights ──
+// Kaunsa section kis right se khulta hai. Backend (core/auth.py PATH_PERMS)
+// bhi yahi jaanchta hai — yahan sirf tile chhupane ke liye hai.
+type Me = { role: "owner" | "staff"; name: string; perms: string[] };
+const TAB_PERM: Record<string, string> = {
+  dashboard: "finance", coupons: "finance", partners: "finance", live: "finance",
+  courses: "courses", appcontent: "courses", banners: "courses",
+  mocktests: "mocks", descriptive: "mocks", tier2: "mocks", excel: "mocks", nbemsmock: "mocks",
+  questions: "mocks", qbank: "mocks", composer: "mocks", extractor: "mocks", volatile: "mocks", scorechecker: "mocks",
+  blog: "seo", seo: "seo", search: "seo",
+  users: "users", tickets: "users", approvals: "users", email: "users", notifications: "users", reviews: "users",
+  health: "owner", team: "owner",
+};
+function readMe(): Me {
+  try {
+    const m = JSON.parse(localStorage.getItem(ME_KEY) || "null");
+    if (m && m.role) return m;
+  } catch {}
+  return { role: "owner", name: "Main Admin", perms: ["*"] };   // purana login — sirf Main Admin ka hota tha
+}
+function canOpen(me: Me, tab: string): boolean {
+  if (tab === "home" || me.role === "owner" || me.perms.includes("*")) return true;
+  const need = TAB_PERM[tab];
+  return !!need && need !== "owner" && me.perms.includes(need);
+}
+
+type Tab = "home" | "health" | "seo" | "live" | "tickets" | "dashboard" | "courses" | "questions" | "qbank" | "mocktests" | "blog" | "banners" | "notifications" | "reviews" | "users" | "coupons" | "descriptive" | "appcontent" | "approvals" | "tier2" | "excel" | "nbemsmock" | "search" | "email" | "partners" | "scorechecker" | "composer" | "extractor" | "volatile" | "team";
 
 // ── API helpers ──────────────────────────────────────────────────────────────
 function token(): string {
@@ -112,6 +140,9 @@ function AdminLogin({ onLogin }: { onLogin: () => void }) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || "Login failed");
       localStorage.setItem(TOKEN_KEY, data.token);
+      localStorage.setItem(ME_KEY, JSON.stringify({
+        role: data.role || "owner", name: data.name || "Main Admin", perms: data.perms || ["*"],
+      }));
       onLogin();
     } catch (e: any) {
       setError(e.message);
@@ -177,6 +208,24 @@ function AdminLogin({ onLogin }: { onLogin: () => void }) {
 // ── Dashboard shell ──────────────────────────────────────────────────────────
 function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const [tab, setTabState] = useState<Tab>("home");
+  const [me, setMe] = useState<Me>(() => readMe());
+  const can = (t: string) => canOpen(me, t);
+
+  // Rights server se taaza — Main Admin ne badle hon ya account band kiya ho
+  useEffect(() => {
+    api("/admin-extra/me")
+      .then((d) => {
+        const m: Me = { role: d.role === "staff" ? "staff" : "owner", name: d.name || "Main Admin", perms: d.perms || [] };
+        setMe(m);
+        localStorage.setItem(ME_KEY, JSON.stringify(m));
+      })
+      .catch((e) => {
+        if (/band hai|Invalid or expired/i.test(String(e?.message))) {
+          localStorage.removeItem(TOKEN_KEY); localStorage.removeItem(ME_KEY); onLogout();
+        }
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── Back button: section se home par wapas, app band nahi ──
   // Har section kholte waqt browser history me ek entry daal dete hain.
@@ -203,12 +252,14 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
 
   function logout() {
     localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(ME_KEY);
     onLogout();
   }
 
   // Naye tickets ka count — home par badge me dikhta hai, har 60 sec refresh
   const [openTickets, setOpenTickets] = useState(0);
   useEffect(() => {
+    if (!canOpen(readMe(), "tickets")) return;      // support ka right nahi — poochna bekaar
     let alive = true;
     function poll() {
       api("/admin-extra/tickets?status=open")
@@ -246,6 +297,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     { id: "users",         icon: "👥", title: "Users",         sub: "Access do, ban karo, history",       color: "#3AA8C1", group: "Log aur Paisa" },
     { id: "coupons",       icon: "🎟️", title: "Coupons",       sub: "Discount code banao",                color: "#3EA96B", group: "Log aur Paisa" },
     { id: "notifications", icon: "🔔", title: "Notify",        sub: "App users ko push bhejo",            color: "#E05555", group: "Log aur Paisa" },
+    { id: "team",          icon: "🛡️", title: "Team",          sub: "Kisko kya right, kisne kya badla",   color: "#FFAB00", group: "Log aur Paisa" },
     { id: "reviews",       icon: "⭐", title: "Reviews",       sub: "Course reviews dekho",               color: "#C8B32E", group: "Log aur Paisa" },
   ];
 
@@ -269,7 +321,9 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       >
         <div style={{ flex: 1, fontWeight: 800, fontSize: 16 }}>
           Selection <span style={{ color: GOLD }}>Lab</span>{" "}
-          <span style={{ color: "#9a917f", fontWeight: 600, fontSize: 13 }}>Admin</span>
+          <span style={{ color: "#9a917f", fontWeight: 600, fontSize: 13 }}>
+            {me.role === "staff" ? me.name : "Admin"}
+          </span>
         </div>
         <button onClick={logout} style={ghostBtn}>
           Logout
@@ -285,6 +339,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
           </h1>
 
           {/* Troubleshooter — sab kuch khud check karke report deta hai */}
+          {can("health") && (
           <button
             onClick={() => setTab("health")}
             style={{
@@ -302,8 +357,10 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
               <span style={{ color: "#5dd97c", fontSize: 18 }}>→</span>
             </div>
           </button>
+          )}
 
           {/* Support tickets — students ke sawaal */}
+          {can("tickets") && (
           <button
             onClick={() => setTab("tickets")}
             style={{
@@ -335,8 +392,10 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
               <span style={{ color: GOLD, fontSize: 18 }}>→</span>
             </div>
           </button>
+          )}
 
           {/* Teacher approvals — live karne se pehle check */}
+          {can("approvals") && (
           <button
             onClick={() => setTab("approvals")}
             style={{
@@ -354,8 +413,10 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
               <span style={{ color: "#7C6CE0", fontSize: 18 }}>→</span>
             </div>
           </button>
+          )}
 
           {/* Live activity — deploy se pehle dekh lo kaun online hai */}
+          {can("live") && (
           <button
             onClick={() => setTab("live")}
             style={{
@@ -373,8 +434,10 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
               <span style={{ color: "#5dd97c", fontSize: 18 }}>→</span>
             </div>
           </button>
+          )}
 
           {/* SEO coach — asli data dekh kar next steps */}
+          {can("seo") && (
           <button
             onClick={() => setTab("seo")}
             style={{
@@ -392,8 +455,10 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
               <span style={{ color: "#4A90D9", fontSize: 18 }}>→</span>
             </div>
           </button>
+          )}
 
           {/* Dashboard — numbers dekhne ka shortcut */}
+          {can("dashboard") && (
           <button
             onClick={() => setTab("dashboard")}
             style={{
@@ -411,14 +476,20 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
               <span style={{ color: GOLD, fontSize: 20 }}>→</span>
             </div>
           </button>
+          )}
 
-          {GROUPS.map((g) => (
+          {me.role === "staff" && !ACTIONS.some((a) => can(a.id)) && (
+            <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 14, padding: 16, fontSize: 13.5, color: "#c8c0ae" }}>
+              Aapko abhi koi section nahi mila hai. Main Admin se right maangiye.
+            </div>
+          )}
+          {GROUPS.filter((g) => ACTIONS.some((a) => a.group === g && can(a.id))).map((g) => (
             <div key={g} style={{ marginBottom: 22 }}>
               <div style={{ fontSize: 11, letterSpacing: 1.4, color: "#7a7263", fontWeight: 800, marginBottom: 10 }}>
                 {g.toUpperCase()}
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 10 }}>
-                {ACTIONS.filter((a) => a.group === g).map((a) => (
+                {ACTIONS.filter((a) => a.group === g && can(a.id)).map((a) => (
                   <button
                     key={a.id}
                     onClick={() => setTab(a.id)}
@@ -468,6 +539,13 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       )}
 
       <main style={{ padding: tab === "home" ? 0 : 16, paddingBottom: 120 }}>
+        {tab !== "home" && !can(tab) && (
+          <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 14, padding: 16, fontSize: 13.5, color: "#c8c0ae" }}>
+            Is section ka access aapke paas nahi hai.
+          </div>
+        )}
+        {tab === "team" && can("team") && <TeamAdmin api={api} />}
+        {can(tab) && <>
         {tab === "health" && <HealthTab />}
         {tab === "seo" && <SeoTab onGo={(t) => setTab(t)} />}
         {tab === "live" && <LiveTab />}
@@ -496,6 +574,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         {tab === "email" && <EmailAdmin api={api} />}
         {tab === "partners" && <PartnersAdmin api={api} />}
         {tab === "appcontent" && <AppContentAdmin api={api} />}
+        </>}
       </main>
     </div>
   );
