@@ -561,6 +561,9 @@ const SKAU_PRESET = {
   marks_max: 15,
   marks_base_wpm: 30,
   marks_per_extra_wpm: 0.5,
+  // SKAU "Important Instructions of Typing Test" (Sep 2026): laal highlight ke
+  // saath synchronized typing, Space ke baad shabd lock, sync se bahar = galti.
+  sync_typing: true,
 };
 
 // NBEMS Junior Assistant — NBEMS ne na formula chhaapa na speed. 35 WPM coaching
@@ -578,6 +581,7 @@ const NBEMS_PRESET = {
   marks_max: 0,
   marks_base_wpm: 0,
   marks_per_extra_wpm: 0,
+  sync_typing: false,
 };
 
 // RRB NTPC — 5% galtiyan maaf, baaki har galti par 10 shabd. Sirf asli NTPC
@@ -632,6 +636,7 @@ function PassagesLevel(props: {
       ignorable_pct: 0, mistake_penalty_words: 0,
       marks_max: 0, marks_base_wpm: 0, marks_per_extra_wpm: 0,
       check_line_breaks: false,
+      sync_typing: false,
       level: "pro",
       is_free: false, display_order: 0,
     };
@@ -651,6 +656,7 @@ function PassagesLevel(props: {
       marks_base_wpm: p.marks_base_wpm ?? 0,
       marks_per_extra_wpm: p.marks_per_extra_wpm ?? 0,
       check_line_breaks: !!p.check_line_breaks,
+      sync_typing: !!p.sync_typing,
       level: p.level || "pro",
       is_free: !!p.is_free, display_order: p.display_order ?? 0,
     });
@@ -679,6 +685,9 @@ function PassagesLevel(props: {
       marks_base_wpm: Number(form.marks_base_wpm) || 0,
       marks_per_extra_wpm: Number(form.marks_per_extra_wpm) || 0,
       check_line_breaks: !!form.check_line_breaks,
+      // Sirf standard + English + screen passage par chalta hai
+      sync_typing: !!form.sync_typing && form.scoring_mode === "standard"
+        && form.language !== "hindi" && form.passage_mode === "screen" && !form.check_line_breaks,
       level: form.level || "pro",
       is_free: !!form.is_free,
       display_order: Number(form.display_order) || 0,
@@ -720,7 +729,7 @@ function PassagesLevel(props: {
     const problems: string[] = [];
 
     body.forEach((r, i) => {
-      const [title, num, kind, passage, dur, wpm, acc, lang, mode, keys, pmode, mmax, mbase, mper, lines, lvl] = r;
+      const [title, num, kind, passage, dur, wpm, acc, lang, mode, keys, pmode, mmax, mbase, mper, lines, lvl, syncCol] = r;
       const n = parseInt((num || "").trim(), 10);
       if (!title || !title.trim()) { problems.push(`Row ${i + 1}: title is empty`); return; }
       if (isNaN(n)) { problems.push(`Row ${i + 1}: test number is not valid`); return; }
@@ -776,6 +785,15 @@ function PassagesLevel(props: {
         // 16va column: easy / medium / hard / pro (khaali = pro)
         level: ["easy", "medium", "hard", "pro"].includes((lvl || "").trim().toLowerCase())
           ? (lvl || "").trim().toLowerCase() : "pro",
+        // 17va column: SKAU sync rules (yes / no). "skau" shortcut par apne aap yes,
+        // jab tak column me saaf "no" na likha ho. Sirf standard + English + screen par.
+        sync_typing: smode === "standard"
+          && (lang || "english").trim().toLowerCase() !== "hindi"
+          && !/^(yes|y|true|1)$/i.test((lines || "").trim())
+          && (pmode || "screen").trim().toLowerCase() !== "paper"
+          && ((syncCol || "").trim()
+            ? /^(yes|y|true|1)$/i.test(syncCol.trim())
+            : preset === SKAU_PRESET),
         is_free: false,
         display_order: n,
       });
@@ -832,7 +850,8 @@ function PassagesLevel(props: {
             Aage optional: <b style={{ color: "#e0dacb" }}>11 Passage mode</b> (paper / screen),
             {" "}<b style={{ color: "#e0dacb" }}>12 Marks, 13 Zero-marks WPM, 14 Marks per extra WPM</b>,
             {" "}<b style={{ color: "#e0dacb" }}>15 Letter format</b> (yes / no),
-            {" "}<b style={{ color: "#e0dacb" }}>16 Level</b> (easy / medium / hard / pro — khaali = pro).
+            {" "}<b style={{ color: "#e0dacb" }}>16 Level</b> (easy / medium / hard / pro — khaali = pro),
+            {" "}<b style={{ color: "#e0dacb" }}>17 SKAU sync rules</b> (yes / no — skau par khaali = yes).
             Blank ho to 10, 30, 90, english, word aur 0 lag jayega; word ke alawa sab apne aap screen par.
             Language: english / hindi. Scoring: word / keystroke / standard / ntpc — ya shortcut
             {" "}<b>skau</b> (standard + 30 WPM + 15 marks) aur <b>nbems</b> (standard + 35 WPM, marks nahi).
@@ -926,14 +945,14 @@ function PassagesLevel(props: {
                     scoring_mode: m,
                     ...(m === "keystroke"
                       ? { target_wpm: hindi ? 30 : 35, min_keystrokes: hindi ? 1750 : 2000,
-                          passage_mode: "screen", ...clearNtpc(form) }
+                          passage_mode: "screen", sync_typing: false, ...clearNtpc(form) }
                       : m === "standard"
                       // Marks/target jaise the waise — neeche SKAU / NBEMS button se bhariye
                       ? { min_accuracy: 0, min_keystrokes: 0, passage_mode: "screen",
                           ignorable_pct: 0, mistake_penalty_words: 0 }
                       : m === "ntpc"
-                      ? NTPC_PRESET
-                      : { min_keystrokes: 0, passage_mode: "paper", ...clearNtpc(form) }),
+                      ? { ...NTPC_PRESET, sync_typing: false }
+                      : { min_keystrokes: 0, passage_mode: "paper", sync_typing: false, ...clearNtpc(form) }),
                   });
                 }}
               >
@@ -1001,6 +1020,25 @@ function PassagesLevel(props: {
                 </button>
               </div>
               <MarksFields form={form} setForm={setForm} />
+
+              {/* SKAU notice ke niyam — sirf English + screen passage par */}
+              <label style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 13.5, marginTop: 12, cursor: "pointer" }}>
+                <input type="checkbox" checked={!!form.sync_typing}
+                       onChange={(e) => setForm({ ...form, sync_typing: e.target.checked })} style={{ marginTop: 3 }} />
+                <span>
+                  SKAU sync rules (word lock + red highlight)
+                  <span style={{ display: "block", fontSize: 11.5, color: MUTED, marginTop: 2, lineHeight: 1.5 }}>
+                    Upar passage me agla shabd laal. Space dabate hi shabd lock — Backspace sirf usi shabd
+                    me. Galti position se ginti hai: chhoota shabd aur sync se bahar ka har shabd galti,
+                    extra space bhi galti. Times New Roman, Caps/Num Lock indicator.
+                    {form.sync_typing && (form.language === "hindi" || form.passage_mode !== "screen" || form.check_line_breaks) ? (
+                      <b style={{ display: "block", color: "#e8a13a", marginTop: 4 }}>
+                        Ye sirf English, screen passage par chalta hai (letter format nahi) — abhi save karne par band ho jayega.
+                      </b>
+                    ) : null}
+                  </span>
+                </span>
+              </label>
             </div>
           )}
 
@@ -1101,6 +1139,7 @@ function Group({ title, list, onEdit, onRemove }: { title: string; list: any[]; 
                 : ` · ${p.min_accuracy ?? 90}% accuracy`}
               {p.scoring_mode === "standard" ? " · standard" : p.scoring_mode === "ntpc" ? " · NTPC" : ""}
               {p.check_line_breaks ? " · letter format" : ""}
+              {p.sync_typing ? " · SKAU sync" : ""}
               {` · ${(p.level || "pro")}`}
               {p.language === "hindi" ? " · Hindi" : ""}
               {p.scoring_mode === "keystroke" ? ` · min ${p.min_keystrokes} keys` : ""}

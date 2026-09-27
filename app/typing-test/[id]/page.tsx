@@ -21,7 +21,7 @@
  * depression" ke matlab me ginte hain. Backspace khud alag se track hota hai.
  */
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { getUser } from "@/lib/api";
 import { API_URL } from "@/lib/config";
@@ -34,6 +34,32 @@ const GREY = "#8a8f99";
 const GREEN = "#1c7a3e";
 
 type Stage = "instructions" | "select" | "typing" | "result";
+
+// ═══════════════════ SKAU — synchronized typing ═══════════════════
+// SKAU ke official notice (point 3-4) ka niyam:
+//   - Upar passage me laal highlight wala shabd hi abhi type karna hai
+//   - Space dabate hi shabd lock — Backspace sirf Space se PEHLE, usi shabd me
+//   - Sync se bahar ya chhoota shabd = galti; extra space bhi galti
+// Backend (typing_diff._score_sync) bilkul isi tarah ginta hai — dono ka
+// hisaab ek jaisa rehna chahiye.
+//
+// lockedLen: text ka kitna hissa lock hai (aakhri Space tak sab kuch).
+// pos: passage ka kaunsa shabd abhi highlight hai — har Space ke saath aage,
+//      par khaali shabd (faltu Space) par nahi.
+// errs: ab tak ki galtiyan (sirf lock ho chuke shabdon ki).
+function syncState(text: string, words: string[]) {
+  const lockedLen = text.lastIndexOf(" ") + 1;
+  const tokens = text.slice(0, lockedLen).split(" ");
+  tokens.pop();                       // aakhri Space ke baad ka khaali hissa
+  let pos = 0;
+  let errs = 0;
+  for (const tok of tokens) {
+    if (tok === "") { errs += 1; continue; }         // faltu Space
+    if (pos >= words.length || tok !== words[pos]) errs += 1;
+    pos += 1;
+  }
+  return { lockedLen, pos, errs };
+}
 
 export default function TypingTestPage() {
   const params = useParams();
@@ -90,6 +116,17 @@ export default function TypingTestPage() {
   // sirf alphanumeric + space ko ginta hai — backspace uska hissa nahi).
   const keystrokeRef = useRef(0);
   const backspaceRef = useRef(0);
+
+  // ── SKAU (sync_typing) ──
+  // Caps Lock / Num Lock — browser sirf key dabne par batata hai, isliye
+  // pehli key se pehle "press any key" dikhta hai.
+  const [capsOn, setCapsOn] = useState<boolean | null>(null);
+  const [numOn, setNumOn] = useState<boolean | null>(null);
+  // Alt+Tab, Alt+F4 waghera browser rok nahi sakta. Sirf ginte hain ki test ke
+  // beech kitni baar window se bahar gaye — result me dikhta hai.
+  const leftWindowRef = useRef(0);
+  const passageBoxRef = useRef<HTMLDivElement | null>(null);
+  const currentWordRef = useRef<HTMLSpanElement | null>(null);
 
   // ── Load ──
   useEffect(() => {
@@ -154,6 +191,11 @@ export default function TypingTestPage() {
       .finally(() => setLoading(false));
   }, [passageId, router]);
 
+  // ── SKAU synchronized typing ──
+  // Sirf standard + English + screen passage par. Backend bhi yahi shart lagata hai.
+  const sync = !!meta?.sync_typing && meta?.scoring_mode === "standard"
+    && meta?.language !== "hindi" && !meta?.check_line_breaks && !!meta?.passage_text;
+
   // ── Submit ──
   const submit = useCallback(async (auto = false) => {
     if (submitting || result) return;
@@ -174,6 +216,9 @@ export default function TypingTestPage() {
             : (meta?.duration_min || 10) * 60,
           total_keystrokes: keystrokeRef.current,
           backspace_count: backspaceRef.current,
+          left_window: leftWindowRef.current,
+          // Backend ko batate hain ki is screen par word-lock laga tha
+          sync_client: sync,
         }),
       });
       const d = await res.json();
@@ -189,7 +234,7 @@ export default function TypingTestPage() {
       setError(e.message);
     }
     setSubmitting(false);
-  }, [submitting, result, passageId, picked, meta, script]);
+  }, [submitting, result, passageId, picked, meta, script, sync]);
 
   // ── Timer ──
   // Ghadi pehle akshar par chalti hai, screen khulte hi nahi. Kagaz sambhalne
@@ -214,12 +259,46 @@ export default function TypingTestPage() {
     return () => clearInterval(t);
   }, [stage]);
 
+  const passageWords = useMemo(
+    () => (sync ? String(meta?.passage_text || "").trim().split(/\s+/).filter(Boolean) : []),
+    [sync, meta?.passage_text],
+  );
+  const syncNow = useMemo(
+    () => (sync ? syncState(text, passageWords) : { lockedLen: 0, pos: 0, errs: 0 }),
+    [sync, text, passageWords],
+  );
+
+  // Highlight wala shabd hamesha passage box me dikhta rahe
+  useEffect(() => {
+    if (!sync || stage !== "typing") return;
+    const box = passageBoxRef.current;
+    const w = currentWordRef.current;
+    if (!box || !w) return;
+    const top = w.offsetTop;              // box position:relative hai, to offsetTop box ke andar se
+    if (top < box.scrollTop + 8 || top > box.scrollTop + box.clientHeight - 40) {
+      box.scrollTop = Math.max(0, top - box.clientHeight / 3);
+    }
+  }, [sync, stage, syncNow.pos]);
+
+  // Window se bahar jaana (Alt+Tab, doosra tab) — sirf test chalte waqt ginte hain
+  useEffect(() => {
+    if (!sync || stage !== "typing" || !started) return;
+    function left() {
+      leftWindowRef.current += 1;
+      setHint(`You left the test window (${leftWindowRef.current}). Alt+Tab and similar keys are prohibited in the real exam.`);
+      setTimeout(() => setHint(""), 4000);
+    }
+    window.addEventListener("blur", left);
+    return () => window.removeEventListener("blur", left);
+  }, [sync, stage, started]);
+
   // ── Number select ──
   function choose(n: number) {
     setPicked(n);
     setWrongPick(null);
     keystrokeRef.current = 0;
     backspaceRef.current = 0;
+    leftWindowRef.current = 0;
     // Galat number ka faisla backend karega (test number client ko bheja hi
     // nahi jata) — isliye seedha typing screen par bhej dete hain, bilkul
     // asli exam ki tarah: galti submit par hi pata chalti hai.
@@ -248,6 +327,21 @@ export default function TypingTestPage() {
 
   function onChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
     const v = e.target.value;
+    if (sync) {
+      // Lock ho chuka hissa badal nahi sakta — Backspace, autocorrect, undo,
+      // cursor le jaakar beech me likhna, sab yahin rukta hai. Mobile keyboard
+      // key ka naam nahi bhejta, isliye asli rok yahin hai, onKeyDown me nahi.
+      const locked = text.slice(0, syncNow.lockedLen);
+      if (!v.startsWith(locked) || /[\n\r\t]/.test(v)) {
+        setHint("A word is locked once you press Space — it cannot be corrected now");
+        setTimeout(() => setHint(""), 2000);
+        requestAnimationFrame(() => {
+          const el = boxRef.current;
+          if (el) el.setSelectionRange(el.value.length, el.value.length);
+        });
+        return;
+      }
+    }
     // Pehla akshar — yahin se ghadi chalti hai
     if (!started && v.length > 0) {
       setStarted(true);
@@ -259,6 +353,18 @@ export default function TypingTestPage() {
   // Asli keystrokes — har printable key (letter/number/symbol/space) = 1.
   // Backspace/Delete alag counter me, is number me nahi judta.
   function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (sync) {
+      setCapsOn(e.getModifierState("CapsLock"));
+      setNumOn(e.getModifierState("NumLock"));
+      const el = e.currentTarget;
+      const atLock = el.selectionStart <= syncNow.lockedLen && el.selectionEnd === el.selectionStart;
+      // Enter passage me hai hi nahi; lock ki deewar se peeche jaane wali keys bekaar
+      if (e.key === "Enter" || e.key === "Tab"
+          || (atLock && ["Backspace", "ArrowLeft", "ArrowUp", "Home", "PageUp"].includes(e.key))) {
+        e.preventDefault();
+        return;
+      }
+    }
     if (e.key === "Backspace" || e.key === "Delete") {
       backspaceRef.current += 1;
     } else if (e.key.length === 1) {
@@ -271,6 +377,16 @@ export default function TypingTestPage() {
     // Arrow keys, Tab, Ctrl/Alt/Shift, Home/End waghera — kuch nahi
   }
 
+  // Mouse ya touch se cursor lock hue hisse me na jaaye
+  function keepCaret(e: React.SyntheticEvent<HTMLTextAreaElement>) {
+    if (!sync) return;
+    const el = e.currentTarget;
+    if (el.selectionStart < syncNow.lockedLen) {
+      const end = Math.max(syncNow.lockedLen, el.selectionEnd);
+      el.setSelectionRange(end, end);
+    }
+  }
+
   // Screen/practice mode me passage pehle se dikh raha hota hai, isliye live
   // error-count client-side hi nikal sakte hain — passage kabhi backend se
   // paper-mode me bheja hi nahi jata (security), isliye wahan ye hamesha
@@ -279,6 +395,7 @@ export default function TypingTestPage() {
     if (!meta) return null;
     const passageVisible = showPassage || meta.passage_mode === "screen";
     if (!passageVisible || !meta.passage_text) return null;
+    if (sync) return syncNow.errs;
     const expWords = meta.passage_text.trim().split(/\s+/);
     const typWords = text.trim() ? text.trim().split(/\s+/) : [];
     let errs = 0;
@@ -323,6 +440,93 @@ export default function TypingTestPage() {
     }
 
     // ── STANDARD (SKAU, NBEMS) — aam formula ──
+    // ── SKAU — official "Important Instructions of Typing Test" ──
+    // Standard formula wahi, upar se notice ke niyam: synchronized typing,
+    // Space ke baad lock, har galti poori.
+    if (sync) {
+      return (
+        <Shell>
+          <div style={{ maxWidth: 560, margin: "0 auto", paddingTop: 12 }}>
+            <h1 style={{ fontSize: 20, fontWeight: 800, margin: "0 0 4px" }}>{meta.title}</h1>
+            <div style={{ fontSize: 13, color: "var(--muted)", marginBottom: 18 }}>
+              {mins} minutes · English · Times New Roman · qualifying {meta.target_wpm} net WPM
+              {hasMarks ? ` · ${max} marks` : ""}
+            </div>
+
+            <Rule n="1" head="Type in sync with the red word" warn>
+              The passage is in the top half of the screen and you type in the bottom half. The
+              word you must type next is <b style={{ color: RED }}>highlighted in red</b>, and the
+              highlight moves one word ahead each time you press Space. Anything typed out of sync
+              with the red word is a mistake, and a skipped word is a mistake. If you lose your
+              place, type the red word to get back in sync.
+            </Rule>
+
+            <Rule n="2" head="Backspace works only before you press Space" warn>
+              You can correct a word with Backspace while you are still typing it. Once you press
+              Space the word is locked, and you cannot go back to correct it with Backspace, the
+              arrow keys or the mouse. Check each word before you press Space.
+            </Rule>
+
+            <Rule n="3" head="Every mistake is a full mistake">
+              There are no half mistakes. Each of these counts as one full mistake: a missed or
+              wrong letter, a skipped word, an extra word, a wrong capital or small letter, a wrong
+              punctuation mark, an extra space, and typing out of sync with the red word. Type
+              capital and small letters exactly as they appear in the passage.
+            </Rule>
+
+            <Rule n="4" head="How your speed is calculated">
+              Your keystrokes are divided by 5 to give <b>gross words</b>. One word is taken off for
+              each mistake, and the rest is divided by the full {mins} minutes, even if you submit
+              early. That figure is your <b>net speed (NWPM)</b>. You need at least{" "}
+              <b>{meta.target_wpm} NWPM</b> to qualify.
+            </Rule>
+
+            {hasMarks ? <MarksRule n="5" base={base} per={per} max={max} fullAt={fullAt} /> : null}
+
+            <div style={{
+              border: "1px solid var(--border)", borderRadius: 12, padding: 12,
+              fontSize: 12.5, lineHeight: 1.75, margin: "4px 0 12px",
+            }}>
+              <div style={{ fontWeight: 800, marginBottom: 6 }}>From the official instructions</div>
+              <ul style={{ margin: 0, paddingLeft: 18 }}>
+                <li>Check whether Caps Lock and Num Lock are ON or OFF before you start. Their status is shown at the top of the test screen.</li>
+                <li>The test is in English, in the Times New Roman font.</li>
+                <li>These keys are prohibited: Ctrl+F4, Alt+F4, Ctrl+Esc, Ctrl+Alt+Delete, Alt+Tab, Alt+Space, Alt+Esc, the Right Click key, and the Windows key with a function key. Here, leaving the test window is counted and shown in your result.</li>
+                <li>The software judges both your speed and your accuracy while you type.</li>
+                <li>Using a prohibited key or tampering with the computer can cancel your candidature, with action under the Information Technology Act, 2000.</li>
+                <li>Do not look at another candidate&apos;s screen or talk to anyone. Mobile phones, pagers and other communication devices are not allowed in the exam centre.</li>
+              </ul>
+            </div>
+
+            <div style={{
+              border: "1px solid var(--border)", borderRadius: 12, padding: 12,
+              fontSize: 12, color: "var(--muted)", lineHeight: 1.7, margin: "0 0 18px",
+            }}>
+              The synchronized typing, Backspace and prohibited-key rules are taken from the
+              university&apos;s official typing test instructions.
+              {hasMarks ? ` The marks rule (${per} marks for each NWPM above ${base}, up to ${max}) is from the official notification.` : ""}
+              {" "}The official notice does not say exactly how net speed is worked out, so we use
+              the standard method: gross words from keystrokes, minus one word for each mistake.
+            </div>
+
+            <button
+              onClick={startTest}
+              style={{
+                width: "100%", padding: "14px", borderRadius: 12, border: "none",
+                background: "#2e8b4a", color: "#fff", fontWeight: 800, fontSize: 15,
+                cursor: "pointer",
+              }}
+            >
+              Start Test
+            </button>
+            <div style={{ fontSize: 11.5, color: "var(--muted)", textAlign: "center", marginTop: 8 }}>
+              The timer starts on your first keystroke, not on this button.
+            </div>
+          </div>
+        </Shell>
+      );
+    }
+
     // Har galti ek shabd, poora time. NTPC wali maafi/kaat yahan hai hi nahi.
     if (meta.scoring_mode === "standard") {
       const exGross = 600;
@@ -626,6 +830,19 @@ export default function TypingTestPage() {
             TEST NUMBER: <span style={{ color: "#1a2f55" }}>{picked}</span>
           </span>
           <span style={{ flex: 1 }} />
+          {/* SKAU notice point 1 — Caps Lock / Num Lock ka haal */}
+          {sync && (
+            <span style={{ fontSize: 11, fontWeight: 700, color: "#5f6a7d", marginRight: 8 }}>
+              {capsOn === null ? "Press any key to check Caps Lock / Num Lock" : (
+                <>
+                  Caps Lock:{" "}
+                  <b style={{ color: capsOn ? RED : GREEN }}>{capsOn ? "ON" : "OFF"}</b>
+                  {" · "}Num Lock:{" "}
+                  <b style={{ color: "#333" }}>{numOn ? "ON" : "OFF"}</b>
+                </>
+              )}
+            </span>
+          )}
           {!started && (
             <span style={{ fontSize: 11, fontWeight: 700, color: "#1c7a3e", marginRight: 8 }}>
               Timer starts on your first letter
@@ -710,7 +927,35 @@ export default function TypingTestPage() {
           )}
         </div>
 
-        {(showPassage || meta.passage_mode === "screen") && meta.passage_text ? (
+        {sync ? (
+          // SKAU: upar passage, laal highlight wala shabd abhi type karna hai
+          <div
+            ref={passageBoxRef}
+            style={{
+              position: "relative",
+              background: "#fffef5", borderBottom: "1px solid #d4d9e2",
+              padding: "12px 16px", maxHeight: "34vh", overflowY: "auto",
+              fontSize: fontSize + 1, lineHeight: 1.9,
+              fontFamily: "'Times New Roman', Times, serif",
+              userSelect: "none",
+            }}
+            onCopy={(e) => e.preventDefault()}
+          >
+            {passageWords.map((w, i) => (
+              <span key={i}>
+                {i > 0 ? " " : ""}
+                <span
+                  ref={i === syncNow.pos ? currentWordRef : undefined}
+                  style={i === syncNow.pos
+                    ? { background: RED, color: "#fff", borderRadius: 3, padding: "1px 3px" }
+                    : i < syncNow.pos ? { color: "#6b7280" } : undefined}
+                >
+                  {w}
+                </span>
+              </span>
+            ))}
+          </div>
+        ) : (showPassage || meta.passage_mode === "screen") && meta.passage_text ? (
           <div
             style={{
               background: "#fffef5", borderBottom: "1px solid #d4d9e2",
@@ -744,6 +989,9 @@ export default function TypingTestPage() {
               value={text}
               onChange={onChange}
               onKeyDown={onKeyDown}
+              onSelect={keepCaret}
+              onClick={keepCaret}
+              onKeyUp={keepCaret}
               onPaste={onPaste}
               onDrop={(e) => e.preventDefault()}
               spellCheck={false}
@@ -763,7 +1011,8 @@ export default function TypingTestPage() {
                 lineHeight: doc ? 1.5 : 1.8,
                 fontFamily: (meta.language === "hindi" && script === "krutidev")
                   ? "'KrutiDev010', sans-serif"
-                  : doc
+                  : (doc || sync)
+                    // SKAU notice point 2: Times New Roman
                     ? "'Times New Roman', Times, serif"
                     : "Consolas, 'Courier New', monospace",
                 color: "#111", background: "#fff", boxSizing: "border-box",
@@ -967,6 +1216,12 @@ export default function TypingTestPage() {
               <Box label="Gross WPM" value={r.gross_wpm} />
               <Box label="Backspace count" value={r.backspace_count} />
             </div>
+            {r.sync_typing && (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 10, marginBottom: 16 }}>
+                <Box label="Extra spaces" value={Number(r.extra_spaces || 0)} />
+                <Box label="Left test window" value={`${Number(r.left_window || 0)} times`} />
+              </div>
+            )}
           </>
         ) : (
           <>
@@ -1135,7 +1390,7 @@ export default function TypingTestPage() {
               </span>
             );
             if (s.op === "extra") return (
-              <span key={i} {...tap} title="not in the passage"
+              <span key={i} {...tap} title={s.why === "extra_space" ? "extra space" : "not in the passage"}
                     style={{ ...tap.style, ...ring, background: "#ffe0e0", color: RED, textDecoration: "line-through" }}>
                 {sp}{s.typed}
               </span>
@@ -1306,6 +1561,8 @@ const WHY_TEXT: Record<string, string> = {
   extra: "this word is not in the passage",
   line_missing: "in the passage this word starts a new line, so press Enter before it",
   line_extra: "in the passage this word continues on the same line, so no Enter here",
+  out_of_sync: "out of sync — this was not the red word at that moment (usually a skipped or repeated word)",
+  extra_space: "an extra space — Space was pressed twice or at the start",
 };
 
 function MistakeCard({ s, onClose }: { s: any; onClose: () => void }) {
@@ -1322,6 +1579,10 @@ function MistakeCard({ s, onClose }: { s: any; onClose: () => void }) {
             <div style={{ fontSize: 13.5, lineHeight: 1.7 }}>
               <b style={{ fontFamily: "Consolas, monospace", color: RED }}>{s.text}</b>
               {" "}— you did not type this word
+            </div>
+          ) : s.op === "extra" && s.why === "extra_space" ? (
+            <div style={{ fontSize: 13.5, lineHeight: 1.7 }}>
+              An <b style={{ color: RED }}>extra space</b> was typed here
             </div>
           ) : s.op === "extra" ? (
             <div style={{ fontSize: 13.5, lineHeight: 1.7 }}>
