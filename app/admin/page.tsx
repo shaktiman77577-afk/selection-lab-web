@@ -10,6 +10,7 @@ import Tier2Admin from "./Tier2Admin";
 import ExcelAdmin from "./ExcelAdmin";
 import NbemsMockAdmin from "./NbemsMockAdmin";
 import SearchAdmin from "./SearchAdmin";
+import BlogEditor from "./BlogEditor";
 import EmailAdmin from "./EmailAdmin";
 import PartnersAdmin from "./PartnersAdmin";
 import ScoreCheckerAdmin from "./ScoreCheckerAdmin";
@@ -4368,7 +4369,6 @@ function BlogTab() {
   const [posts, setPosts] = useState<any[]>([]);
   const [editing, setEditing] = useState<any | null>(null);
   const [error, setError] = useState("");
-  const [saving, setSaving] = useState(false);
 
   function load() {
     api("/admin-extra/blog")
@@ -4376,32 +4376,6 @@ function BlogTab() {
       .catch((e) => setError(e.message));
   }
   useEffect(load, []);
-
-  async function save() {
-    if (!editing.title?.trim() || !editing.content?.trim()) {
-      setError("Title and content are required");
-      return;
-    }
-    setSaving(true);
-    setError("");
-    try {
-      const body = {
-        title: editing.title,
-        slug: editing.slug || null,
-        excerpt: editing.excerpt || null,
-        content: editing.content,
-        cover_url: editing.cover_url || null,
-        is_published: editing.is_published !== false,
-      };
-      if (editing.id) await api(`/admin-extra/blog/${editing.id}`, "PUT", body);
-      else await api("/admin-extra/blog", "POST", body);
-      setEditing(null);
-      load();
-    } catch (e: any) {
-      setError(e.message);
-    }
-    setSaving(false);
-  }
 
   async function openEdit(id: number) {
     try {
@@ -4422,44 +4396,11 @@ function BlogTab() {
     }
   }
 
+  // Naya editor (Word jaisa) + SEO box — app/admin/BlogEditor.tsx
   if (editing) {
     return (
-      <div>
-        <button onClick={() => setEditing(null)} style={{ ...ghostBtn, marginBottom: 14 }}>
-          ← Back
-        </button>
-        <h3 style={{ margin: "0 0 12px", fontSize: 16 }}>{editing.id ? "Edit post" : "New post"}</h3>
-        <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 14, padding: 14 }}>
-          <Field label="Title">
-            <input style={inputStyle} value={editing.title || ""} onChange={(e) => setEditing({ ...editing, title: e.target.value })} placeholder="SSC CGL 2026 Notification Out — Full Details" />
-          </Field>
-          <Field label="Slug (URL — blank = auto from title)">
-            <input style={inputStyle} value={editing.slug || ""} onChange={(e) => setEditing({ ...editing, slug: e.target.value })} placeholder="ssc-cgl-2026-notification" />
-          </Field>
-          <Field label="Excerpt (short summary shown in list + Google)">
-            <input style={inputStyle} value={editing.excerpt || ""} onChange={(e) => setEditing({ ...editing, excerpt: e.target.value })} />
-          </Field>
-          <Field label="Cover image URL (optional)">
-            <input style={inputStyle} value={editing.cover_url || ""} onChange={(e) => setEditing({ ...editing, cover_url: e.target.value })} placeholder="https://..." />
-          </Field>
-          <Field label="Content — blank line = paragraph · ## Heading · - bullet · [text](url) = link · link alone on a line = button">
-            <textarea
-              style={{ ...inputStyle, minHeight: 260, fontFamily: "inherit", lineHeight: 1.6 }}
-              value={editing.content || ""}
-              onChange={(e) => setEditing({ ...editing, content: e.target.value })}
-              placeholder={"Intro paragraph...\n\n## Important Dates\n\nDetails here..."}
-            />
-          </Field>
-          <label style={{ display: "flex", alignItems: "center", gap: 8, margin: "0 0 12px", fontSize: 14 }}>
-            <input type="checkbox" checked={editing.is_published !== false} onChange={(e) => setEditing({ ...editing, is_published: e.target.checked })} />
-            Published (uncheck = draft, hidden from site)
-          </label>
-          <button onClick={save} disabled={saving} style={{ ...goldBtn, width: "100%" }}>
-            {saving ? "Saving..." : editing.id ? "Update post" : "Publish post"}
-          </button>
-          {error && <ErrorBox msg={error} />}
-        </div>
-      </div>
+      <BlogEditor api={api} post={editing} onBack={() => setEditing(null)}
+        onSaved={() => { setEditing(null); load(); }} />
     );
   }
 
