@@ -1779,9 +1779,14 @@ function DashboardTab() {
   const [stats, setStats] = useState<any>(null);
   const [sales, setSales] = useState<any>(null);
   const [error, setError] = useState("");
+  const [loadingSales, setLoadingSales] = useState(false);
+  function loadSales() {
+    setLoadingSales(true);
+    api("/admin-extra/sales").then(setSales).catch(() => {}).finally(() => setLoadingSales(false));
+  }
   useEffect(() => {
     api("/admin/dashboard").then(setStats).catch((e) => setError(e.message));
-    api("/admin-extra/sales").then(setSales).catch(() => {});
+    loadSales();
   }, []);
   if (error) return <ErrorBox msg={error} />;
   if (!stats) return <Muted>Loading stats...</Muted>;
@@ -1812,10 +1817,13 @@ function DashboardTab() {
             </div>
           ))}
           <div style={{ fontSize: 11.5, color: "#9a917f", marginTop: 8 }}>
-            Free with 100% coupon: {sales.free_coupon_unlocks} · Given by admin: {sales.admin_grants} (kamai me nahi gine)
+            Free with 100% coupon: {sales.free_coupon_unlocks} · Given by admin: {sales.admin_grants}
+            {" "}· Bundle ke andar mile items: {sales.bundle_items ?? 0} (teeno kamai me nahi gine — bundle ka paisa bundle me gina hai)
           </div>
         </div>
       )}
+
+      {sales?.by_item && <IncomeByItem items={sales.by_item} money={money} icon={ICON} />}
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginTop: 12 }}>
         <MiniStat label="Users" value={stats.total_users} color="#3AA8C1" />
@@ -1823,7 +1831,14 @@ function DashboardTab() {
         <MiniStat label="Quiz attempts" value={stats.total_attempts} color="#7C6CE0" />
       </div>
 
-      <h3 style={{ fontSize: 15, margin: "20px 0 10px" }}>🛒 Recent Purchases</h3>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "20px 0 10px" }}>
+        <h3 style={{ fontSize: 15, margin: 0, flex: 1 }}>🛒 Recent Purchases</h3>
+        <button onClick={loadSales} disabled={loadingSales}
+                style={{ background: "transparent", border: `1px solid ${BORDER}`, color: GOLD, borderRadius: 8,
+                         padding: "5px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+          {loadingSales ? "Loading…" : "↻ Refresh"}
+        </button>
+      </div>
       {!sales ? (
         <Muted>Loading purchases...</Muted>
       ) : sales.recent.length === 0 ? (
@@ -1841,8 +1856,14 @@ function DashboardTab() {
                 {r.coupon ? <> · 🎟️ <b style={{ color: GOLD }}>{r.coupon}</b></> : null}
               </div>
             </div>
-            <b style={{ color: r.kind === "paid" ? "#5dd97c" : "#9a917f", fontSize: 13.5, flexShrink: 0 }}>
-              {r.kind === "paid" ? money(r.amount) : r.kind === "admin" ? "ADMIN" : "FREE"}
+            <b style={{ color: r.kind === "paid" ? "#5dd97c" : r.kind === "bundle" ? "#7fb2e5" : "#9a917f",
+                        fontSize: r.kind === "paid" ? 13.5 : 11.5, flexShrink: 0, textAlign: "right" }}>
+              {r.kind === "paid" ? money(r.amount)
+                : r.kind === "admin" ? "ADMIN"
+                : r.kind === "bundle" ? "BUNDLE"
+                : "FREE"}
+              {r.kind === "coupon_free" && <div style={{ fontSize: 9.5, fontWeight: 600 }}>100% coupon</div>}
+              {r.kind === "bundle" && <div style={{ fontSize: 9.5, fontWeight: 600 }}>bundle me mila</div>}
             </b>
           </div>
         ))
@@ -1850,6 +1871,105 @@ function DashboardTab() {
     </div>
   );
 }
+// ── Income by course / series + exam-wise ────────────────────────────────────
+// Courses aur series me exam ka link (exam_id) admin form se set hi nahi hota,
+// isliye exam ka hisaab NAAM se nikalta hai. Button dabane par un saare items
+// ka jod dikhta hai jinke naam me wo shabd hain — aur neeche wahi items ki list,
+// taaki dikhe ki kya-kya gina gaya. Naya exam aaye to EXAMS me ek line jodiye.
+const EXAMS: { label: string; words: string[] }[] = [
+  { label: "Punjab & Haryana HC", words: ["punjab", "phhc", "p&h", "p & h", "sssc"] },
+  { label: "SKAU", words: ["skau", "ayush", "kurukshetra", "shri krishna"] },
+  { label: "CCRUM / CCRAS", words: ["ccrum", "ccras"] },
+  { label: "NBEMS", words: ["nbems"] },
+  { label: "NCERT", words: ["ncert"] },
+  { label: "CCI", words: ["cci"] },
+];
+
+function IncomeByItem({ items, money, icon }: {
+  items: any[]; money: (v: any) => string; icon: Record<string, string>;
+}) {
+  const [exam, setExam] = useState<string>("");
+  const [q, setQ] = useState("");
+  const [showAll, setShowAll] = useState(false);
+
+  const words = q.trim()
+    ? [q.trim().toLowerCase()]
+    : (EXAMS.find((e) => e.label === exam)?.words || []);
+  const rows = words.length
+    ? items.filter((it) => {
+        const t = String(it.title || "").toLowerCase();
+        if (q.trim()) return t.includes(words[0]);          // khud likha: seedha "shamil hai?"
+        return words.some((w) => new RegExp(`(^|[^a-z])${w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([^a-z]|$)`).test(t));
+      })
+    : items;
+  const total = rows.reduce((a, it) => a + Number(it.revenue || 0), 0);
+  const month = rows.reduce((a, it) => a + Number(it.month_revenue || 0), 0);
+  const sold = rows.reduce((a, it) => a + Number(it.sales || 0), 0);
+  const shown = showAll || words.length ? rows : rows.slice(0, 15);
+  const chip = (on: boolean): React.CSSProperties => ({
+    border: `1px solid ${on ? GOLD : BORDER}`, background: on ? "rgba(255,171,0,0.12)" : "transparent",
+    color: on ? GOLD : "#cfc6b3", borderRadius: 999, padding: "5px 11px", fontSize: 12, fontWeight: 700, cursor: "pointer",
+  });
+
+  return (
+    <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 14, padding: 12, marginTop: 12 }}>
+      <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 8 }}>Income by course / series</div>
+
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
+        <button style={chip(!exam && !q)} onClick={() => { setExam(""); setQ(""); }}>All</button>
+        {EXAMS.map((e) => (
+          <button key={e.label} style={chip(exam === e.label && !q)} onClick={() => { setExam(e.label); setQ(""); }}>
+            {e.label}
+          </button>
+        ))}
+      </div>
+      <input
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+        placeholder="Ya naam se dhoondhiye — jaise haryana, typing, clerk"
+        style={{ width: "100%", boxSizing: "border-box", background: "rgba(0,0,0,0.25)", border: `1px solid ${BORDER}`,
+                 color: "#eee", borderRadius: 8, padding: "8px 10px", fontSize: 13, marginBottom: 10 }}
+      />
+
+      {/* Chuni hui cheez ka jod */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 10 }}>
+        {([["Total", money(total)], ["This month", money(month)], ["Sold", String(sold)]] as const).map(([k, v]) => (
+          <div key={k} style={{ border: `1px solid ${BORDER}`, borderRadius: 10, padding: "8px 10px" }}>
+            <div style={{ fontSize: 16, fontWeight: 800, color: GOLD }}>{v}</div>
+            <div style={{ fontSize: 11, color: "#9a917f" }}>
+              {k}{words.length ? ` · ${q.trim() ? `"${q.trim()}"` : exam}` : ""}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {rows.length === 0 ? (
+        <div style={{ fontSize: 12.5, color: "#9a917f", padding: "8px 0" }}>
+          Is naam ka koi course / series nahi mila jisme paid sale hui ho.
+        </div>
+      ) : shown.map((it) => (
+        <div key={`${it.type}-${it.id}`} style={{ display: "flex", gap: 10, alignItems: "center", fontSize: 12.5, padding: "7px 0", borderTop: "1px solid rgba(128,128,128,0.15)" }}>
+          <span>{icon[it.type] || "•"}</span>
+          <span style={{ flex: 1, minWidth: 0 }}>{it.title}</span>
+          <span style={{ color: "#9a917f", fontSize: 11.5, flexShrink: 0, textAlign: "right" }}>
+            {it.sales} sold<br />month {money(it.month_revenue)}
+          </span>
+          <b style={{ color: GOLD, minWidth: 64, textAlign: "right", flexShrink: 0 }}>{money(it.revenue)}</b>
+        </div>
+      ))}
+      {!words.length && !showAll && rows.length > 15 && (
+        <button onClick={() => setShowAll(true)}
+                style={{ marginTop: 8, background: "transparent", border: "none", color: GOLD, fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}>
+          Show all {rows.length}
+        </button>
+      )}
+      <div style={{ fontSize: 11, color: "#9a917f", marginTop: 8 }}>
+        Sirf asli payment gini hai. Exam ka hisaab course/series ke naam se banta hai — list dekh kar check kar lijiye.
+      </div>
+    </div>
+  );
+}
+
 // ── Courses tab ──────────────────────────────────────────────────────────────
 const emptyCourse = {
   title: "",
