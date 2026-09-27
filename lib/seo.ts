@@ -57,9 +57,18 @@ export function shareDescription(s: ShareInfo): string {
   return t.length > 158 ? t.slice(0, 155).replace(/\s+\S*$/, "") + "…" : t;
 }
 
+/** Backend ka preview card. ?v= se naam/price/image badalte hi naya URL — purana cache nahi chalega. */
+export function cardUrl(s: ShareInfo): string {
+  const v = [s.title, s.price, s.original_price, s.image, s.items, s.updated_at].join("|");
+  let h = 0;
+  for (let i = 0; i < v.length; i++) h = (h * 31 + v.charCodeAt(i)) >>> 0;
+  return `${API}/share/${s.kind}/${s.id}/card.jpg?v=${h.toString(36)}`;
+}
+
 /** Ek jagah se poora Metadata — title, description, canonical, OG, Twitter, robots. */
 export function pageMeta(o: {
   title: string; description: string; path: string; image?: string | null; noindex?: boolean; type?: "website" | "article";
+  card?: boolean;          // image apna 1200x630 preview card hai (size pakka pata hai)
 }): Metadata {
   const image = o.image || DEFAULT_IMAGE;
   return {
@@ -73,7 +82,7 @@ export function pageMeta(o: {
       title: o.title,
       description: o.description,
       // Apni default image 1200x630 hai; course ki thumbnail ka size pata nahi, to size nahi likhte
-      images: [o.image ? { url: image, alt: o.title } : { url: image, width: 1200, height: 630, alt: o.title }],
+      images: [o.image && !o.card ? { url: image, alt: o.title } : { url: image, width: 1200, height: 630, alt: o.title, type: "image/jpeg" }],
       locale: "en_IN",
     },
     twitter: { card: "summary_large_image", title: o.title, description: o.description, images: [image] },
@@ -94,7 +103,10 @@ export function shareMeta(s: ShareInfo | null, path: string, fallbackTitle: stri
     title: `${s.title}${s.price ? ` — ${priceLine(s).split(" ")[0]}` : " — Free"}`,
     description: shareDescription(s),
     path,
-    image: s.image,
+    // Thumbnail seedha nahi — wo aksar 2-3 MB ki khadi PNG hoti hai jise WhatsApp /
+    // Telegram chhod dete hain. Backend usse 1200x630 ka ~50 KB card banata hai.
+    image: cardUrl(s),
+    card: true,
     noindex: !s.indexable,
   });
 }
