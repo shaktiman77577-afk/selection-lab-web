@@ -1871,6 +1871,49 @@ function DashboardTab() {
     </div>
   );
 }
+// ── ImgBB keys check ─────────────────────────────────────────────────────────
+// Har key se ek 1x1 image (60 second me apne aap mit jaati hai) bhej kar dekhte
+// hain: key chal rahi hai, limit par hai, ya galat hai. Limit wali key backend
+// par 1 ghanta aaram karti hai — upload baaki keys se chalta rehta hai.
+function ImgbbKeysCheck() {
+  const [busy, setBusy] = useState(false);
+  const [res, setRes] = useState<any>(null);
+  const [err, setErr] = useState("");
+  async function run() {
+    setBusy(true); setErr(""); setRes(null);
+    try { setRes(await api("/uploads/imgbb-keys-check")); }
+    catch (e: any) { setErr(e?.message || "Check nahi ho paya"); }
+    finally { setBusy(false); }
+  }
+  const COLOR: Record<string, string> = { ok: "#5dd97c", limit: GOLD, error: "#e06c5a" };
+  const LABEL: Record<string, string> = { ok: "✓ chal rahi hai", limit: "⏳ limit par", error: "✗ gadbad" };
+  return (
+    <div style={{ marginTop: 8 }}>
+      <button type="button" onClick={run} disabled={busy}
+              style={{ background: "transparent", border: `1px solid ${BORDER}`, color: GOLD, borderRadius: 8,
+                       padding: "5px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+        {busy ? "Keys check ho rahi hain…" : "🔑 ImgBB keys check"}
+      </button>
+      {err && <div style={{ fontSize: 11.5, color: "#e06c5a", marginTop: 6 }}>{err}</div>}
+      {res && (
+        <div style={{ fontSize: 11.5, marginTop: 6, lineHeight: 1.7 }}>
+          <div style={{ fontWeight: 700 }}>
+            {res.loaded} keys load hui · {res.working} chal rahi hain
+          </div>
+          {(res.keys || []).map((k: any) => (
+            <div key={k.n} style={{ color: COLOR[k.status] || "#ccc" }}>
+              Key {k.n} ({k.key}): {LABEL[k.status] || k.status}
+              {k.status === "error" && k.note ? ` — ${k.note}` : ""}
+              {k.rest_min ? ` · ~${k.rest_min} min aaram baaki` : ""}
+            </div>
+          ))}
+          {res.hint && <div style={{ color: "#9a917f", marginTop: 2 }}>{res.hint}</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Income by course / series + exam-wise ────────────────────────────────────
 // Courses aur series me exam ka link (exam_id) admin form se set hi nahi hota,
 // isliye exam ka hisaab NAAM se nikalta hai. Button dabane par un saare items
@@ -3234,6 +3277,8 @@ function QuestionsTab() {
               // Server har file ka nateeja usi kram me lautata hai jis kram me
               // bheji thi — naam ki jagah kram se jodte hain, taaki naam me koi
               // farak (space, path) ho to bhi chadhi hui image fail na gini jaye.
+              // Saari ImgBB keys limit par — aage ke tukde bhejna bekaar, saaf bata do
+              if (d.all_keys_limited) stopWhy = d.message || `saari ImgBB keys limit par hain — ~${d.retry_after_min || 60} minute baad dobara try kariye`;
               const results: any[] = Array.isArray(d.results) ? d.results : [];
               const urlMap: Record<string, string> = d.url_map || {};
               let ok = 0;
@@ -3440,6 +3485,7 @@ function QuestionsTab() {
                   onChange={(e) => { pickCharts(e.target.files); e.target.value = ""; }} />
               </label>
             </div>
+            <ImgbbKeysCheck />
           </Field>
           {charts.length > 0 && (() => {
             const used = chartsUsed;
