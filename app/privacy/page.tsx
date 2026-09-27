@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
+import { pageMeta } from "@/lib/seo";
 import Link from "next/link";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMeta({
   title: "Privacy Policy",
   description: "How Selection Lab collects, uses and protects your information.",
-};
+  path: "/privacy",
+});
 
 const GOLD = "#FFAB00";
 

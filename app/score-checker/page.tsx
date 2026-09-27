@@ -6,14 +6,14 @@
 // Asli kaam ScoreCheckerForm karta hai, jo client component hai.
 
 import type { Metadata } from "next";
+import { pageMeta } from "@/lib/seo";
 import ScoreCheckerForm from "./ScoreCheckerForm";
 
-export const metadata: Metadata = {
-  title: "Answer Key Score Calculator | SelectionLab",
-  description:
-    "Paste your official response sheet link and get your exact score, section by section, with a question-wise review of every answer.",
-  alternates: { canonical: "https://selectionlab.in/score-checker" },
-};
+export const metadata: Metadata = pageMeta({
+  title: "Answer Key Score Calculator",
+  description: "Paste your official response sheet link and get your exact score, section by section, with a question-wise review of every answer.",
+  path: "/score-checker",
+});
 
 export default function ScoreCheckerPage() {
   return <ScoreCheckerForm />;

@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
+import { pageMeta } from "@/lib/seo";
 import Link from "next/link";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMeta({
   title: "Terms of Service",
   description: "Terms for using Selection Lab courses, tests and services.",
-};
+  path: "/terms",
+});
 
 const GOLD = "#FFAB00";
 

@@ -34,9 +34,10 @@ export const metadata: Metadata = {
     "Railways exam course",
   ],
   authors: [{ name: "Selection Lab" }],
+  // og:url yahan NAHI — warna har page (jiska apna metadata nahi) Google/WhatsApp
+  // ko apna URL homepage batata tha. Har page apna url lib/seo.ts pageMeta se deta hai.
   openGraph: {
     type: "website",
-    url: "https://www.selectionlab.in",
     siteName: "Selection Lab",
     title: "Selection Lab — Government Exam Preparation",
     description:
@@ -88,6 +89,28 @@ html[data-theme="dark"]{
 body{background:var(--bg);color:var(--text);}
 `;
 
+const ORG_LD = JSON.stringify([
+  {
+    "@context": "https://schema.org",
+    "@type": "EducationalOrganization",
+    name: "Selection Lab",
+    url: "https://www.selectionlab.in",
+    logo: "https://www.selectionlab.in/logo.png",
+    description: "Government exam preparation — courses, mock tests, typing tests and PYQs in Hindi and English.",
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: "Selection Lab",
+    url: "https://www.selectionlab.in",
+    potentialAction: {
+      "@type": "SearchAction",
+      target: "https://www.selectionlab.in/search?q={search_term_string}",
+      "query-input": "required name=search_term_string",
+    },
+  },
+]);
+
 const themeScript = `try{if(localStorage.getItem('sl-theme')==='dark'){document.documentElement.setAttribute('data-theme','dark');}}catch(e){}`;
 
 export default function RootLayout({
@@ -104,6 +127,8 @@ export default function RootLayout({
       <body className={`${geistSans.variable} ${geistMono.variable}`} style={{ margin: 0 }}>
         {/* Admin panel me "kaun online hai" isi se chalta hai. Kuch render nahi karta. */}
         <ActivityBeacon />
+        {/* Google ke liye: ye site kiski hai aur search kaise hota hai */}
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ORG_LD }} />
         {children}
       </body>
     </html>

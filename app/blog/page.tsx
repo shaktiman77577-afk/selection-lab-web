@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
+import { pageMeta } from "@/lib/seo";
 import Link from "next/link";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMeta({
   title: "Blog — Exam Updates & Study Material",
   description: "Latest government exam updates, strategy guides, vocabulary lists and study material from Selection Lab.",
-};
+  path: "/blog",
+});
 
 const GOLD = "#FFAB00";
 const API_URL = "https://api.selectionlab.online/api";
