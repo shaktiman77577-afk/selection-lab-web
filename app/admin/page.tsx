@@ -42,8 +42,28 @@ async function api(path: string, method = "GET", body?: any) {
     body: body ? JSON.stringify(body) : undefined,
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.detail || `Request failed (${res.status})`);
+  if (!res.ok) throw new Error(errText(data.detail) || `Request failed (${res.status})`);
   return data;
+}
+
+// Server ki galti padhne layak banao. FastAPI ki jaanch (422) galti ki LIST
+// bhejti hai — pehle wo seedha Error me jaati thi aur "[object Object]" dikhta tha.
+function errText(detail: any): string {
+  if (!detail) return "";
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    const parts = detail.slice(0, 5).map((d: any) => {
+      const loc = Array.isArray(d?.loc) ? d.loc.filter((x: any) => x !== "body") : [];
+      // ["questions", 86, "option_c_en"] -> "Question 87 ka option_c_en"
+      const qi = loc.indexOf("questions");
+      const where = qi !== -1 && typeof loc[qi + 1] === "number"
+        ? `Tukde ka question ${loc[qi + 1] + 1}${loc[qi + 2] ? ` (${loc[qi + 2]})` : ""}`
+        : loc.join(" › ");
+      return `${where ? where + ": " : ""}${d?.msg || JSON.stringify(d)}`;
+    });
+    return parts.join(" · ") + (detail.length > 5 ? ` · aur ${detail.length - 5}` : "");
+  }
+  try { return JSON.stringify(detail); } catch { return String(detail); }
 }
 
 // ── Page ─────────────────────────────────────────────────────────────────────
@@ -2603,7 +2623,7 @@ function looksGibberish(s: string): boolean {
 
 function auditRows(rows: any[], chartNames?: Set<string>): { issues: Issue[]; stats: Record<string, number> } {
   const issues: Issue[] = [];
-  const stats = { noHindi: 0, partialHindi: 0, noExpEn: 0, noExpHi: 0, gibberish: 0, dupOptions: 0, dupQuestion: 0, noTopic: 0, badMarkup: 0, needsMarkup: 0, chartMissing: 0, chartNotGiven: 0 };
+  const stats = { emptyOption: 0, noHindi: 0, partialHindi: 0, noExpEn: 0, noExpHi: 0, gibberish: 0, dupOptions: 0, dupQuestion: 0, noTopic: 0, badMarkup: 0, needsMarkup: 0, chartMissing: 0, chartNotGiven: 0 };
   const seen = new Map<string, number>();
 
   rows.forEach((q, idx) => {
@@ -2748,7 +2768,9 @@ function auditRows(rows: any[], chartNames?: Set<string>): { issues: Issue[]; st
     // ── Options ──
     const opts = [q.option_a_en, q.option_b_en, q.option_c_en, q.option_d_en].map((v) => String(v || "").trim());
     if (opts.some((o) => !o)) {
-      issues.push({ row: n, level: "error", what: "Koi option khaali hai" });
+      stats.emptyOption++;
+      const which = ["A", "B", "C", "D"].filter((_, k) => !opts[k]).join(", ");
+      issues.push({ row: n, level: "error", what: `Option ${which} khaali — upload me ye question chhod diya jayega` });
     } else if (new Set(opts.map((o) => o.toLowerCase())).size < 4) {
       stats.dupOptions++;
       issues.push({ row: n, level: "error", what: "Do options bilkul same hain" });
@@ -2857,6 +2879,7 @@ function QualityReport({ rows, chartNames }: { rows: any[]; chartNames?: Set<str
 
       {/* Ek nazar me summary */}
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
+        {stats.emptyOption > 0 && <Chip label={`${stats.emptyOption} me option khaali (chhode jayenge)`} danger />}
         {stats.chartMissing > 0 && <Chip label={`${stats.chartMissing} chart file nahi mili`} />}
         {stats.chartNotGiven > 0 && <Chip label={`${stats.chartNotGiven} me chart chahiye lag raha hai`} />}
         {stats.noHindi > 0 && <Chip label={`${stats.noHindi} bina Hindi`} />}
@@ -3110,6 +3133,7 @@ function QuestionsTab() {
         explanation_image_url: get("explanation_image_url"),
         volatile: get("volatile"),
         volatile_note: get("volatile_note"),
+        row_no: i + 1,             // file ki line — server chhodi hui row isi number se batata hai
       });
     }
 
@@ -3144,6 +3168,7 @@ function QuestionsTab() {
     let dupBank = 0;
     let dupFile = 0;
     let upd = 0;
+    const skippedRows: any[] = [];
     let imgUp = 0;
 
     // Pehle charts — ImgBB se asli URL lekar questions me bhar dete hain.
@@ -3384,6 +3409,7 @@ function QuestionsTab() {
         });
         done += d.inserted || 0;
         upd += d.updated || 0;
+        if (Array.isArray(d.skipped)) skippedRows.push(...d.skipped);
         dupBank += d.dup_in_bank || 0;
         dupFile += d.dup_in_file || 0;
       }
@@ -3397,6 +3423,12 @@ function QuestionsTab() {
       if (chunks > 1) parts.push(chunks + " tukdon me");
       if (dupBank) parts.push(dupBank + " bank me pehle se the");
       if (dupFile) parts.push(dupFile + " file me hi dobara the");
+      if (skippedRows.length) {
+        // Adhoore questions (khaali option waghera) chhode gaye — baaki sab chadh gaye
+        const list = skippedRows.slice(0, 15).map((s: any) => `Row ${s.row} (${s.why})`).join(", ");
+        parts.push(`${skippedRows.length} adhoore questions chhode — ${list}${skippedRows.length > 15 ? " …" : ""}. `
+          + "Inhe file me theek karke sirf yahi rows dobara upload kar dijiye");
+      }
       setResult("✓ " + parts.join(" · "));
       setParsed([]);
       setCsvText("");
