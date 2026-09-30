@@ -113,6 +113,7 @@ export default function Tier2Page() {
   const loadTyping = useCallback(async (s: Series) => {
     setLangChoice(null);
     setHindiFont(null);
+    setProgress(null);          // pichhli series ka graph ek pal bhi na dikhe
     const uid = (getUser() as any)?.id;
     try {
       const r = await fetch(`${API_URL}/tier2/series/${s.id}${uid ? `?user_id=${uid}` : ""}`);
@@ -121,7 +122,9 @@ export default function Tier2Page() {
       setError("Could not load the passages.");
     }
     if (uid) {
-      fetch(`${API_URL}/tier2/typing/progress?user_id=${uid}`)
+      // Sirf isi exam ke attempts — Court (kagaz) aur SKAU (screen) ki speed
+      // alag tareeke se banti hai, ek graph me milana galat tasveer deta hai
+      fetch(`${API_URL}/tier2/typing/progress?user_id=${uid}&series_id=${s.id}`)
         .then((r) => r.json())
         .then(setProgress)
         .catch(() => {});
@@ -453,7 +456,7 @@ export default function Tier2Page() {
             ) : (
               <>
                 {progress && progress.total_attempts > 0 && (
-                  <ProgressCard progress={progress} />
+                  <ProgressCard progress={progress} examName={open.title} />
                 )}
 
                 {(() => {
@@ -936,7 +939,7 @@ function LanguagePicker({
 
 // ── Progress: best/average + 30 din ka chart ────────────────────────────────
 // Koi chart library nahi — seedha SVG. Bundle bhaari karne ki zaroorat nahi.
-function ProgressCard({ progress }: { progress: any }) {
+function ProgressCard({ progress, examName }: { progress: any; examName?: string }) {
   const pts: number[] = (progress.attempts || []).map((a: any) => Number(a.net_wpm) || 0);
   const w = 300, h = 70;
   const max = Math.max(40, ...pts);
@@ -958,7 +961,7 @@ function ProgressCard({ progress }: { progress: any }) {
         </svg>
       )}
       <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 6 }}>
-        Net WPM over the last 30 days
+        Net WPM over the last 30 days{examName ? ` · ${examName} only` : ""}
         {progress.wrong_selections > 0 ? ` · ${progress.wrong_selections} times a wrong test number was selected` : ""}
       </div>
     </div>
