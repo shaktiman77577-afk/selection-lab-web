@@ -9,9 +9,17 @@
  * page.tsx me aise juda hai:  <ComposerAdmin api={api} />
  *
  * Endpoints (base = /qbank):
- *   GET/POST/PUT/DELETE /blueprints   ·   GET /pool-health   ·   POST /compose
- *   GET /drafts  ·  GET /preview/:id  ·  GET /preview/:id/pdf
+ *   GET /catalog  ·  GET/POST/PUT/DELETE /blueprints  ·  GET /pool-health
+ *   POST /compose  ·  GET /drafts  ·  GET /preview/:id  ·  GET /preview/:id/pdf
  *   POST /swap/:id  ·  POST /publish/:id
+ *
+ * BLUEPRINT KA DHAANCHA (Sep 2026 se):
+ * Section = syllabus ka ek hissa ("Reasoning & Mathematics", 20 Q). Section ke
+ * andar "parts" — har part bank ka ek subject, apne fixed count ke saath
+ * (Reasoning 10 + Maths 10). Subject aur topics bank se aate hain (/catalog),
+ * admin type nahi karta — isliye spelling ki galti se "topic bank me nahi hai"
+ * wali dikkat khatam. Purane blueprint (section me seedha topics) kholne par
+ * apne aap ek part me badal jaate hain.
  */
 
 import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
@@ -69,21 +77,98 @@ function Msg({ text, kind = "error" }: { text: string; kind?: "error" | "ok" | "
   );
 }
 
-type Topic = { topic: string; count: number; grouped?: boolean };
-type PoolTopic = { topic: string; always?: boolean };
+type Topic = { topic: string; count: number; grouped?: boolean; topic_id?: number };
+type PoolTopic = { topic: string; always?: boolean; topic_id?: number };
+
+// Section ka ek hissa — bank ka ek subject
+type Part = {
+  subject_id: number | null;
+  subject: string;
+  mode: "pool" | "fixed";
+  total: number;            // pool: is subject se kitne Q
+  per_topic: number;        // pool: har topic se kitne
+  pool: PoolTopic[];        // pool: chune hue topics
+  topics: Topic[];          // fixed: har topic ka count
+};
+
 type Section = {
-  name: string; minutes?: number; topics: Topic[];
-  // Pool mode — GA/Reasoning jaise sections ke liye, jahan topic section ke
-  // slots se kaheen zyada hote hain
-  mode?: "fixed" | "pool";
+  name: string; minutes?: number;
+  target?: number;          // syllabus me is section ke kitne Q — sirf milaan ke liye
+  parts?: Part[];
+  // Purana dhaancha (parts se pehle) — kholte hi part me badal jaata hai
+  topics?: Topic[];
+  mode?: "fixed" | "pool" | "parts";
   total?: number; per_topic?: number; pool?: PoolTopic[];
 };
+
+type CatTopic = { id: number; name: string; questions: number; questions_all: number; grouped?: boolean };
+type CatSubject = { id: number | null; name: string; questions: number; questions_all: number; topics: CatTopic[] };
 
 const BLANK_BP = {
   id: 0, name: "", exam_tag: "SSC", exam_id: null as number | null,
   duration_minutes: 60, total_marks: 100, negative_marking: 0.25,
   pass_percentage: 35, section_lock: false, sections: [] as Section[],
 };
+
+const BLANK_PART: Part = {
+  subject_id: null, subject: "", mode: "pool", total: 0, per_topic: 1, pool: [], topics: [],
+};
+
+// ── Ginti ─────────────────────────────────────────────────────────────────────────
+function partQ(p: Part): number {
+  return p.mode === "pool"
+    ? Number(p.total) || 0
+    : (p.topics || []).reduce((s, t) => s + (Number(t.count) || 0), 0);
+}
+
+function secQ(sec: Section): number {
+  if (sec.parts && sec.parts.length) return sec.parts.reduce((s, p) => s + partQ(p), 0);
+  return sec.mode === "pool"
+    ? Number(sec.total) || 0
+    : (sec.topics || []).reduce((t, x) => t + (Number(x.count) || 0), 0);
+}
+
+// Purana section (seedha topics) -> ek part wala naya section
+function toEditable(sec: Section): Section {
+  if (sec.parts && sec.parts.length) {
+    return { ...sec, parts: sec.parts.map((p) => ({ ...BLANK_PART, ...p, pool: p.pool || [], topics: p.topics || [] })) };
+  }
+  const hasOld = (sec.pool || []).some((t) => (t.topic || "").trim())
+    || (sec.topics || []).some((t) => (t.topic || "").trim());
+  return {
+    name: sec.name, minutes: sec.minutes, target: secQ(sec) || undefined,
+    parts: hasOld ? [{
+      ...BLANK_PART,
+      mode: sec.mode === "pool" ? "pool" : "fixed",
+      total: Number(sec.total) || 0,
+      per_topic: Math.max(1, Number(sec.per_topic) || 1),
+      pool: (sec.pool || []).filter((t) => (t.topic || "").trim()),
+      topics: (sec.topics || []).filter((t) => (t.topic || "").trim()),
+    }] : [],
+  };
+}
+
+// Purane part me subject nahi hota, sirf topic ke naam. Catalog aate hi wo
+// subject dhoondh lo jisme sabse zyada naam milte hain, aur har naam ko uski
+// topic id de do — admin ko purana blueprint dobara nahi bharna padta.
+function adoptLegacy(p: Part, cat: CatSubject[]): Part {
+  if (p.subject_id != null) return p;
+  const names = [...(p.pool || []), ...(p.topics || [])].map((t) => (t.topic || "").trim().toLowerCase()).filter(Boolean);
+  if (!names.length) return p;
+  let best: CatSubject | null = null;
+  let bestHits = 0;
+  for (const s of cat) {
+    const hits = s.topics.filter((t) => names.includes(t.name.toLowerCase())).length;
+    if (hits > bestHits) { best = s; bestHits = hits; }
+  }
+  if (!best) return p;
+  const idOf = (n: string) => best!.topics.find((t) => t.name.toLowerCase() === (n || "").trim().toLowerCase())?.id;
+  return {
+    ...p, subject_id: best.id, subject: best.name,
+    pool: (p.pool || []).map((t) => ({ ...t, topic_id: t.topic_id ?? idOf(t.topic) })),
+    topics: (p.topics || []).map((t) => ({ ...t, topic_id: t.topic_id ?? idOf(t.topic) })),
+  };
+}
 
 // ===========================================================================
 export default function ComposerAdmin({ api }: { api: ApiFn }) {
@@ -114,41 +199,90 @@ export default function ComposerAdmin({ api }: { api: ApiFn }) {
   );
 }
 
-// ── BLUEPRINTS ─────────────────────────────────────────────────────────────
+// ── BLUEPRINTS ────────────────────────────────────────────────────────────────────────────────────────
 function Blueprints({ api, onErr, onOk }: { api: ApiFn; onErr: (s: string) => void; onOk: (s: string) => void }) {
   const [list, setList] = useState<any[]>([]);
   const [draft, setDraft] = useState<any | null>(null);
   const [saving, setSaving] = useState(false);
+  const [catalog, setCatalog] = useState<CatSubject[] | null>(null);
+  const [catErr, setCatErr] = useState("");
 
   function load() {
     api("/qbank/blueprints").then((d) => setList(d.blueprints || [])).catch((e) => onErr(e.message));
   }
   useEffect(load, []);
 
+  // Bank ka catalog — exam tag badle to ginti bhi badalti hai, isliye tag par
+  // chalta hai. Thoda ruk kar, taaki har akshar par request na jaye.
+  const tag = draft ? String(draft.exam_tag || "").trim() : null;
+  useEffect(() => {
+    if (tag === null) return;
+    setCatErr("");
+    const h = setTimeout(() => {
+      api(`/qbank/catalog${tag ? `?exam_tag=${encodeURIComponent(tag)}` : ""}`)
+        .then((d) => setCatalog(d.subjects || []))
+        .catch((e) => { setCatErr(e.message); setCatalog([]); });
+    }, 450);
+    return () => clearTimeout(h);
+  }, [tag]);
+
+  // Purane blueprint ke parts ko subject + topic id do (sirf ek baar, catalog aate hi)
+  useEffect(() => {
+    if (!catalog || !catalog.length || !draft) return;
+    const needs = (draft.sections as Section[]).some((s) => (s.parts || []).some((p) => p.subject_id == null && ((p.pool || []).length || (p.topics || []).length)));
+    if (!needs) return;
+    setDraft((d: any) => d && ({
+      ...d,
+      sections: (d.sections as Section[]).map((s) => ({ ...s, parts: (s.parts || []).map((p) => adoptLegacy(p, catalog)) })),
+    }));
+  }, [catalog, draft?.id]);
+
+  function openDraft(bp: any) {
+    setDraft({ ...bp, sections: (bp.sections || []).map(toEditable) });
+  }
+
   async function save() {
     if (!draft.name.trim()) return onErr("Blueprint ka naam daaliye");
     if (!draft.sections.length) return onErr("Kam se kam ek section chahiye");
     for (const sec of draft.sections as Section[]) {
-      if (sec.mode === "pool") {
-        const n = (sec.pool || []).filter((t) => (t.topic || "").trim()).length;
-        if (!Number(sec.total)) return onErr(`“${sec.name || "section"}” me total questions daaliye`);
-        if (!n) return onErr(`“${sec.name || "section"}” ke pool me ek bhi topic nahi hai`);
+      const sn = sec.name || "section";
+      if (!(sec.name || "").trim()) return onErr("Har section ka naam daaliye");
+      if (!(sec.parts || []).length) return onErr(`“${sn}” me kam se kam ek subject jodiye`);
+      for (const p of sec.parts || []) {
+        if (p.subject_id == null) return onErr(`“${sn}” me ek hissa bina subject ka hai — subject chuniye`);
+        if (p.mode === "pool") {
+          if (!Number(p.total)) return onErr(`“${sn} › ${p.subject}” me kitne question, ye daaliye`);
+          if (!(p.pool || []).length) return onErr(`“${sn} › ${p.subject}” me ek bhi topic tick nahi hai`);
+        } else if (!partQ(p)) {
+          return onErr(`“${sn} › ${p.subject}” me kisi topic ka count nahi daala`);
+        }
+      }
+      const got = secQ(sec);
+      if (sec.target && got !== Number(sec.target)
+          && !confirm(`“${sn}” me syllabus ${sec.target} Q kehta hai, par bhare ${got} hain. Phir bhi save karein?`)) {
+        return;
       }
     }
     setSaving(true); onErr("");
     try {
       const body = { ...draft };
       delete body.id; delete body.created_at; delete body.is_active;
-      // Pool section me topics[] bhejna backend ko confuse karta hai aur ulta
-      // fixed section me pool[] — isliye jo mode nahi hai uska data hata do
-      body.sections = (draft.sections as Section[]).map((sec) =>
-        sec.mode === "pool"
-          ? { name: sec.name, minutes: sec.minutes, mode: "pool",
-              total: Number(sec.total) || 0, per_topic: Math.max(1, Number(sec.per_topic) || 1),
-              pool: (sec.pool || []).filter((t) => (t.topic || "").trim()) }
-          : { name: sec.name, minutes: sec.minutes, mode: "fixed",
-              topics: (sec.topics || []).filter((t) => (t.topic || "").trim() && Number(t.count) > 0) }
-      );
+      // Har part me sirf uske mode ka data — pool part me fixed ke topics
+      // bhejna backend ko confuse karta hai, aur ulta bhi
+      body.sections = (draft.sections as Section[]).map((sec) => ({
+        name: sec.name.trim(),
+        minutes: sec.minutes,
+        target: Number(sec.target) || undefined,
+        mode: "parts",
+        parts: (sec.parts || []).map((p) =>
+          p.mode === "pool"
+            ? { subject_id: p.subject_id, subject: p.subject, mode: "pool",
+                total: Number(p.total) || 0, per_topic: Math.max(1, Number(p.per_topic) || 1),
+                pool: (p.pool || []).map((t) => ({ topic_id: t.topic_id, topic: t.topic, always: !!t.always })) }
+            : { subject_id: p.subject_id, subject: p.subject, mode: "fixed",
+                topics: (p.topics || []).filter((t) => Number(t.count) > 0)
+                  .map((t) => ({ topic_id: t.topic_id, topic: t.topic, count: Number(t.count), grouped: !!t.grouped })) }),
+      }));
       if (draft.id) await api(`/qbank/blueprints/${draft.id}`, "PUT", body);
       else await api("/qbank/blueprints", "POST", body);
       setDraft(null); load(); onOk("Blueprint save ho gaya");
@@ -161,11 +295,6 @@ function Blueprints({ api, onErr, onOk }: { api: ApiFn; onErr: (s: string) => vo
     try { await api(`/qbank/blueprints/${id}`, "DELETE"); load(); } catch (e: any) { onErr(e.message); }
   }
 
-  // ── total questions ki ginti — admin ko turant dikhe ki paper kitna bada hai
-  const secQ = (sec: Section) =>
-    sec.mode === "pool"
-      ? Number(sec.total) || 0
-      : (sec.topics || []).reduce((t: number, x: Topic) => t + (Number(x.count) || 0), 0);
   const total = draft ? draft.sections.reduce((s: number, sec: Section) => s + secQ(sec), 0) : 0;
 
   if (!draft) {
@@ -177,7 +306,7 @@ function Blueprints({ api, onErr, onOk }: { api: ApiFn; onErr: (s: string) => vo
         {!list.length && (
           <div style={{ ...cardBox, fontSize: 13, color: MUTED, lineHeight: 1.6 }}>
             Abhi koi blueprint nahi hai. Blueprint yaani exam ka pattern — kitne section,
-            har section me kaunse topic se kitne question, kitna time, kitni negative marking.
+            har section me kaunse subject se kitne question, kitna time, kitni negative marking.
             Ek baar bana lo, phir usi se jitne chaho mock generate kar sakte ho.
           </div>
         )}
@@ -192,12 +321,18 @@ function Blueprints({ api, onErr, onOk }: { api: ApiFn; onErr: (s: string) => vo
                     {b.exam_tag || "no tag"} · {qs} Q · {b.duration_minutes} min · {b.total_marks} marks
                     {Number(b.negative_marking) ? ` · −${b.negative_marking}` : " · no negative"}
                     {b.section_lock ? " · section lock" : ""}
-                    <br />{(b.sections || []).map((s: Section) =>
-                      s.mode === "pool" ? `${s.name} (pool ${(s.pool || []).length})` : s.name).join(" · ")}
+                    {(b.sections || []).map((s: Section, i: number) => (
+                      <div key={i}>
+                        {s.name} ({secQ(s)})
+                        {s.parts && s.parts.length
+                          ? ` — ${s.parts.map((p) => `${p.subject} ${partQ(p)}`).join(" + ")}`
+                          : s.mode === "pool" ? ` — pool ${(s.pool || []).length}` : ""}
+                      </div>
+                    ))}
                   </div>
                 </div>
                 <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-                  <button onClick={() => setDraft({ ...b, sections: b.sections || [] })} style={ghostBtn}>Edit</button>
+                  <button onClick={() => openDraft(b)} style={ghostBtn}>Edit</button>
                   <button onClick={() => remove(b.id)} style={dangerBtn}>Delete</button>
                 </div>
               </div>
@@ -216,9 +351,9 @@ function Blueprints({ api, onErr, onOk }: { api: ApiFn; onErr: (s: string) => vo
   return (
     <div style={cardBox}>
       <Field label="Blueprint ka naam"><input style={inputStyle} value={draft.name}
-        onChange={(e) => set("name", e.target.value)} placeholder="SSC CGL Tier 1 — 2026 pattern" /></Field>
+        onChange={(e) => set("name", e.target.value)} placeholder="SKAU Clerk — Phase 2" /></Field>
 
-      <Field label="Exam tag" hint="Sirf isi tag wale questions uthenge. Question par {SSC,Banking} dono ho to wo dono me chalega.">
+      <Field label="Exam tag" hint="Sirf isi tag wale questions uthenge. Question par {SSC,Banking} dono ho to wo dono me chalega. Neeche har topic ki ginti isi tag ke hisaab se dikhti hai.">
         <input style={inputStyle} value={draft.exam_tag || ""}
           onChange={(e) => set("exam_tag", e.target.value)} placeholder="SSC" /></Field>
 
@@ -245,12 +380,20 @@ function Blueprints({ api, onErr, onOk }: { api: ApiFn; onErr: (s: string) => vo
           <span style={{ fontSize: 12, color: total ? GOLD : MUTED, fontWeight: 700 }}>{total} questions</span>
         </div>
 
+        {catErr && <Msg text={`Bank ki list nahi aayi: ${catErr}`} />}
+        {catalog === null && !catErr && (
+          <div style={{ fontSize: 12, color: MUTED, marginBottom: 10 }}>Bank se subject aur topic la rahe hain…</div>
+        )}
+        {catalog && !catalog.length && !catErr && (
+          <Msg kind="warn" text="Bank me abhi ek bhi topic wala question nahi mila. Pehle topic-tagged TSV upload kijiye." />
+        )}
+
         {draft.sections.map((sec: Section, i: number) => (
-          <SectionEditor key={i} sec={sec} onChange={(s) => setSec(i, s)}
+          <SectionEditor key={i} sec={sec} catalog={catalog || []} onChange={(s) => setSec(i, s)}
             onRemove={() => set("sections", draft.sections.filter((_: any, j: number) => j !== i))} />
         ))}
 
-        <button onClick={() => set("sections", [...draft.sections, { name: "", minutes: 15, mode: "fixed", topics: [], pool: [], total: 20, per_topic: 1 }])}
+        <button onClick={() => set("sections", [...draft.sections, { name: "", target: undefined, parts: [] }])}
           style={{ ...ghostBtn, width: "100%" }}>+ Section jodo</button>
       </div>
 
@@ -264,117 +407,274 @@ function Blueprints({ api, onErr, onOk }: { api: ApiFn; onErr: (s: string) => vo
   );
 }
 
-function SectionEditor({ sec, onChange, onRemove }: { sec: Section; onChange: (s: Section) => void; onRemove: () => void }) {
-  const isPool = sec.mode === "pool";
-  const setTopic = (i: number, t: Topic) => {
-    const topics = [...sec.topics]; topics[i] = t; onChange({ ...sec, topics });
+function SectionEditor({ sec, catalog, onChange, onRemove }: {
+  sec: Section; catalog: CatSubject[]; onChange: (s: Section) => void; onRemove: () => void;
+}) {
+  const parts = sec.parts || [];
+  const got = secQ(sec);
+  const target = Number(sec.target) || 0;
+  const setPart = (i: number, p: Part) => {
+    const next = [...parts]; next[i] = p; onChange({ ...sec, parts: next });
   };
-  const setPool = (i: number, t: PoolTopic) => {
-    const pool = [...(sec.pool || [])]; pool[i] = t; onChange({ ...sec, pool });
-  };
-  const fixedCount = sec.topics.reduce((s, t) => s + (Number(t.count) || 0), 0);
-  const alwaysN = (sec.pool || []).filter((p) => p.always).length;
-  const per = Math.max(1, Number(sec.per_topic) || 1);
+  const used = parts.map((p) => p.subject_id).filter((x) => x != null) as number[];
+
+  function addPart() {
+    // Naye hisse ko wahi count do jo syllabus ke hisaab se abhi bacha hai
+    const left = Math.max(0, target - got);
+    onChange({ ...sec, parts: [...parts, { ...BLANK_PART, total: left }] });
+  }
 
   return (
     <div style={{ background: "rgba(0,0,0,0.3)", border: `1px solid ${BORDER}`, borderRadius: 12, padding: 12, marginBottom: 10 }}>
-      <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-        <input style={{ ...inputStyle, flex: 2 }} placeholder="Section (English)"
-          value={sec.name} onChange={(e) => onChange({ ...sec, name: e.target.value })} />
-        <input style={{ ...inputStyle, flex: 1 }} type="number" placeholder="min"
-          value={sec.minutes ?? ""} onChange={(e) => onChange({ ...sec, minutes: Number(e.target.value) })} />
+      <div style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "flex-end" }}>
+        <label style={{ flex: 3, minWidth: 0 }}>
+          <div style={{ fontSize: 11, color: MUTED, marginBottom: 4 }}>Section (syllabus jaisa naam)</div>
+          <input style={inputStyle} placeholder="Reasoning & Mathematics"
+            value={sec.name} onChange={(e) => onChange({ ...sec, name: e.target.value })} />
+        </label>
+        <label style={{ flex: 1, minWidth: 64 }}>
+          <div style={{ fontSize: 11, color: MUTED, marginBottom: 4 }}>Syllabus Q</div>
+          <input style={inputStyle} type="number" placeholder="20"
+            value={sec.target ?? ""} onChange={(e) => onChange({ ...sec, target: e.target.value === "" ? undefined : Number(e.target.value) })} />
+        </label>
+        <button onClick={onRemove} style={{ ...dangerBtn, marginBottom: 2 }}>✕</button>
+      </div>
+
+      <label style={{ display: "block", marginBottom: 10 }}>
+        <div style={{ fontSize: 11, color: MUTED, marginBottom: 4 }}>
+          Section ka time (min) — sirf section lock ke liye, warna khaali chhodo
+        </div>
+        <input style={{ ...inputStyle, padding: "9px", maxWidth: 140 }} type="number"
+          value={sec.minutes ?? ""} onChange={(e) => onChange({ ...sec, minutes: e.target.value === "" ? undefined : Number(e.target.value) })} />
+      </label>
+
+      {parts.map((p, i) => (
+        <PartEditor key={i} part={p} catalog={catalog} takenSubjects={used.filter((x) => x !== p.subject_id)}
+          onChange={(np) => setPart(i, np)}
+          onRemove={() => onChange({ ...sec, parts: parts.filter((_, j) => j !== i) })} />
+      ))}
+
+      <button onClick={addPart} style={{ ...ghostBtn, width: "100%", padding: "8px 11px", fontSize: 12.5 }}>
+        + Subject jodo
+      </button>
+
+      <div style={{
+        fontSize: 12, fontWeight: 700, marginTop: 9, textAlign: "right",
+        color: !target ? MUTED : got === target ? GREEN : got > target ? RED : GOLD,
+      }}>
+        {target
+          ? got === target ? `✓ ${got} / ${target} Q — syllabus poora`
+            : got > target ? `⚠ ${got} / ${target} Q — ${got - target} zyada`
+            : `${got} / ${target} Q — ${target - got} aur chahiye`
+          : `${got} Q`}
+      </div>
+    </div>
+  );
+}
+
+function PartEditor({ part, catalog, takenSubjects, onChange, onRemove }: {
+  part: Part; catalog: CatSubject[]; takenSubjects: number[];
+  onChange: (p: Part) => void; onRemove: () => void;
+}) {
+  const [q, setQ] = useState("");
+  const subject = catalog.find((s) => s.id === part.subject_id) || null;
+  const isPool = part.mode === "pool";
+  const per = Math.max(1, Number(part.per_topic) || 1);
+
+  function pickSubject(idStr: string) {
+    const s = catalog.find((x) => String(x.id) === idStr);
+    if (!s) return;
+    // Naya subject: rotation me sab topic tick (jin me question hain), fixed me sab 0
+    onChange({
+      ...part, subject_id: s.id, subject: s.name,
+      pool: s.topics.filter((t) => t.questions > 0).map((t) => ({ topic_id: t.id, topic: t.name })),
+      topics: [],
+    });
+    setQ("");
+  }
+
+  const inPool = (id: number) => (part.pool || []).find((t) => t.topic_id === id);
+  const fixedOf = (id: number) => (part.topics || []).find((t) => t.topic_id === id);
+
+  function togglePool(t: CatTopic, on: boolean) {
+    const rest = (part.pool || []).filter((x) => x.topic_id !== t.id);
+    onChange({ ...part, pool: on ? [...rest, { topic_id: t.id, topic: t.name }] : rest });
+  }
+  function setAlways(t: CatTopic, on: boolean) {
+    onChange({ ...part, pool: (part.pool || []).map((x) => (x.topic_id === t.id ? { ...x, always: on } : x)) });
+  }
+  function setFixed(t: CatTopic, patch: Partial<Topic>) {
+    const cur = fixedOf(t.id) || { topic_id: t.id, topic: t.name, count: 0, grouped: !!t.grouped };
+    const rest = (part.topics || []).filter((x) => x.topic_id !== t.id);
+    onChange({ ...part, topics: [...rest, { ...cur, ...patch }] });
+  }
+
+  // Purane blueprint ke wo topic jo is subject me mile hi nahi (naam badal gaya
+  // ya hat gaya) — dikhate hain taaki admin hata sake, chupke se gayab nahi
+  const knownIds = new Set((subject?.topics || []).map((t) => t.id));
+  const orphans = (isPool ? part.pool : part.topics).filter((t) => !t.topic_id || !knownIds.has(t.topic_id));
+
+  const shown = (subject?.topics || []).filter((t) => !q.trim() || t.name.toLowerCase().includes(q.trim().toLowerCase()));
+
+  // Stock — ek mock me is hisse se zyada se zyada kitne aa sakte hain
+  const ticked = (subject?.topics || []).filter((t) => inPool(t.id));
+  const perMockMax = ticked.reduce((s, t) => s + Math.min(t.questions, per), 0);
+  const alwaysN = (part.pool || []).filter((t) => t.always).length;
+  const count = partQ(part);
+
+  const badge = (t: CatTopic) => {
+    const zero = t.questions === 0;
+    const tagIssue = zero && t.questions_all > 0;
+    return (
+      <span style={{ fontSize: 11, fontWeight: 700, whiteSpace: "nowrap", color: zero ? (tagIssue ? GOLD : RED) : MUTED }}
+        title={tagIssue ? `Question ${t.questions_all} hain, par is exam tag ke nahi` : undefined}>
+        {tagIssue ? `0 (tag nahi · ${t.questions_all})` : `${t.questions} Q`}
+      </span>
+    );
+  };
+
+  return (
+    <div style={{ border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, padding: 10, marginBottom: 9 }}>
+      <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+        <select style={{ ...inputStyle, padding: "9px", flex: 1, minWidth: 0 }}
+          value={part.subject_id == null ? "" : String(part.subject_id)}
+          onChange={(e) => pickSubject(e.target.value)}>
+          <option value="">— subject chuno —</option>
+          {catalog.map((s) => (
+            <option key={String(s.id)} value={String(s.id)} disabled={s.id != null && takenSubjects.includes(s.id)}>
+              {s.name} — {s.questions} Q{s.questions !== s.questions_all ? ` (kul ${s.questions_all})` : ""}
+            </option>
+          ))}
+        </select>
         <button onClick={onRemove} style={dangerBtn}>✕</button>
       </div>
 
-      <div style={{ display: "flex", gap: 6, marginBottom: 11 }}>
-        {(["fixed", "pool"] as const).map((m) => (
-          <button key={m} onClick={() => onChange({ ...sec, mode: m })}
-            style={{
-              ...ghostBtn, flex: 1, padding: "7px 10px", fontSize: 12,
-              ...((sec.mode || "fixed") === m ? { background: GOLD, color: "#1a1a1a", border: "none" } : {}),
-            }}>
-            {m === "fixed" ? "Fixed topics" : "Topic pool"}
-          </button>
-        ))}
-      </div>
-
-      {!isPool && (
-        <>
-          {sec.topics.map((t, i) => (
-            <div key={i} style={{ display: "flex", gap: 6, marginBottom: 7, alignItems: "center" }}>
-              <input style={{ ...inputStyle, flex: 3, padding: "9px" }} placeholder="Topic ka naam (bank jaisa)"
-                value={t.topic} onChange={(e) => setTopic(i, { ...t, topic: e.target.value })} />
-              <input style={{ ...inputStyle, width: 60, padding: "9px" }} type="number" placeholder="Q"
-                value={t.count} onChange={(e) => setTopic(i, { ...t, count: Number(e.target.value) })} />
-              <label title="Passage wala set — poora uthta hai ya bilkul nahi"
-                style={{ fontSize: 11, color: t.grouped ? GOLD : MUTED, display: "flex", alignItems: "center", gap: 4, cursor: "pointer" }}>
-                <input type="checkbox" checked={!!t.grouped} onChange={(e) => setTopic(i, { ...t, grouped: e.target.checked })} />
-                set
-              </label>
-              <button onClick={() => onChange({ ...sec, topics: sec.topics.filter((_, j) => j !== i) })} style={dangerBtn}>✕</button>
-            </div>
-          ))}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 }}>
-            <button onClick={() => onChange({ ...sec, topics: [...sec.topics, { topic: "", count: 1 }] })}
-              style={{ ...ghostBtn, padding: "7px 11px", fontSize: 12 }}>+ Topic</button>
-            <span style={{ fontSize: 11.5, color: MUTED }}>{fixedCount} Q</span>
-          </div>
-          <div style={{ fontSize: 10.5, color: MUTED, marginTop: 8, lineHeight: 1.5 }}>
-            Har topic ka count aap khud likh rahe ho — har mock me yahi pattern rahega.
-            English jaise sections ke liye sahi, jahan pattern har paper me ek jaisa hota hai.
-          </div>
-        </>
+      {part.subject_id == null && ((part.pool || []).length > 0 || (part.topics || []).length > 0) && (
+        <div style={{ fontSize: 11.5, color: GOLD, marginBottom: 8, lineHeight: 1.5 }}>
+          Purane blueprint ka hissa — bank me iske topic kisi subject me nahi mile. Subject chuno.
+        </div>
       )}
 
-      {isPool && (
+      {subject && (
         <>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 10 }}>
-            <label>
-              <div style={{ fontSize: 11.5, color: MUTED, marginBottom: 4 }}>Section me total Q</div>
-              <input style={{ ...inputStyle, padding: "9px" }} type="number"
-                value={sec.total ?? ""} onChange={(e) => onChange({ ...sec, total: Number(e.target.value) })} />
-            </label>
-            <label>
-              <div style={{ fontSize: 11.5, color: MUTED, marginBottom: 4 }}>Har topic se</div>
-              <input style={{ ...inputStyle, padding: "9px" }} type="number" min={1}
-                value={sec.per_topic ?? 1} onChange={(e) => onChange({ ...sec, per_topic: Math.max(1, Number(e.target.value)) })} />
-            </label>
+          <div style={{ display: "flex", gap: 6, marginBottom: 9 }}>
+            {(["pool", "fixed"] as const).map((m) => (
+              <button key={m} onClick={() => onChange({ ...part, mode: m })}
+                style={{
+                  ...ghostBtn, flex: 1, padding: "6px 8px", fontSize: 11.5,
+                  ...(part.mode === m ? { background: GOLD, color: "#1a1a1a", border: "none" } : {}),
+                }}>
+                {m === "pool" ? "Rotation (topic baari-baari)" : "Fixed (har topic ka count)"}
+              </button>
+            ))}
           </div>
 
-          {(sec.pool || []).map((t, i) => (
-            <div key={i} style={{ display: "flex", gap: 6, marginBottom: 7, alignItems: "center" }}>
-              <input style={{ ...inputStyle, flex: 3, padding: "9px" }} placeholder="Topic ka naam"
-                value={t.topic} onChange={(e) => setPool(i, { ...t, topic: e.target.value })} />
-              <label title="Ye topic har mock me aayega"
-                style={{ fontSize: 11, color: t.always ? GOLD : MUTED, display: "flex", alignItems: "center", gap: 4, cursor: "pointer", whiteSpace: "nowrap" }}>
-                <input type="checkbox" checked={!!t.always} onChange={(e) => setPool(i, { ...t, always: e.target.checked })} />
-                hamesha
+          {isPool && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
+              <label>
+                <div style={{ fontSize: 11, color: MUTED, marginBottom: 4 }}>{subject.name} se kitne Q</div>
+                <input style={{ ...inputStyle, padding: "9px" }} type="number" min={0}
+                  value={part.total || ""} onChange={(e) => onChange({ ...part, total: Math.max(0, Number(e.target.value)) })} />
               </label>
-              <button onClick={() => onChange({ ...sec, pool: (sec.pool || []).filter((_, j) => j !== i) })} style={dangerBtn}>✕</button>
+              <label>
+                <div style={{ fontSize: 11, color: MUTED, marginBottom: 4 }}>Har topic se (max)</div>
+                <input style={{ ...inputStyle, padding: "9px" }} type="number" min={1}
+                  value={part.per_topic || 1} onChange={(e) => onChange({ ...part, per_topic: Math.max(1, Number(e.target.value)) })} />
+              </label>
             </div>
-          ))}
+          )}
 
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 }}>
-            <button onClick={() => onChange({ ...sec, pool: [...(sec.pool || []), { topic: "" }] })}
-              style={{ ...ghostBtn, padding: "7px 11px", fontSize: 12 }}>+ Topic</button>
-            <span style={{ fontSize: 11.5, color: MUTED }}>
-              {(sec.pool || []).length} topic · {alwaysN} hamesha
-            </span>
+          <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 6 }}>
+            {subject.topics.length > 10 && (
+              <input style={{ ...inputStyle, padding: "7px 9px", fontSize: 12.5, flex: 1 }}
+                placeholder={`${subject.topics.length} topic me dhoondho`} value={q} onChange={(e) => setQ(e.target.value)} />
+            )}
+            {isPool && (
+              <>
+                <button onClick={() => onChange({ ...part, pool: subject.topics.filter((t) => t.questions > 0).map((t) => ({ topic_id: t.id, topic: t.name, always: !!inPool(t.id)?.always })) })}
+                  style={{ ...ghostBtn, padding: "6px 9px", fontSize: 11 }}>Sab</button>
+                <button onClick={() => onChange({ ...part, pool: [] })}
+                  style={{ ...ghostBtn, padding: "6px 9px", fontSize: 11 }}>Koi nahi</button>
+              </>
+            )}
           </div>
 
-          <div style={{ fontSize: 10.5, color: MUTED, marginTop: 8, lineHeight: 1.55 }}>
-            Pool me topic section ke slots se zyada rakho. Composer har mock me alag
-            topic chunega — jo pichhle mocks me sabse kam aaya wo pehle. Isse 40 topic
-            wale GA section me bhi saare topic baari-baari se aate hain.
-            <br /><br />
-            <b style={{ color: GOLD }}>hamesha</b> un topics par lagao jo har paper me poochhe
-            jaate hain — wo rotation se bahar rehte hain aur har mock me aate hain.
-            {sec.total && alwaysN * per > Number(sec.total) ? (
-              <div style={{ color: RED, marginTop: 6 }}>
-                ⚠ {alwaysN} “hamesha” topic × {per} = {alwaysN * per} Q, par total {sec.total} hai.
-                Rotation ke liye jagah hi nahi bachegi.
-              </div>
-            ) : null}
+          <div style={{ maxHeight: 320, overflowY: "auto", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+            {shown.map((t) => {
+              if (isPool) {
+                const on = inPool(t.id);
+                return (
+                  <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 2px", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0, cursor: "pointer", fontSize: 12.5, color: on ? "#fff" : MUTED }}>
+                      <input type="checkbox" checked={!!on} onChange={(e) => togglePool(t, e.target.checked)} />
+                      <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{t.name}</span>
+                    </label>
+                    {badge(t)}
+                    {on && (
+                      <label title="Ye topic har mock me aayega"
+                        style={{ fontSize: 10.5, color: on.always ? GOLD : MUTED, display: "flex", alignItems: "center", gap: 3, cursor: "pointer", whiteSpace: "nowrap" }}>
+                        <input type="checkbox" checked={!!on.always} onChange={(e) => setAlways(t, e.target.checked)} />
+                        hamesha
+                      </label>
+                    )}
+                  </div>
+                );
+              }
+              const f = fixedOf(t.id);
+              const n = Number(f?.count) || 0;
+              return (
+                <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 2px", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                  <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: n ? "#fff" : MUTED, overflow: "hidden", textOverflow: "ellipsis" }}>{t.name}</span>
+                  {badge(t)}
+                  <input style={{ ...inputStyle, width: 54, padding: "6px", fontSize: 12.5, borderColor: n > t.questions ? RED : undefined }}
+                    type="number" min={0} value={n || ""} placeholder="0"
+                    onChange={(e) => setFixed(t, { count: Math.max(0, Number(e.target.value)) })} />
+                  <label title="Passage wala set — poora uthta hai ya bilkul nahi"
+                    style={{ fontSize: 10.5, color: f?.grouped ? GOLD : MUTED, display: "flex", alignItems: "center", gap: 3, cursor: "pointer" }}>
+                    <input type="checkbox" checked={!!f?.grouped} onChange={(e) => setFixed(t, { grouped: e.target.checked })} />
+                    set
+                  </label>
+                </div>
+              );
+            })}
+            {!shown.length && <div style={{ fontSize: 12, color: MUTED, padding: 8 }}>Koi topic nahi mila</div>}
+          </div>
+
+          {orphans.length > 0 && (
+            <div style={{ fontSize: 11.5, color: GOLD, marginTop: 8, lineHeight: 1.6 }}>
+              Purane blueprint ke ye topic is subject me nahi mile:{" "}
+              {orphans.map((o, i) => (
+                <span key={i} style={{ whiteSpace: "nowrap" }}>
+                  {o.topic || "(khaali)"}{" "}
+                  <button onClick={() => onChange(isPool
+                    ? { ...part, pool: part.pool.filter((x) => x !== o) }
+                    : { ...part, topics: part.topics.filter((x) => x !== o) })}
+                    style={{ background: "none", border: "none", color: RED, cursor: "pointer", padding: 0, fontSize: 11.5 }}>✕</button>
+                  {i < orphans.length - 1 ? " · " : ""}
+                </span>
+              ))}
+            </div>
+          )}
+
+          <div style={{ fontSize: 11, color: MUTED, marginTop: 8, lineHeight: 1.55 }}>
+            {isPool ? (
+              <>
+                {ticked.length} topic chune · {alwaysN} hamesha · is hisse se <b style={{ color: "#fff" }}>{count} Q</b>
+                {count > 0 && perMockMax < count && (
+                  <div style={{ color: RED, marginTop: 4 }}>
+                    ⚠ Chune hue topics se ek mock me zyada se zyada {perMockMax} Q aa sakte hain
+                    (har topic se {per}). Topic badhao ya “har topic se” badhao.
+                  </div>
+                )}
+                {alwaysN * per > count && count > 0 && (
+                  <div style={{ color: RED, marginTop: 4 }}>
+                    ⚠ {alwaysN} “hamesha” × {per} = {alwaysN * per} Q, par is hisse ke {count} hi hain.
+                  </div>
+                )}
+              </>
+            ) : (
+              <>Is hisse se <b style={{ color: "#fff" }}>{count} Q</b> — har mock me yahi pattern.</>
+            )}
           </div>
         </>
       )}
@@ -382,7 +682,7 @@ function SectionEditor({ sec, onChange, onRemove }: { sec: Section; onChange: (s
   );
 }
 
-// ── GENERATE ───────────────────────────────────────────────────────────────
+// ── GENERATE ─────────────────────────────────────────────────────────────────────────────────────────
 function Generate({ api, onErr, onOk }: { api: ApiFn; onErr: (s: string) => void; onOk: (s: string) => void }) {
   const [bps, setBps] = useState<any[]>([]);
   const [series, setSeries] = useState<any[]>([]);
@@ -790,7 +1090,7 @@ function QImage({ api, qid, url, field, label, onFixed }: {
   );
 }
 
-// ── DRAFTS + PREVIEW ───────────────────────────────────────────────────────
+// ── DRAFTS + PREVIEW ─────────────────────────────────────────────────────────
 function Drafts({ api, onErr, onOk }: { api: ApiFn; onErr: (s: string) => void; onOk: (s: string) => void }) {
   const [drafts, setDrafts] = useState<any[]>([]);
   const [openId, setOpenId] = useState(0);
