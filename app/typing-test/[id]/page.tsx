@@ -196,6 +196,10 @@ export default function TypingTestPage() {
   const sync = !!meta?.sync_typing && meta?.scoring_mode === "standard"
     && meta?.language !== "hindi" && !meta?.check_line_breaks && !!meta?.passage_text;
 
+  // Practice aur Typing Test dono me 1, 2, 3... number hain. Student ko har
+  // jagah saaf dikhna chahiye ki ye page kis list ka hai.
+  const kindWord = meta?.kind === "practice" ? "Practice" : "Test";
+
   // ── Submit ──
   const submit = useCallback(async (auto = false) => {
     if (submitting || result) return;
@@ -299,6 +303,16 @@ export default function TypingTestPage() {
     keystrokeRef.current = 0;
     backspaceRef.current = 0;
     leftWindowRef.current = 0;
+    // Galat number ke baad dobara koshish bilkul naye sire se honi chahiye.
+    // Pehle yahan text aur ghadi reset nahi hote the: purana typed text box me
+    // pada rehta tha (0 keystrokes ke saath), aur pichhla attempt poore 10
+    // minute chala ho to ghadi 00:00 par atki rehti thi — pehla akshar dabate
+    // hi test turant auto-submit ho jaata tha. Students ko lagta tha har baar
+    // wahi error aa raha hai.
+    setText("");
+    textRef.current = "";
+    setTimeLeft((meta?.duration_min || 10) * 60);
+    setHint("");
     // Galat number ka faisla backend karega (test number client ko bheja hi
     // nahi jata) — isliye seedha typing screen par bhej dete hain, bilkul
     // asli exam ki tarah: galti submit par hi pata chalti hai.
@@ -306,6 +320,26 @@ export default function TypingTestPage() {
     setStarted(false);
     startedAt.current = 0;      // pehle akshar par set hoga
     setTimeout(() => boxRef.current?.focus(), 60);
+  }
+
+  // Galat number chuna, par student ke saamne jo kagaz hai wo kisi aur page
+  // ka hai — seedha us page par bhej do. Backend correct_id bhejta hai; purana
+  // backend ho to test_sequence se dhoondh lete hain (dono me same kind hai).
+  function correctPageId(): number | null {
+    if (!wrongPick) return null;
+    if (wrongPick.correct_id) return Number(wrongPick.correct_id);
+    const hit = (meta?.test_sequence || []).find(
+      (s: any) => Number(s.test_number) === Number(wrongPick.selected),
+    );
+    return hit && hit.id !== meta?.id ? Number(hit.id) : null;
+  }
+
+  function openCorrectPage() {
+    const id = correctPageId();
+    if (!id) return;
+    const qs = scriptPreset ? `?script=${script}` : "";
+    // Poora naya page — is page ka koi bhi state saath na jaye
+    window.location.href = `/typing-test/${id}${qs}`;
   }
 
   // ── Editing poori khuli hai ──
@@ -692,15 +726,30 @@ export default function TypingTestPage() {
   }
 
   if (stage === "select") {
+    const fixId = correctPageId();
     return (
       <Shell>
         <div style={{ maxWidth: 520, margin: "0 auto", textAlign: "center", paddingTop: 20 }}>
           <h1 style={{ fontSize: 20, fontWeight: 800, margin: "0 0 6px" }}>{meta.title}</h1>
-          <p style={{ fontSize: 13.5, color: "var(--muted)", lineHeight: 1.65, margin: "0 0 20px" }}>
+          <p style={{ fontSize: 13.5, color: "var(--muted)", lineHeight: 1.65, margin: "0 0 14px" }}>
             Select the <b>Test Number</b> printed at the top of the passage in front of you.
             This is exactly what the real exam asks for, and picking the wrong number makes the
             whole test count as wrong.
           </p>
+
+          {/* Kaunsa page khula hai — sirf kind aur title, number nahi. Number
+              dikha dete to select karne ka abhyaas hi khatam ho jaata. Title
+              kagaz par bhi chhapa hai, isliye student yahin mila sakta hai. */}
+          <div style={{
+            background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12,
+            padding: "10px 14px", margin: "0 0 18px", textAlign: "left", fontSize: 12.5,
+            lineHeight: 1.6, color: "var(--muted)",
+          }}>
+            You opened a <b style={{ color: "var(--text)" }}>{meta.kind === "practice" ? "practice passage" : "typing test"}</b>:{" "}
+            <b style={{ color: "var(--text)" }}>{meta.title}</b>. Check that the title on your
+            printout is the same{meta.kind === "practice" ? ", and that the printout says Practice Passage" : ""}.
+            If it is different, go back and open the right one.
+          </div>
 
           {wrongPick && (
             <div style={{ background: "rgba(192,57,43,0.1)", border: `1px solid ${RED}`, borderRadius: 12, padding: 14, marginBottom: 18, textAlign: "left" }}>
@@ -710,6 +759,24 @@ export default function TypingTestPage() {
                 In the real exam this mistake wipes out the whole attempt. Fix it here: try
                 again with the correct number.
               </div>
+              {fixId ? (
+                <>
+                  <div style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 10, lineHeight: 1.6 }}>
+                    If the passage in front of you really is number {wrongPick.selected}
+                    {wrongPick.correct_title ? <> (<b style={{ color: "var(--text)" }}>{wrongPick.correct_title}</b>)</> : null},
+                    you opened the wrong page. Open that one instead.
+                  </div>
+                  <button
+                    onClick={openCorrectPage}
+                    style={{
+                      marginTop: 10, width: "100%", background: RED, color: "#fff", border: "none",
+                      borderRadius: 10, padding: "11px 0", fontWeight: 800, fontSize: 13.5, cursor: "pointer",
+                    }}
+                  >
+                    Open {kindWord} {wrongPick.selected}
+                  </button>
+                </>
+              ) : null}
             </div>
           )}
 

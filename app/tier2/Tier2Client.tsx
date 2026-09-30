@@ -464,7 +464,7 @@ export default function Tier2Page() {
                     <p style={{ fontSize: 13, color: "var(--muted)", lineHeight: 1.6, margin: "0 0 12px" }}>
                       {onScreen
                         ? "The passage stays on screen while you type, the way this exam runs. There is nothing to print."
-                        : "Download the PDF and print it first. In the real exam the passage is handed to you on paper, not shown on screen, so practise the same way."}
+                        : "Download the PDF and print it first. In the real exam the passage is handed to you on paper, not shown on screen, so practise the same way. Practice passages and typing tests are numbered separately, so open the card that matches both the number and the title on your printout."}
                     </p>
                   );
                 })()}
@@ -492,6 +492,7 @@ export default function Tier2Page() {
                   };
                   // Easy se Pro ke order me — student neeche se shuru kare.
                   // Level ke andar pehle jaisa (display order / test number).
+                  // "All in one PDF" bhi backend me isi order me banti hai.
                   const practiceList = (detail.practice || []).filter(matchesLang)
                     .map((p: Passage, i: number) => ({ p, i }))
                     .sort((a: any, b: any) => (LEVEL_RANK[a.p.level || "pro"] ?? 3) - (LEVEL_RANK[b.p.level || "pro"] ?? 3) || a.i - b.i)
@@ -523,16 +524,21 @@ export default function Tier2Page() {
                       {practiceList.length > 0 && <h2 style={h2}>Practice passages</h2>}
 
                       {practiceList.some((p: Passage) => p.unlocked && (p.passage_mode || "paper") === "paper") && uid && (
-                        <a
-                          href={`${API_URL}/tier2/typing/pdf-all/${open.id}?user_id=${uid}`}
-                          style={{
-                            display: "block", textAlign: "center", background: GOLD, color: "#1a1a1a",
-                            borderRadius: 12, padding: "12px 0", fontWeight: 800, fontSize: 14,
-                            textDecoration: "none", marginBottom: 14,
-                          }}
-                        >
-                          ⬇️ All practice passages in one PDF
-                        </a>
+                        <>
+                          <a
+                            href={`${API_URL}/tier2/typing/pdf-all/${open.id}?user_id=${uid}`}
+                            style={{
+                              display: "block", textAlign: "center", background: GOLD, color: "#1a1a1a",
+                              borderRadius: 12, padding: "12px 0", fontWeight: 800, fontSize: 14,
+                              textDecoration: "none", marginBottom: 6,
+                            }}
+                          >
+                            ⬇️ All practice passages in one PDF
+                          </a>
+                          <p style={{ fontSize: 11.5, color: "var(--muted)", textAlign: "center", margin: "0 0 14px" }}>
+                            The passages in the PDF are in the same order as this list.
+                          </p>
+                        </>
                       )}
 
                       {practiceList.map((p: Passage, i: number) => {
@@ -796,7 +802,10 @@ function PassageRow({ p, uid, router, isTest, scriptQS, stat, onLocked }: { p: P
           )}
         </div>
         <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 2 }}>
-          Test {p.test_number} · {p.duration_min || 10} min · {p.target_wpm || 30} net WPM
+          {/* Practice aur Typing Test dono me 1, 2, 3... number hain — pehle
+              dono jagah "Test 6" likha aata tha, isliye student galat card
+              khol leta tha. PDF par bhi ab yahi farq chhapta hai. */}
+          {isTest ? "Test" : "Practice"} {p.test_number} · {p.duration_min || 10} min · {p.target_wpm || 30} net WPM
         </div>
         {/* Pichhla score — attempt hua ho tabhi. Student ko har baar result
             kholne ki zaroorat na pade, seedha yahin dikh jaye. */}
