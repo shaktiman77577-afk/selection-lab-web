@@ -10,7 +10,7 @@
  *   PUT /app-config/admin      body { config }
  *
  * Editable sections: hero_slides, why_us, faculty, exams, community,
- * exam_dates, testimonials, announcement. (Web + app share this one config.)
+ * exam_dates, testimonials, announcement, app_update. (Web + app share this one config.)
  * Changes are live immediately (web on reload, app on next open).
  */
 
@@ -81,6 +81,12 @@ const darkBtn: CSSProperties = {
 const delBtn: CSSProperties = { ...btn, background: "#c0392b", color: "#fff" };
 const row: CSSProperties = { display: "flex", gap: 6, alignItems: "center" };
 
+// Build number: sirf ank, 0 = band
+const toBuild = (v: string) => {
+  const n = parseInt(String(v).replace(/\D/g, ""), 10);
+  return isNaN(n) ? 0 : n;
+};
+
 export default function AppContentAdmin({ api }: { api: ApiFn }) {
   const [cfg, setCfg] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -101,6 +107,17 @@ export default function AppContentAdmin({ api }: { api: ApiFn }) {
   }, []);
 
   const save = async () => {
+    // Galat number se saare users app me atak sakte hain — pehle jaanch
+    const au = cfg?.app_update || {};
+    const minB = Number(au.min_build) || 0;
+    const latB = Number(au.latest_build) || 0;
+    if (minB > 0 && latB > 0 && minB > latB) {
+      setMsg("❌ Minimum build, Latest build se bada nahi ho sakta. App Update section check karo.");
+      return;
+    }
+    if (minB > 0 && !window.confirm(`Minimum build ${minB} set hai — isse purane app wale sabhi students ko "Please update" dikhega aur app nahi chalega. Pakka build ${minB} Play Store pe live hai?`)) {
+      return;
+    }
     setSaving(true);
     setMsg("");
     try {
@@ -170,6 +187,12 @@ export default function AppContentAdmin({ api }: { api: ApiFn }) {
       {saving ? "Saving…" : "Save all changes"}
     </button>
   );
+
+  const au = cfg.app_update || {};
+  const setAU = (patch: any) => setField("app_update", { ...au, ...patch });
+  const minBuild = Number(au.min_build) || 0;
+  const latestBuild = Number(au.latest_build) || 0;
+
   return (
     <div style={{ maxWidth: 760 }}>
       <div style={{ ...row, justifyContent: "space-between", marginBottom: 14 }}>
@@ -420,6 +443,65 @@ export default function AppContentAdmin({ api }: { api: ApiFn }) {
           placeholder="https://… ya /courses"
         />
         <div style={{ fontSize: 11, color: MUTED }}>Website ke top pe gold bar. On karo tabhi dikhega.</div>
+      </div>
+
+      {/* APP UPDATE (Android) */}
+      <div style={box}>
+        <div style={head}>📲 App Update (Android)</div>
+        <p style={{ fontSize: 12, color: MUTED, marginTop: 0, lineHeight: 1.6 }}>
+          Build number = app version ka &quot;+&quot; ke baad wala number (jaise 1.1.0+5 → <b>5</b>).
+          Khaali ya 0 = band. Sirf naye app (is feature ke baad wale) par kaam karta hai.
+        </p>
+        <div style={row}>
+          <div style={{ flex: 1 }}>
+            <span style={lbl}>Latest build — &quot;Update available&quot; banner</span>
+            <input
+              style={input}
+              inputMode="numeric"
+              value={latestBuild || ""}
+              placeholder="0"
+              onChange={(e) => setAU({ latest_build: toBuild(e.target.value) })}
+            />
+          </div>
+          <div style={{ flex: 1 }}>
+            <span style={lbl}>Minimum build — force update</span>
+            <input
+              style={input}
+              inputMode="numeric"
+              value={minBuild || ""}
+              placeholder="0"
+              onChange={(e) => setAU({ min_build: toBuild(e.target.value) })}
+            />
+          </div>
+        </div>
+        <div style={{ fontSize: 11.5, color: MUTED, lineHeight: 1.6, marginBottom: 8 }}>
+          • <b>Latest</b> se purane app ko neeche chhota banner (&quot;Later&quot; se band ho jata hai).<br />
+          • <b>Minimum</b> se purane app ko poori screen &quot;Please update&quot; — app chalega hi nahi.
+        </div>
+        {minBuild > 0 && latestBuild > 0 && minBuild > latestBuild && (
+          <div style={{ color: "#ff7b6e", fontWeight: 700, fontSize: 12.5, marginBottom: 8 }}>
+            ⚠️ Minimum, Latest se bada hai — aise save nahi hoga.
+          </div>
+        )}
+        {minBuild > 0 && (
+          <div style={{ color: GOLD, fontWeight: 700, fontSize: 12.5, marginBottom: 8 }}>
+            ⚠️ Minimum build {minBuild} se purane sab students ka app band ho jayega jab tak update na karein.
+            Pehle pakka karo ki build {minBuild} Play Store pe live hai.
+          </div>
+        )}
+        <span style={lbl}>Message (optional)</span>
+        <Field
+          area
+          value={au.message}
+          onChange={(v) => setAU({ message: v })}
+          placeholder="Naya version aa gaya hai — update karke continue karein."
+        />
+        <span style={lbl}>Play Store link (optional — khaali = default)</span>
+        <Field
+          value={au.store_url}
+          onChange={(v) => setAU({ store_url: v })}
+          placeholder="https://play.google.com/store/apps/details?id=com.selectionlab.selection_lab"
+        />
       </div>
 
       <div style={{ marginTop: 8 }}>{SaveBtn}</div>

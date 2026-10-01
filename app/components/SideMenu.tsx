@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { getUser, logout } from "@/lib/api";
+import { isAppMode, closeApp } from "@/lib/appMode";
 
 const GOLD = "#FFAB00";
 
@@ -26,6 +27,49 @@ const MENU: { icon: string; label: string; path: string; auth?: boolean; highlig
 export default function SideMenu({ open, onClose }: { open: boolean; onClose: () => void }) {
   const router = useRouter();
   if (!open) return null;
+
+  // App ke andar (WebView): site ka poora menu nahi — Home/Courses/Logout
+  // sab app me hain, aur yahan Logout dabane se app ka login mit jata tha.
+  // Sirf "Back to app".
+  if (isAppMode()) {
+    return (
+      <div
+        onClick={onClose}
+        style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 100, display: "flex", alignItems: "flex-end" }}
+      >
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            width: "100%",
+            background: "var(--card)",
+            color: "var(--text)",
+            borderRadius: "16px 16px 0 0",
+            padding: "18px 16px calc(18px + env(safe-area-inset-bottom))",
+          }}
+        >
+          <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 4 }}>Selection Lab app</div>
+          <div style={{ fontSize: 13, color: "var(--muted)", marginBottom: 14 }}>
+            Courses, tests and your profile are in the app.
+          </div>
+          <button
+            onClick={() => {
+              onClose();
+              closeApp();
+            }}
+            style={{ width: "100%", background: "#1A2F55", color: "#fff", border: "none", borderRadius: 10, padding: 12, fontWeight: 800, fontSize: 14.5, cursor: "pointer" }}
+          >
+            ← Back to app
+          </button>
+          <button
+            onClick={onClose}
+            style={{ width: "100%", background: "transparent", color: "var(--muted)", border: "none", padding: 12, fontWeight: 700, fontSize: 13.5, cursor: "pointer", marginTop: 4 }}
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    );
+  }
   const user = getUser();
 
   function go(item: (typeof MENU)[number]) {

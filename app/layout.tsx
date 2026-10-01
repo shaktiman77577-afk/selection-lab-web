@@ -113,6 +113,14 @@ const ORG_LD = JSON.stringify([
 
 const themeScript = `try{if(localStorage.getItem('sl-theme')==='dark'){document.documentElement.setAttribute('data-theme','dark');}}catch(e){}`;
 
+// Security Phase 2: hamare API (api.selectionlab.online) ki har fetch me login
+// token apne aap. Website me sau se zyada jagah seedha fetch() hai — har jagah
+// header jodne ki jagah page load hote hi (React se pehle) fetch ko ek baar
+// lapet dete hain. Token lib/api.ts login par "sl_token" me rakhta hai.
+// Kisi aur site par token kabhi nahi jata; jisme pehle se Authorization hai
+// (admin panel) use nahi chhedte.
+const authFetchScript = `try{(function(){var o=window.fetch;if(!o||window.__slAF)return;window.__slAF=1;window.fetch=function(i,n){try{var u=typeof i==='string'?i:(i&&i.url)?i.url:String(i);if(u.indexOf('https://api.selectionlab.online')===0){var t=localStorage.getItem('sl_token');if(t){var h=new Headers((n&&n.headers)||(i&&i.headers)||undefined);if(!h.has('Authorization')){h.set('Authorization','Bearer '+t);n=Object.assign({},n||{},{headers:h});}}}}catch(e){}return o.call(window,i,n);};})();}catch(e){}`;
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -122,6 +130,7 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+        <script dangerouslySetInnerHTML={{ __html: authFetchScript }} />
         <style dangerouslySetInnerHTML={{ __html: themeCss }} />
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable}`} style={{ margin: 0 }}>
