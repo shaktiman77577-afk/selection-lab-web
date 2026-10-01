@@ -682,7 +682,7 @@ function PartEditor({ part, catalog, takenSubjects, onChange, onRemove }: {
   );
 }
 
-// ── GENERATE ─────────────────────────────────────────────────────────────────────────────────────────
+// ── GENERATE ───────────────────────────────────────────────────────────────────────────────────────
 function Generate({ api, onErr, onOk }: { api: ApiFn; onErr: (s: string) => void; onOk: (s: string) => void }) {
   const [bps, setBps] = useState<any[]>([]);
   const [series, setSeries] = useState<any[]>([]);
@@ -694,6 +694,7 @@ function Generate({ api, onErr, onOk }: { api: ApiFn; onErr: (s: string) => void
   const [health, setHealth] = useState<any | null>(null);
   const [busy, setBusy] = useState("");
   const [result, setResult] = useState<any | null>(null);
+  const [made, setMade] = useState(0);        // kitne mock ban chuke — "3 / 10"
 
   useEffect(() => {
     api("/qbank/blueprints").then((d) => setBps(d.blueprints || [])).catch((e) => onErr(e.message));
@@ -716,22 +717,38 @@ function Generate({ api, onErr, onOk }: { api: ApiFn; onErr: (s: string) => void
     setBusy("");
   }
 
+  // Ek request me ek mock. Pehle 10 mock ek hi request me bante the — kai
+  // minute lagte aur phone ka browser beech me hi “Failed to fetch” de deta.
+  // Ab har mock alag request hai; har naya mock pichhle bane mocks ko series
+  // se dekh leta hai, isliye repeat-block waisa hi chalta hai. Beech me koi
+  // fail ho to bane hue drafts safe rehte hain aur wahi dikh jaate hain.
   async function generate() {
     if (!bpId) return onErr("Blueprint choose kijiye");
     if (!title.trim()) return onErr("Title daaliye");
     if (count > 1 && !seriesId) {
       return onErr("Ek se zyada mock banane hain to series choose kijiye — warna repeat rokna mumkin nahi.");
     }
-    setBusy("gen"); onErr("");
-    try {
-      const d = await api("/qbank/compose", "POST", {
-        blueprint_id: bpId, series_id: seriesId || null,
-        title: title.trim(), title_prefix: title.trim(),
-        count, is_free: false, free_count: freeCount, price: 0,
-      });
-      setResult(d);
-      onOk(`${d.created.length} draft ban gaya${d.created.length > 1 ? "e" : ""}`);
-    } catch (e: any) { onErr(e.message); }
+    setBusy("gen"); onErr(""); setMade(0);
+    const created: any[] = [];
+    setResult({ created });
+    for (let n = 1; n <= count; n++) {
+      try {
+        const d = await api("/qbank/compose", "POST", {
+          blueprint_id: bpId, series_id: seriesId || null,
+          title: count > 1 ? `${title.trim()} ${n}` : title.trim(),
+          count: 1, is_free: n <= freeCount, free_count: 0, price: 0,
+        });
+        created.push(...(d.created || []));
+        setMade(n);
+        setResult({ created: [...created] });
+      } catch (e: any) {
+        onErr(`Mock ${n} nahi bana: ${e.message}. ` +
+              (created.length ? `Pehle ke ${created.length} draft ban chuke hain (neeche dekho).` : ""));
+        setBusy("");
+        return;
+      }
+    }
+    onOk(`${created.length} draft ban gaya${created.length > 1 ? "e" : ""}`);
     setBusy("");
   }
 
@@ -778,7 +795,7 @@ function Generate({ api, onErr, onOk }: { api: ApiFn; onErr: (s: string) => void
             {busy === "check" ? "Checking…" : "1. Stock check"}
           </button>
           <button onClick={generate} disabled={!!busy} style={{ ...goldBtn, flex: 1, opacity: busy ? 0.6 : 1 }}>
-            {busy === "gen" ? "Ban raha hai…" : "2. Generate"}
+            {busy === "gen" ? (count > 1 ? `Ban rahe hain… ${made} / ${count}` : "Ban raha hai…") : "2. Generate"}
           </button>
         </div>
       </div>
