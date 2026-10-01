@@ -66,10 +66,17 @@ export async function syncGoogleUser(
   name: string
 ): Promise<AuthResponse> {
   try {
+    // Google ka ID token (lib/firebase.ts ne rakha) — backend isse verify
+    // karta hai. Ek baar use karke mita dete hain.
+    let idToken: string | null = null;
+    try {
+      idToken = sessionStorage.getItem("sl_google_idtoken");
+      sessionStorage.removeItem("sl_google_idtoken");
+    } catch {}
     const res = await fetch(`${API_URL}/users/sync`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ google_id: googleId, email, name }),
+      body: JSON.stringify({ google_id: googleId, email, name, id_token: idToken }),
     });
     // Parse the body defensively — a crashing server may return non-JSON.
     let data: any = {};

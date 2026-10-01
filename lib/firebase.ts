@@ -37,6 +37,20 @@ type GoogleUser = {
   photoURL: string;
 };
 
+/**
+ * SECURITY: backend (/users/sync) ab Google login tabhi maanta hai jab saath me
+ * Firebase ka ID token ho — usse wo verify karta hai ki email sach me isi
+ * insaan ka hai. Pehle koi bhi sirf email bhej kar kisi ka account le sakta tha.
+ * Token sessionStorage me thodi der ke liye rakhte hain; lib/api.ts ka
+ * syncGoogleUser use utha leta hai (aur mita deta hai).
+ */
+async function rememberIdToken(result: any) {
+  try {
+    const t = await result?.user?.getIdToken?.();
+    if (t) sessionStorage.setItem("sl_google_idtoken", t);
+  } catch {}
+}
+
 function toGoogleUser(result: any): GoogleUser {
   return {
     googleId: result.user.uid,
@@ -63,6 +77,7 @@ function toGoogleUser(result: any): GoogleUser {
 export async function signInWithGoogle(): Promise<GoogleUser | null> {
   try {
     const result = await signInWithPopup(auth, provider);
+    await rememberIdToken(result);
     return toGoogleUser(result);
   } catch (e: any) {
     const code = e?.code || "";
@@ -89,6 +104,7 @@ export async function getGoogleRedirectResult(): Promise<GoogleUser | null> {
   try {
     const result = await getRedirectResult(auth);
     if (!result) return null;
+    await rememberIdToken(result);
     return toGoogleUser(result);
   } catch {
     return null;
