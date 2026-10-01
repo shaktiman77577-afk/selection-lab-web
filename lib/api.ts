@@ -20,10 +20,42 @@ interface AuthResponse {
   detail?: string;
 }
 
-function normalize(data: any): AuthResponse {
+// ── Login token (Security Phase 2, Sep 2026) ──
+// Backend login par token deta hai. Pehle website use phenk deti thi aur API
+// ko sirf user_id bhejti thi — koi bhi kisi aur ka user_id daal sakta tha.
+// Ab token yahan save hota hai, aur layout.tsx ka chhota script har API call
+// me "Authorization: Bearer <token>" jod deta hai.
+const TOKEN_KEY = "sl_token";
+
+export function getToken(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return localStorage.getItem(TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function setToken(token: string | null) {
+  if (typeof window === "undefined") return;
+  try {
+    if (token) localStorage.setItem(TOKEN_KEY, token);
+    else localStorage.removeItem(TOKEN_KEY);
+  } catch {}
+}
+
+/** isLogin = naya login (Google / phone / email). Tab token naya rakho — ya
+ *  na mile to purana hata do, warna pichhle account ka token naye account ke
+ *  saath chala jata aur backend 403 deta. linkPhone jaise kaam login nahi. */
+function normalize(data: any, isLogin = false): AuthResponse {
   if (data && typeof data === "object") {
-    if (data.user) return { success: true, user: data.user as User };
-    if (typeof data.id === "number") return { success: true, user: data as User };
+    let user: User | null = null;
+    if (data.user) user = data.user as User;
+    else if (typeof data.id === "number") user = data as User;
+    if (user) {
+      if (isLogin) setToken(typeof data.token === "string" ? data.token : null);
+      return { success: true, user };
+    }
   }
   return { success: false, detail: "Unexpected response" };
 }
@@ -55,7 +87,7 @@ export async function syncGoogleUser(
         detail: data.detail || raw || `Server error ${res.status}`,
       };
     }
-    return normalize(data);
+    return normalize(data, true);
   } catch (e: any) {
     // fetch() itself threw — this is NOT a normal server error. It means the
     // browser blocked the response, almost always a CORS issue OR the backend
@@ -86,7 +118,7 @@ export async function loginEmail(email: string, password: string): Promise<AuthR
     if (!res.ok) {
       return { success: false, detail: data.detail || raw || `Login failed (${res.status})` };
     }
-    return normalize(data);
+    return normalize(data, true);
   } catch (e: any) {
     return { success: false, detail: `Cannot reach server (${e?.message || "network/CORS"})` };
   }
@@ -110,7 +142,7 @@ export async function loginPhone(idToken: string, name?: string): Promise<AuthRe
     if (!res.ok) {
       return { success: false, detail: data.detail || raw || `Login failed (${res.status})` };
     }
-    return normalize(data);
+    return normalize(data, true);
   } catch (e: any) {
     return { success: false, detail: `Cannot reach server (${e?.message || "network/CORS"})` };
   }
@@ -153,5 +185,8 @@ export function getUser(): User | null {
 }
 
 export function logout() {
-  if (typeof window !== "undefined") localStorage.removeItem(USER_KEY);
+  if (typeof window !== "undefined") {
+    localStorage.removeItem(USER_KEY);
+    setToken(null);
+  }
 }
