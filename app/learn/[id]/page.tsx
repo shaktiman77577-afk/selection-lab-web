@@ -337,8 +337,9 @@ export default function LearnPage() {
           return;
         }
 
-        // Load content
-        const res = await fetch(`${API_URL}/courses/${courseId}/content`).then((r) => r.json());
+        // Load content. user_id zaroori hai: backend ab paid course ke
+        // video/PDF links sirf kharidne wale ko deta hai (Security Phase 1).
+        const res = await fetch(`${API_URL}/courses/${courseId}/content?user_id=${u.id}`).then((r) => r.json());
         const content: Content[] = res.content || [];
         setItems(content);
         setActive(content[0] || null);
@@ -568,4 +569,3 @@ const goldBtn: React.CSSProperties = {
   cursor: "pointer",
   marginTop: 12,
 };
-                          
