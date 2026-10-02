@@ -10,11 +10,12 @@
  *   PUT /app-config/admin      body { config }
  *
  * Editable sections: hero_slides, why_us, faculty, exams, community,
- * exam_dates, testimonials, announcement, app_update. (Web + app share this one config.)
+ * exam_dates, testimonials, announcement, app_purchases_enabled, app_update.
+ * (Web + app share this one config.)
  * Changes are live immediately (web on reload, app on next open).
  */
 
-import { useState, useEffect, type CSSProperties } from "react";
+import { useState, useEffect, useRef, type CSSProperties } from "react";
 
 type ApiFn = (path: string, method?: string, body?: any) => Promise<any>;
 
@@ -92,12 +93,15 @@ export default function AppContentAdmin({ api }: { api: ApiFn }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
+  // Load ke waqt app me purchase on tha ya nahi — On karte waqt hi poochna hai
+  const wasShop = useRef(false);
 
   useEffect(() => {
     (async () => {
       try {
         const d = await api("/app-config/admin", "GET");
         setCfg(d.config || {});
+        wasShop.current = d.config?.app_purchases_enabled === true;
       } catch (e: any) {
         setMsg(e.message || "Could not load config.");
       } finally {
@@ -118,10 +122,16 @@ export default function AppContentAdmin({ api }: { api: ApiFn }) {
     if (minB > 0 && !window.confirm(`Minimum build ${minB} set hai — isse purane app wale sabhi students ko "Please update" dikhega aur app nahi chalega. Pakka build ${minB} Play Store pe live hai?`)) {
       return;
     }
+    // App me purchase pehli baar On ho raha hai — Play Store policy yaad dilao
+    const shopNow = cfg?.app_purchases_enabled === true;
+    if (shopNow && !wasShop.current && !window.confirm("App me purchase ON ho raha hai — ab app me price, Buy aur checkout dikhenge. Google Play ki policy ke hisaab se app ke andar digital content bechne ke liye aam taur par Google Play Billing chahiye; Razorpay se bechna review me reject ho sakta hai. Phir bhi ON karna hai?")) {
+      return;
+    }
     setSaving(true);
     setMsg("");
     try {
       await api("/app-config/admin", "PUT", { config: cfg });
+      wasShop.current = shopNow;
       setMsg("✅ Saved! Changes are live (app users see them on next open).");
     } catch (e: any) {
       setMsg("❌ " + (e.message || "Save failed"));
@@ -192,6 +202,7 @@ export default function AppContentAdmin({ api }: { api: ApiFn }) {
   const setAU = (patch: any) => setField("app_update", { ...au, ...patch });
   const minBuild = Number(au.min_build) || 0;
   const latestBuild = Number(au.latest_build) || 0;
+  const shopOn = cfg.app_purchases_enabled === true;
 
   return (
     <div style={{ maxWidth: 760 }}>
@@ -443,6 +454,40 @@ export default function AppContentAdmin({ api }: { api: ApiFn }) {
           placeholder="https://… ya /courses"
         />
         <div style={{ fontSize: 11, color: MUTED }}>Website ke top pe gold bar. On karo tabhi dikhega.</div>
+      </div>
+
+      {/* PURCHASES IN THE APP (Android) */}
+      <div style={box}>
+        <div style={head}>🛒 Purchases in the App (Android)</div>
+        <div style={{ ...row, marginBottom: 10 }}>
+          <button
+            style={shopOn ? goldBtn : darkBtn}
+            onClick={() => setField("app_purchases_enabled", true)}
+          >
+            On
+          </button>
+          <button
+            style={!shopOn ? goldBtn : darkBtn}
+            onClick={() => setField("app_purchases_enabled", false)}
+          >
+            Off
+          </button>
+          <span style={{ fontSize: 12.5, fontWeight: 700, color: shopOn ? "#5dd97c" : MUTED, marginLeft: 6 }}>
+            {shopOn ? "Abhi: ON — app me khareed sakte hain" : "Abhi: OFF — app me sirf content"}
+          </span>
+        </div>
+        <div style={{ fontSize: 12, color: MUTED, lineHeight: 1.7 }}>
+          <b style={{ color: TEXT }}>OFF</b> (shuru me yahi rakho): app me price, Buy / Enroll / Unlock, checkout aur coupon
+          kahin nahi dikhte. Free content aur jo student ne pehle khareeda hai wo poora chalta hai. Jo paid cheez
+          khareedi nahi, wo 🔒 Locked dikhti hai.<br />
+          <b style={{ color: TEXT }}>ON</b>: sab pehle jaisa — price, Buy, coupons, checkout.<br />
+          Website par iska koi asar nahi. App ko update karne ki zaroorat nahi, agli baar app kholne par badal jata hai.
+        </div>
+        <div style={{ fontSize: 11.5, color: GOLD, lineHeight: 1.6, marginTop: 10 }}>
+          ⚠️ Google Play ki policy: app ke andar digital content (courses, tests) bechne ke liye aam taur par Google Play Billing
+          chahiye. Razorpay se bechna ya &quot;website pe khareedo&quot; jaisa link dikhana review me reject karwa sakta hai.
+          ON karne se pehle ye policy ek baar dekh lo.
+        </div>
       </div>
 
       {/* APP UPDATE (Android) */}
