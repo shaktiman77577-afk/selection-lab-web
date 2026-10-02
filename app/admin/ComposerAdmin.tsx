@@ -682,7 +682,7 @@ function PartEditor({ part, catalog, takenSubjects, onChange, onRemove }: {
   );
 }
 
-// ── GENERATE ───────────────────────────────────────────────────────────────────────────────────────
+// ── GENERATE ─────────────────────────────────────────────────────────────────────────────────────────
 function Generate({ api, onErr, onOk }: { api: ApiFn; onErr: (s: string) => void; onOk: (s: string) => void }) {
   const [bps, setBps] = useState<any[]>([]);
   const [series, setSeries] = useState<any[]>([]);
@@ -1113,7 +1113,11 @@ function Drafts({ api, onErr, onOk }: { api: ApiFn; onErr: (s: string) => void; 
   const [openId, setOpenId] = useState(0);
 
   function load() {
-    api("/qbank/drafts").then((d) => setDrafts(d.drafts || [])).catch((e) => onErr(e.message));
+    // Purane se naye — Mock Test 1 upar, 10 neeche, jaisa series me banta hai.
+    // Backend naye se purane bhejta hai (id ghatte kram me).
+    api("/qbank/drafts")
+      .then((d) => setDrafts([...(d.drafts || [])].sort((x: any, y: any) => x.id - y.id)))
+      .catch((e) => onErr(e.message));
   }
   useEffect(load, []);
 
