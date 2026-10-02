@@ -16,6 +16,7 @@
 
 import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { API_URL } from "@/lib/config";
+import ExamAnalytics from "./ScoreCheckerAnalytics";
 
 type ApiFn = (path: string, method?: string, body?: any) => Promise<any>;
 
@@ -314,6 +315,7 @@ function ExamCard({
   const [busy, setBusy] = useState("");
   const [confirmMode, setConfirmMode] = useState<"" | "subs" | "exam">("");
   const [typed, setTyped] = useState("");
+  const [showStats, setShowStats] = useState(false);
 
   const name = exam.display_name || exam.assessment_name;
 
@@ -502,6 +504,17 @@ function ExamCard({
         <button onClick={recalc} disabled={!!busy} style={{ ...btn, borderColor: GREEN, color: GREEN }}>
           {busy === "recalc" ? "..." : "Recalculate"}
         </button>
+      </div>
+
+      {/* Analytics — sirf admin ko. Students ko sirf apni rank dikhti hai. */}
+      <div style={{ marginTop: 12 }}>
+        <button
+          onClick={() => setShowStats((v) => !v)}
+          style={{ ...btn, borderColor: GOLD, color: GOLD }}
+        >
+          {showStats ? "Hide analytics" : "Score analytics"}
+        </button>
+        {showStats && <ExamAnalytics examId={exam.id} api={api} />}
       </div>
 
       <div style={{ height: 1, background: LINE, margin: "13px 0" }} />
