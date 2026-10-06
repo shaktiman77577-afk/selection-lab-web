@@ -10,7 +10,7 @@
  * Backend: /api/tier2/...
  */
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { getUser, User } from "@/lib/api";
 import { API_URL } from "@/lib/config";
@@ -84,6 +84,8 @@ export default function Tier2Page() {
   // Har passage ka apna nichod — kitne attempts, aakhri score, best.
   // progress se alag isliye ki wo sirf 30 din ka hai; ye all-time hai.
   const [passageStats, setPassageStats] = useState<any>(null);
+  // Poore platform ka typing counter — sab exams ka total + har exam ka alag
+  const [totals, setTotals] = useState<{ total_attempts: number; total_candidates: number; per_series: Record<string, number> } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
@@ -169,6 +171,10 @@ export default function Tier2Page() {
     const u = getUser();
     setUser(u);
     load(u);
+    fetch(`${API_URL}/tier2/typing/platform-totals`)
+      .then((r) => r.json())
+      .then((d) => { if (d?.available) setTotals(d); })
+      .catch(() => {});
     if (!document.querySelector('script[src*="checkout.razorpay.com"]')) {
       const s = document.createElement("script");
       s.src = "https://checkout.razorpay.com/v1/checkout.js";
@@ -336,6 +342,7 @@ export default function Tier2Page() {
                   </span>
                 ))}
               </div>
+              {totals && totals.total_attempts > 0 && <TotalsBanner totals={totals} />}
             </section>
 
             <Disclaimer />
@@ -356,7 +363,7 @@ export default function Tier2Page() {
                 display: "grid", gap: narrow ? 10 : 14, alignItems: "start",
                 gridTemplateColumns: narrow ? "repeat(2, minmax(0, 1fr))" : "repeat(auto-fill, minmax(260px, 1fr))",
               }}>
-                {series.map((s) => <ExamCard key={s.id} s={s} narrow={narrow} onOpen={openSeries} onBuy={(x) => { if (!getUser()) { router.push("/login"); return; } setBuying(x); }} />)}
+                {series.map((s) => <ExamCard key={s.id} s={s} attempts={totals?.per_series?.[String(s.id)] || 0} narrow={narrow} onOpen={openSeries} onBuy={(x) => { if (!getUser()) { router.push("/login"); return; } setBuying(x); }} />)}
               </div>
             )}
           </>
@@ -468,8 +475,14 @@ export default function Tier2Page() {
               <p style={{ color: "var(--muted)", fontSize: 14 }}>Loading…</p>
             ) : (
               <>
+                {totals && totals.total_attempts > 0 && (
+                  <div style={{ fontSize: 12.5, color: "var(--muted)", margin: "0 0 10px" }}>
+                    🔥 <b style={{ color: "var(--text)" }}>{(totals.per_series?.[String(open.id)] || 0).toLocaleString("en-IN")}</b> typing tests taken in this exam ·{" "}
+                    <b style={{ color: "var(--text)" }}>{totals.total_attempts.toLocaleString("en-IN")}</b> across all exams on SelectionLab
+                  </div>
+                )}
                 {progress && progress.total_attempts > 0 && (
-                  <ProgressCard progress={progress} examName={open.title} />
+                  <ProgressCard progress={progress} examName={open.title} seriesId={open.id} />
                 )}
 
                 {(() => {
@@ -635,8 +648,8 @@ export default function Tier2Page() {
 // Poori tasveer ek nazar me: kitne typing test, Excel me kitna saamaan,
 // kaunsi bhasha, aur koi cheez free hai ya nahi. Sirf naam aur daam dikhane
 // se student ko andaza hi nahi lagta ki andar kya hai.
-function ExamCard({ s, narrow, onOpen, onBuy }: {
-  s: Series; narrow: boolean; onOpen: (s: Series) => void; onBuy: (s: Series) => void;
+function ExamCard({ s, attempts, narrow, onOpen, onBuy }: {
+  s: Series; attempts: number; narrow: boolean; onOpen: (s: Series) => void; onBuy: (s: Series) => void;
 }) {
   const locked = isLocked(s);
   const free = Number(s.price ?? 0) <= 0;
@@ -700,6 +713,12 @@ function ExamCard({ s, narrow, onOpen, onBuy }: {
           {langs.includes("hindi") && <Tag>हिंदी</Tag>}
           {s.has_free && locked && <Tag green>Free test inside</Tag>}
         </div>
+
+        {attempts > 0 && (
+          <div style={{ fontSize: narrow ? 11 : 12, fontWeight: 700, marginTop: 8, color: "var(--text)" }}>
+            🔥 {attempts.toLocaleString("en-IN")} typing tests taken
+          </div>
+        )}
 
         {/* marginTop auto: grid me har card ka price/button ek hi line par neeche */}
         <div style={{ display: "flex", alignItems: "center", gap: narrow ? 6 : 12, marginTop: "auto", paddingTop: narrow ? 10 : 14, flexWrap: "wrap" }}>
@@ -950,33 +969,193 @@ function LanguagePicker({
   );
 }
 
-// ── Progress: best/average + 30 din ka chart ────────────────────────────────
+// ── Progress: aapka graph + sab students ka average ─────────────────────────
 // Koi chart library nahi — seedha SVG. Bundle bhaari karne ki zaroorat nahi.
-function ProgressCard({ progress, examName }: { progress: any; examName?: string }) {
-  const pts: number[] = (progress.attempts || []).map((a: any) => Number(a.net_wpm) || 0);
-  const w = 300, h = 70;
-  const max = Math.max(40, ...pts);
-  const path = pts.length > 1
-    ? pts.map((v, i) => `${i === 0 ? "M" : "L"} ${(i / (pts.length - 1)) * w} ${h - (v / max) * h}`).join(" ")
-    : "";
+// 7 din / 30 din / sab — har attempt ek dot, hover/tap par us din ka score.
+// Dashed lines: aapka average, aur is exam ke sab students ka average.
+const RANGES: { key: string; label: string; days: number }[] = [
+  { key: "7", label: "7 days", days: 7 },
+  { key: "30", label: "30 days", days: 30 },
+  { key: "all", label: "All time", days: 3650 },
+];
+const ALL_AVG = "#2563a8";
+
+function ProgressCard({ progress: initial, examName, seriesId }: { progress: any; examName?: string; seriesId?: number }) {
+  const [range, setRange] = useState("30");
+  const [progress, setProgress] = useState<any>(initial);
+  const [community, setCommunity] = useState<number | null>(null);
+  const [hover, setHover] = useState<number | null>(null);
+  const [w, setW] = useState(600);
+  const boxRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => { setProgress(initial); setRange("30"); }, [initial]);
+
+  useEffect(() => {
+    if (!seriesId) return;
+    fetch(`${API_URL}/tier2/typing/series-community/${seriesId}`)
+      .then((r) => r.json())
+      .then((d) => setCommunity(d?.available ? Number(d.avg_wpm) : null))
+      .catch(() => {});
+  }, [seriesId]);
+
+  useEffect(() => {
+    const el = boxRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => setW(Math.max(260, el.clientWidth)));
+    ro.observe(el);
+    setW(Math.max(260, el.clientWidth));
+    return () => ro.disconnect();
+  }, []);
+
+  function pick(key: string) {
+    setRange(key);
+    setHover(null);
+    if (key === "30") { setProgress(initial); return; }
+    const uid = (getUser() as any)?.id;
+    const days = RANGES.find((r) => r.key === key)!.days;
+    fetch(`${API_URL}/tier2/typing/progress?user_id=${uid}&days=${days}${seriesId ? `&series_id=${seriesId}` : ""}`)
+      .then((r) => r.json())
+      .then(setProgress)
+      .catch(() => {});
+  }
+
+  const atts: any[] = progress?.attempts || [];
+  const pts = atts.map((a) => Number(a.net_wpm) || 0);
+  const avg = Number(progress?.avg_wpm) || 0;
+  const best = Number(progress?.best_wpm) || 0;
+
+  const h = 180, padL = 30, padR = 12, padT = 14, padB = 22;
+  const yMax = Math.max(40, Math.ceil((Math.max(best, community || 0, ...pts) + 5) / 10) * 10);
+  const x = (i: number) => padL + (pts.length > 1 ? (i / (pts.length - 1)) * (w - padL - padR) : (w - padL - padR) / 2);
+  const y = (v: number) => padT + (1 - v / yMax) * (h - padT - padB);
+  const path = pts.map((v, i) => `${i === 0 ? "M" : "L"} ${x(i).toFixed(1)} ${y(v).toFixed(1)}`).join(" ");
+  const ticks = [0, yMax / 2, yMax];
+  const bestIdx = pts.indexOf(Math.max(...pts));
+  const date = (t: string) => new Date(t).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+  const showDots = pts.length <= 60;
+
+  // Mouse/tap ke sabse paas wala attempt
+  function near(e: React.PointerEvent<SVGSVGElement>) {
+    if (!pts.length) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const px = ((e.clientX - rect.left) / rect.width) * w;
+    let bi = 0, bd = Infinity;
+    pts.forEach((_, i) => { const d = Math.abs(x(i) - px); if (d < bd) { bd = d; bi = i; } });
+    setHover(bi);
+  }
 
   return (
     <div style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: 14, padding: 14, marginBottom: 6 }}>
+      <div style={{ display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap" }}>
+        {RANGES.map((r) => (
+          <button
+            key={r.key}
+            onClick={() => pick(r.key)}
+            style={{
+              border: `1px solid ${range === r.key ? GOLD : "var(--line)"}`,
+              background: range === r.key ? "rgba(255,171,0,0.15)" : "transparent",
+              color: "var(--text)", borderRadius: 20, padding: "4px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer",
+            }}
+          >{r.label}</button>
+        ))}
+      </div>
+
       <div style={{ display: "flex", gap: 16, marginBottom: 10, flexWrap: "wrap" }}>
-        <Stat label="Best" value={`${progress.best_wpm} WPM`} />
-        <Stat label="Average" value={`${progress.avg_wpm} WPM`} />
-        <Stat label="Accuracy" value={`${progress.avg_accuracy}%`} />
-        <Stat label="Attempts" value={String(progress.total_attempts)} />
+        <Stat label="Best" value={`${progress?.best_wpm ?? 0} WPM`} />
+        <Stat label="Your average" value={`${progress?.avg_wpm ?? 0} WPM`} />
+        {community != null && <Stat label="All students' average" value={`${community} WPM`} />}
+        <Stat label="Accuracy" value={`${progress?.avg_accuracy ?? 0}%`} />
+        <Stat label="Attempts" value={String(progress?.total_attempts ?? 0)} />
       </div>
-      {pts.length > 1 && (
-        <svg viewBox={`0 0 ${w} ${h}`} style={{ width: "100%", height: 70, display: "block", overflow: "visible" }}>
-          <path d={path} fill="none" stroke={GOLD} strokeWidth={2} strokeLinejoin="round" />
-        </svg>
-      )}
+
+      <div ref={boxRef} style={{ position: "relative" }}>
+        {pts.length === 0 ? (
+          <div style={{ fontSize: 12.5, color: "var(--muted)", padding: "20px 0" }}>No attempts in this period.</div>
+        ) : (
+          <svg
+            width={w} height={h} viewBox={`0 0 ${w} ${h}`}
+            style={{ display: "block", touchAction: "pan-y", overflow: "visible" }}
+            onPointerMove={near} onPointerDown={near} onPointerLeave={() => setHover(null)}
+          >
+            {ticks.map((t) => (
+              <g key={t}>
+                <line x1={padL} x2={w - padR} y1={y(t)} y2={y(t)} stroke="var(--line)" strokeWidth={1} />
+                <text x={padL - 6} y={y(t) + 3.5} textAnchor="end" fontSize={10} fill="var(--muted)">{Math.round(t)}</text>
+              </g>
+            ))}
+            {avg > 0 && <line x1={padL} x2={w - padR} y1={y(avg)} y2={y(avg)} stroke="var(--muted)" strokeWidth={1.5} strokeDasharray="5 4" />}
+            {community != null && <line x1={padL} x2={w - padR} y1={y(community)} y2={y(community)} stroke={ALL_AVG} strokeWidth={1.5} strokeDasharray="2 3" />}
+            {pts.length > 1 && <path d={path} fill="none" stroke={GOLD} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />}
+            {showDots && pts.map((v, i) => (
+              <circle key={i} cx={x(i)} cy={y(v)} r={i === hover ? 5.5 : 3.5} fill={GOLD} stroke="var(--card)" strokeWidth={2} />
+            ))}
+            {bestIdx >= 0 && (
+              <g>
+                <circle cx={x(bestIdx)} cy={y(pts[bestIdx])} r={7} fill="none" stroke={GOLD} strokeWidth={1.5} />
+                <text x={x(bestIdx)} y={y(pts[bestIdx]) - 11} textAnchor="middle" fontSize={10.5} fontWeight={800} fill="var(--text)">Best</text>
+              </g>
+            )}
+            {hover !== null && (
+              <line x1={x(hover)} x2={x(hover)} y1={padT} y2={h - padB} stroke="var(--muted)" strokeWidth={1} opacity={0.5} />
+            )}
+            {atts.length > 0 && (
+              <>
+                <text x={padL} y={h - 6} fontSize={10} fill="var(--muted)">{date(atts[0].created_at)}</text>
+                {atts.length > 1 && <text x={w - padR} y={h - 6} textAnchor="end" fontSize={10} fill="var(--muted)">{date(atts[atts.length - 1].created_at)}</text>}
+              </>
+            )}
+          </svg>
+        )}
+        {hover !== null && atts[hover] && (
+          <div style={{
+            position: "absolute", top: 0,
+            left: Math.min(Math.max(x(hover), 70), w - 70), transform: "translateX(-50%)",
+            background: "var(--bg)", border: "1px solid var(--line)", borderRadius: 8, padding: "6px 10px",
+            fontSize: 11.5, whiteSpace: "nowrap", pointerEvents: "none", boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+          }}>
+            <b>{pts[hover]} WPM</b> · {Number(atts[hover].accuracy || 0)}%
+            <div style={{ color: "var(--muted)" }}>
+              Attempt {hover + 1} · {new Date(atts[hover].created_at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", fontSize: 11, color: "var(--muted)", marginTop: 8 }}>
+        <LegendKey color={GOLD} label="Your net WPM" />
+        <LegendKey color="var(--muted)" dash="5 4" label="Your average" />
+        {community != null && <LegendKey color={ALL_AVG} dash="2 3" label="All students' average" />}
+      </div>
       <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 6 }}>
-        Net WPM over the last 30 days{examName ? ` · ${examName} only` : ""}
-        {progress.wrong_selections > 0 ? ` · ${progress.wrong_selections} times a wrong test number was selected` : ""}
+        {examName ? `${examName} only` : ""}
+        {progress?.wrong_selections > 0 ? ` · ${progress.wrong_selections} times a wrong test number was selected` : ""}
       </div>
+    </div>
+  );
+}
+
+function LegendKey({ color, label, dash }: { color: string; label: string; dash?: string }) {
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+      <svg width={18} height={6}><line x1={0} x2={18} y1={3} y2={3} stroke={color} strokeWidth={2} strokeDasharray={dash} /></svg>
+      {label}
+    </span>
+  );
+}
+
+function TotalsBanner({ totals }: { totals: { total_attempts: number; total_candidates: number } }) {
+  return (
+    <div style={{ display: "flex", gap: 22, flexWrap: "wrap", marginTop: 16, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.18)" }}>
+      <div>
+        <div style={{ fontSize: 26, fontWeight: 900, color: GOLD, lineHeight: 1.1 }}>{totals.total_attempts.toLocaleString("en-IN")}</div>
+        <div style={{ fontSize: 12, color: "rgba(255,255,255,0.85)" }}>typing tests taken across all exams</div>
+      </div>
+      {totals.total_candidates > 0 && (
+        <div>
+          <div style={{ fontSize: 26, fontWeight: 900, color: "#fff", lineHeight: 1.1 }}>{totals.total_candidates.toLocaleString("en-IN")}</div>
+          <div style={{ fontSize: 12, color: "rgba(255,255,255,0.85)" }}>students practising</div>
+        </div>
+      )}
     </div>
   );
 }

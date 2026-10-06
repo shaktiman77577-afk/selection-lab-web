@@ -1220,6 +1220,9 @@ export default function TypingTestPage() {
           )}
         </div>
 
+        {/* Doosre students se tulna — sirf numbers, kisi ka naam nahi */}
+        <CompareCard passageId={passageId} refreshKey={result.attempted_at || result.result?.net_wpm} />
+
         {showFeedback && (
           <div style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12, padding: 14, marginBottom: 16 }}>
             {feedbackSent ? (
@@ -1819,6 +1822,128 @@ function PracticeMistakes({ words, onClose }: { words: string[]; onClose: () => 
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+// ═══════════════════ Sab students se tulna ═══════════════════
+// Backend har student ka sirf BEST attempt ginta hai. 10 se kam students hon
+// to highest/average/chart nahi aata (score pehchana ja sakta hai) — rank aata hai.
+function CompareCard({ passageId, refreshKey }: { passageId: number; refreshKey?: any }) {
+  const [d, setD] = useState<any>(null);
+  const [hover, setHover] = useState<number | null>(null);
+
+  useEffect(() => {
+    const uid = (getUser() as any)?.id;
+    fetch(`${API_URL}/tier2/typing/community-stats/${passageId}${uid ? `?user_id=${uid}` : ""}`)
+      .then((r) => r.json())
+      .then(setD)
+      .catch(() => setD(null));
+  }, [passageId, refreshKey]);
+
+  if (!d?.available || !d.candidates) return null;
+
+  const n = Number(d.candidates);
+  const me = d.my_best_wpm != null ? Number(d.my_best_wpm) : null;
+  const buckets: { from: number; count: number }[] = d.buckets || [];
+  const myBucket = me != null ? Math.min(Math.floor(me / 5), 20) * 5 : null;
+  const maxC = Math.max(1, ...buckets.map((b) => b.count));
+  const fmt = (v: any) => (v == null ? "–" : Number(v).toLocaleString("en-IN", { maximumFractionDigits: 1 }));
+
+  // Khaali khaane bhi dikhane hain, warna 20 aur 45 paas-paas lagte hain
+  const all: { from: number; count: number }[] = [];
+  if (buckets.length) {
+    const lo = Math.min(...buckets.map((b) => b.from), myBucket ?? Infinity);
+    const hi = Math.max(...buckets.map((b) => b.from), myBucket ?? -Infinity);
+    for (let f = lo; f <= hi; f += 5) all.push({ from: f, count: buckets.find((b) => b.from === f)?.count || 0 });
+  }
+  const label = (f: number) => (f >= 100 ? "100+" : `${f}–${f + 4}`);
+
+  return (
+    <div style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: 14, padding: 14, marginBottom: 16 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+        <div style={{ fontWeight: 800, fontSize: 14.5 }}>How you compare</div>
+        <div style={{ fontSize: 11.5, color: "var(--muted)" }}>
+          {n.toLocaleString("en-IN")} {n === 1 ? "candidate has" : "candidates have"} taken this test
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: 10 }}>
+        {d.my_rank != null && (
+          <CmpStat label="Your rank" value={`#${Number(d.my_rank).toLocaleString("en-IN")}`} sub={`of ${n.toLocaleString("en-IN")}`} strong />
+        )}
+        {d.percentile != null && n > 1 && (
+          <CmpStat label="Better than" value={`${d.percentile}%`} sub="of candidates" strong />
+        )}
+        {me != null && <CmpStat label="Your best" value={`${fmt(me)} WPM`} sub={d.my_best_accuracy != null ? `${fmt(d.my_best_accuracy)}% accuracy` : undefined} />}
+        {d.enough && <CmpStat label="Highest" value={`${fmt(d.highest_wpm)} WPM`} />}
+        {d.enough && <CmpStat label="Average" value={`${fmt(d.avg_wpm)} WPM`} sub={`${fmt(d.avg_accuracy)}% accuracy`} />}
+      </div>
+
+      {d.enough && all.length > 1 && (
+        <div style={{ marginTop: 14 }}>
+          <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 6 }}>
+            Net speed of all candidates (best attempt each)
+          </div>
+          <div style={{ position: "relative" }}>
+            <div style={{ display: "flex", alignItems: "flex-end", gap: 2, height: 110 }} onMouseLeave={() => setHover(null)}>
+              {all.map((b, i) => {
+                const mine = b.from === myBucket;
+                return (
+                  <div
+                    key={b.from}
+                    onMouseEnter={() => setHover(i)}
+                    onClick={() => setHover(hover === i ? null : i)}
+                    style={{ flex: 1, height: "100%", display: "flex", flexDirection: "column", justifyContent: "flex-end", cursor: "pointer", position: "relative" }}
+                  >
+                    {mine && (
+                      <div style={{ fontSize: 10, fontWeight: 800, color: "var(--text)", textAlign: "center", marginBottom: 2, whiteSpace: "nowrap" }}>You</div>
+                    )}
+                    <div
+                      style={{
+                        height: `${b.count ? Math.max(4, (b.count / maxC) * 90) : 0}%`,
+                        background: mine ? GOLD : "var(--line)",
+                        opacity: hover === null || hover === i ? 1 : 0.6,
+                        borderRadius: "4px 4px 0 0",
+                        outline: mine ? `1px solid ${GOLD}` : undefined,
+                      }}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+            {hover !== null && all[hover] && (
+              <div style={{
+                position: "absolute", top: 0, left: `${((hover + 0.5) / all.length) * 100}%`, transform: "translateX(-50%)",
+                background: "var(--bg)", border: "1px solid var(--line)", borderRadius: 8, padding: "5px 9px",
+                fontSize: 11.5, whiteSpace: "nowrap", pointerEvents: "none", boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+              }}>
+                <b>{label(all[hover].from)} WPM</b> · {all[hover].count} {all[hover].count === 1 ? "candidate" : "candidates"}
+              </div>
+            )}
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10.5, color: "var(--muted)", marginTop: 4, borderTop: "1px solid var(--line)", paddingTop: 3 }}>
+            <span>{all[0].from} WPM</span>
+            <span>{label(all[all.length - 1].from)} WPM</span>
+          </div>
+        </div>
+      )}
+
+      <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 10, lineHeight: 1.6 }}>
+        {d.enough
+          ? "Each candidate's best attempt is counted once. Names are never shown."
+          : `Highest and average appear once ${d.min_candidates} candidates have taken this test.`}
+      </div>
+    </div>
+  );
+}
+
+function CmpStat({ label, value, sub, strong }: { label: string; value: string; sub?: string; strong?: boolean }) {
+  return (
+    <div style={{ background: "var(--bg)", border: "1px solid var(--line)", borderRadius: 10, padding: "9px 11px" }}>
+      <div style={{ fontSize: 11, color: "var(--muted)" }}>{label}</div>
+      <div style={{ fontSize: 18, fontWeight: 900, color: strong ? GOLD : "var(--text)", lineHeight: 1.3 }}>{value}</div>
+      {sub && <div style={{ fontSize: 11, color: "var(--muted)" }}>{sub}</div>}
     </div>
   );
 }
