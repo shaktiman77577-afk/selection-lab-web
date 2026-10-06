@@ -430,7 +430,7 @@ export default function TypingDrillPage() {
       }}>
         {/* Fixed 3 rows ki khidki — isse bahar kuch nahi dikhta */}
         <div aria-label="Type this text" style={{
-          fontFamily: "Consolas, 'Courier New', monospace", fontSize: "clamp(17px, 4.2vw, 22px)",
+          fontFamily: "var(--font-typing)", fontSize: "clamp(18px, 4.4vw, 23px)",
           lineHeight: LINE_H, letterSpacing: 0.5,
           height: `${VISIBLE_ROWS * LINE_H}em`, overflow: "hidden", position: "relative",
         }}>

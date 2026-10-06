@@ -559,8 +559,8 @@ export default function NbemsMockRunner() {
           </div>
           <div onCopy={(e) => e.preventDefault()} className="nbm-type-passage"
             style={{ background: "#fff", color: "#111", border: "1px solid var(--line)", borderRadius: 10, padding: "10px 12px",
-                     overflowY: "auto", whiteSpace: "pre-wrap", fontSize: 14, lineHeight: 1.65,
-                     fontFamily: "Consolas, 'Courier New', monospace", WebkitUserSelect: "none", userSelect: "none" }}>
+                     overflowY: "auto", whiteSpace: "pre-wrap", fontSize: 16, lineHeight: 1.65,
+                     fontFamily: "var(--font-typing)", WebkitUserSelect: "none", userSelect: "none" }}>
             {data.typing.passage}
           </div>
         </Card>
@@ -581,8 +581,8 @@ export default function NbemsMockRunner() {
           spellCheck={false} autoCorrect="off" autoCapitalize="off" autoComplete="off"
           className="nbm-type-box"
           style={{ width: "100%", marginTop: 10, borderRadius: 10, border: "1px solid var(--line)", padding: 12, boxSizing: "border-box",
-                   background: typingLocked ? "var(--chip)" : "#fff", color: "#111", fontSize: 15, lineHeight: 1.6,
-                   fontFamily: "Consolas, 'Courier New', monospace", resize: "vertical" }} />
+                   background: typingLocked ? "var(--chip)" : "#fff", color: "#111", fontSize: 16, lineHeight: 1.6,
+                   fontFamily: "var(--font-typing)", resize: "vertical" }} />
         <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 6 }}>
           {typed.trim() ? typed.trim().split(/\s+/).length : 0} words · {Math.max(keysRef.current, typed.length).toLocaleString("en-IN")} keystrokes
           {typingLocked && typed.trim() ? " · typing closed — it will be checked when you submit" : ""}

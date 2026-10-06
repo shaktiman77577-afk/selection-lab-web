@@ -144,8 +144,8 @@ function review(key: SectionKey, d: any, r: any) {
       <>
         {rows.map(([k, v]) => <Row key={k} k={k} v={v} />)}
         <Muted>Marks = net WPM × {part.marks_max ?? 30} ÷ {part.target_wpm}, up to {part.marks_max ?? 30}. Speed is worked out over the full typing time{part.minutes ? ` (${part.minutes} minutes)` : ""}.</Muted>
-        <div style={{ background: "#fff", color: "#111", border: "1px solid var(--line)", borderRadius: 10, padding: 12, marginTop: 10, fontSize: 13.5,
-                      lineHeight: 1.9, fontFamily: "Consolas, 'Courier New', monospace", whiteSpace: "pre-wrap", wordBreak: "break-word",
+        <div style={{ background: "#fff", color: "#111", border: "1px solid var(--line)", borderRadius: 10, padding: 12, marginTop: 10, fontSize: 15,
+                      lineHeight: 1.9, fontFamily: "var(--font-typing)", whiteSpace: "pre-wrap", wordBreak: "break-word",
                       WebkitUserSelect: "none", userSelect: "none", maxHeight: 420, overflowY: "auto" }}>
           {(part.segments || []).map((s: any, i: number) => {
             const sp = i > 0 ? (s.nl ? "\n".repeat(Math.min(2, Number(s.nl))) : " ") : "";

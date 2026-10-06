@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Tinos } from "next/font/google";
 import ActivityBeacon from "@/app/components/ActivityBeacon";
 import "./globals.css";
 
@@ -11,6 +11,15 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+});
+
+// Typing tests ka font Times New Roman hai. Android/Linux par Times New Roman
+// nahi hota, isliye Tinos (same size ka metric-compatible font) fallback hai.
+const tinos = Tinos({
+  variable: "--font-tinos",
+  subsets: ["latin"],
+  weight: ["400", "700"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -133,7 +142,7 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: authFetchScript }} />
         <style dangerouslySetInnerHTML={{ __html: themeCss }} />
       </head>
-      <body className={`${geistSans.variable} ${geistMono.variable}`} style={{ margin: 0 }}>
+      <body className={`${geistSans.variable} ${geistMono.variable} ${tinos.variable}`} style={{ margin: 0 }}>
         {/* Admin panel me "kaun online hai" isi se chalta hai. Kuch render nahi karta. */}
         <ActivityBeacon />
         {/* Google ke liye: ye site kiski hai aur search kaise hota hai */}

@@ -1003,7 +1003,7 @@ export default function TypingTestPage() {
               background: "#fffef5", borderBottom: "1px solid #d4d9e2",
               padding: "12px 16px", maxHeight: "34vh", overflowY: "auto",
               fontSize: fontSize + 1, lineHeight: 1.9,
-              fontFamily: "'Times New Roman', Times, serif",
+              fontFamily: "var(--font-typing)",
               userSelect: "none",
             }}
             onCopy={(e) => e.preventDefault()}
@@ -1029,8 +1029,7 @@ export default function TypingTestPage() {
               padding: "12px 16px", maxHeight: "34vh", overflowY: "auto",
               fontSize: meta.language === "hindi" ? fontSize + 2 : fontSize,
               lineHeight: meta.language === "hindi" ? 2 : 1.9,
-              fontFamily: meta.scoring_mode === "keystroke"
-                ? "'Times New Roman', Times, serif" : "inherit",
+              fontFamily: meta.language === "hindi" ? "inherit" : "var(--font-typing)",
               // Letter format me lines hi to jaanchi ja rahi hain — passage
               // bhi usi tarah line-line dikhna chahiye.
               whiteSpace: meta.check_line_breaks ? "pre-wrap" : undefined,
@@ -1068,8 +1067,7 @@ export default function TypingTestPage() {
               lang={meta.language === "hindi" ? "hi" : "en"}
               style={{
                 flex: 1, width: "100%", border: "none", outline: "none", resize: "none",
-                // NCERT: Times New Roman 12pt, 1.5 spacing — notification ka niyam.
-                // P&H: monospace, jaise exam player me hota hai.
+                // Sabhi typing tests: Times New Roman (mobile par Tinos fallback).
                 // KrutiDev: apna hi legacy font — warna student ka khud ka typed
                 // text bhi usko angrezi jaisa dikhega, jabki Unicode wale ko
                 // poora Hindi dikhta hai.
@@ -1078,10 +1076,7 @@ export default function TypingTestPage() {
                 lineHeight: doc ? 1.5 : 1.8,
                 fontFamily: (meta.language === "hindi" && script === "krutidev")
                   ? "'KrutiDev010', sans-serif"
-                  : (doc || sync)
-                    // SKAU notice point 2: Times New Roman
-                    ? "'Times New Roman', Times, serif"
-                    : "Consolas, 'Courier New', monospace",
+                  : "var(--font-typing)",
                 color: "#111", background: "#fff", boxSizing: "border-box",
               }}
             />
@@ -1425,7 +1420,7 @@ export default function TypingTestPage() {
         <div
           style={{
             background: "#fff", color: "#111", border: "1px solid var(--line)", borderRadius: 12,
-            padding: 14, fontSize: 14.5, lineHeight: 2, fontFamily: "Consolas, 'Courier New', monospace",
+            padding: 14, fontSize: 16, lineHeight: 2, fontFamily: "var(--font-typing)",
             whiteSpace: "pre-wrap", wordBreak: "break-word", marginBottom: 12,
             // Passage yahin ek jagah poora screen par aata hai (test ke dauran
             // backend ise bhejta hi nahi). Select-and-copy khula chhodne ka
@@ -1644,7 +1639,7 @@ function MistakeCard({ s, onClose }: { s: any; onClose: () => void }) {
         <div style={{ flex: 1, minWidth: 0 }}>
           {s.op === "missing" ? (
             <div style={{ fontSize: 13.5, lineHeight: 1.7 }}>
-              <b style={{ fontFamily: "Consolas, monospace", color: RED }}>{s.text}</b>
+              <b style={{ fontFamily: "var(--font-typing)", color: RED }}>{s.text}</b>
               {" "}— you did not type this word
             </div>
           ) : s.op === "extra" && s.why === "extra_space" ? (
@@ -1653,21 +1648,21 @@ function MistakeCard({ s, onClose }: { s: any; onClose: () => void }) {
             </div>
           ) : s.op === "extra" ? (
             <div style={{ fontSize: 13.5, lineHeight: 1.7 }}>
-              You typed <b style={{ fontFamily: "Consolas, monospace", color: RED }}>{s.typed}</b>
+              You typed <b style={{ fontFamily: "var(--font-typing)", color: RED }}>{s.typed}</b>
               {" "}but it does not appear in the passage
             </div>
           ) : String(s.why || "").startsWith("line") ? (
             <div style={{ fontSize: 13.5, lineHeight: 1.7 }}>
-              <b style={{ fontFamily: "Consolas, monospace", color: RED }}>{s.text}</b>
+              <b style={{ fontFamily: "var(--font-typing)", color: RED }}>{s.text}</b>
               {s.why === "line_missing"
                 ? " should start on a new line"
                 : " should stay on the same line"}
             </div>
           ) : (
             <div style={{ fontSize: 13.5, lineHeight: 1.7 }}>
-              <b style={{ fontFamily: "Consolas, monospace", color: GREEN }}>{s.text}</b>
+              <b style={{ fontFamily: "var(--font-typing)", color: GREEN }}>{s.text}</b>
               {" "}was typed as{" "}
-              <b style={{ fontFamily: "Consolas, monospace", color: RED }}>{s.typed || "(nothing)"}</b>
+              <b style={{ fontFamily: "var(--font-typing)", color: RED }}>{s.typed || "(nothing)"}</b>
             </div>
           )}
           {why && (

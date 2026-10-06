@@ -3,6 +3,8 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  /* Sabhi typing tests ka font: Times New Roman, mobile par Tinos fallback */
+  --font-typing: "Times New Roman", Times, var(--font-tinos), serif;
 }
 
 @theme inline {
