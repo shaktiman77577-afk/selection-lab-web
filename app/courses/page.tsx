@@ -8,7 +8,8 @@
  * - Baaki tabs: sirf wahi section.
  * - Bundle apne aap pehchana jaata hai: jis product ke bundle_items me
  *   ek se zyada cheezein judi hon (descriptive me bundle_series_ids bhi ginte
- *   hain). Bundle sirf Bundles section me aata hai, dobara nahi.
+ *   hain). Bundle, Bundles section ke saath apne section me bhi dikhta hai,
+ *   aur har jagah uske thumbnail par "BUNDLE PACK · N in 1" ka ribbon lagta hai.
  * - Card par click → us product ka apna page, jahan uska content dikhta hai.
  */
 
@@ -36,6 +37,7 @@ type Item = {
   original: number;
   purchased: boolean;
   bundle: boolean;
+  bundleSize: number;
   href: string;
 };
 
@@ -84,6 +86,7 @@ function toItem(kind: Kind, p: any): Item {
     original: Number(p.original_price) || 0,
     purchased: !!(p.is_purchased || p.purchased),
     bundle: bundleCount(p) > 1,
+    bundleSize: bundleCount(p),
     href,
   };
 }
@@ -144,11 +147,11 @@ export default function CoursesPage() {
     return s ? items.filter((i) => i.title.toLowerCase().includes(s)) : items;
   }, [items, q]);
 
-  // Har section ki list — bundle sirf Bundles me
+  // Har section ki list — bundle Bundles me bhi aur apne section me bhi
   const sections = useMemo(() => {
     const pick = (id: Tab): Item[] =>
       id === "bundle" ? matched.filter((i) => i.bundle)
-      : matched.filter((i) => i.kind === id && !i.bundle);
+      : matched.filter((i) => i.kind === id);
     return TABS.filter((t) => t.id !== "all").map((t) => ({ ...t, list: pick(t.id) }));
   }, [matched]);
 
@@ -248,13 +251,29 @@ function Card({ c, onOpen }: { c: Item; onOpen: () => void }) {
       onClick={onOpen}
       style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: 14, overflow: "hidden", cursor: "pointer", boxShadow: "var(--shadow)", display: "flex", flexDirection: "column" }}
     >
-      <div style={{ width: "100%", aspectRatio: "16 / 9", background: "var(--chip)", overflow: "hidden" }}>
+      <div style={{ position: "relative", width: "100%", aspectRatio: "16 / 9", background: "var(--chip)", overflow: "hidden" }}>
         {c.image && <img src={c.image} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />}
+        {c.bundle && (
+          // Bundle ki pehchaan — har section me ek jaisa ribbon
+          <div style={{
+            position: "absolute", top: 6, left: 6, display: "flex", alignItems: "center", gap: 4,
+            background: "linear-gradient(90deg, #7b2ff7, #e0245e)", color: "#fff",
+            fontSize: 10, fontWeight: 900, letterSpacing: 0.4, padding: "3px 8px", borderRadius: 20,
+            boxShadow: "0 2px 6px rgba(0,0,0,0.35)", whiteSpace: "nowrap",
+          }}>
+            🎁 BUNDLE PACK · {c.bundleSize} in 1
+          </div>
+        )}
       </div>
       <div style={{ padding: 10, display: "flex", flexDirection: "column", flex: 1 }}>
         <div style={{ fontSize: 10.5, fontWeight: 800, color: GOLD, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 3 }}>
-          {c.bundle ? "Bundle · " : ""}{KIND_LABEL[c.kind]}
+          {KIND_LABEL[c.kind]}
         </div>
+        {c.bundle && (
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#c2185b", marginBottom: 4 }}>
+            {c.bundleSize} things in 1 pack — one price
+          </div>
+        )}
         <div style={{ fontSize: 13, fontWeight: 700, lineHeight: 1.4, minHeight: 36, overflow: "hidden", flex: 1 }}>{c.title}</div>
         <div style={{ marginTop: 6, fontSize: 13.5 }}>
           {c.purchased ? (
