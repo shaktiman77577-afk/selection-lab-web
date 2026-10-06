@@ -20,7 +20,7 @@ import CheckoutSheet from "@/app/components/CheckoutSheet";
 import Disclaimer from "@/app/components/Disclaimer";
 import { WORD_TASKS, PPT_TASKS } from "@/lib/officeTasks";
 import NbemsExamStructure from "@/app/components/NbemsExamStructure";
-import { isNbemsSeries } from "@/lib/nbemsMock";
+import { isNbemsSeries, type MockSection } from "@/lib/nbemsMock";
 
 const WORD_TASK_COUNT = WORD_TASKS.length;
 const PPT_TASK_COUNT = PPT_TASKS.length;
@@ -101,6 +101,8 @@ export default function Tier2Page() {
   const [payMsg, setPayMsg] = useState<{ ok: boolean; text: string } | null>(null);
   // NBEMS: 75-minute full mocks kitne hain (card par dikhane ke liye)
   const [mockCount, setMockCount] = useState<number | null>(null);
+  // NBEMS full mocks — structure card isi se banta hai (naya pattern ho to wahi)
+  const [nbemsMocks, setNbemsMocks] = useState<{ pattern?: string; sections: MockSection[]; duration_min: number; is_free: boolean }[]>([]);
 
   useEffect(() => {
     const check = () => setNarrow(window.innerWidth < 820);
@@ -201,10 +203,10 @@ export default function Tier2Page() {
   function openSeries(s: Series) { go(s, null); }
 
   useEffect(() => {
-    if (!open || !isNbemsSeries(open.title)) { setMockCount(null); return; }
+    if (!open || !isNbemsSeries(open.title)) { setMockCount(null); setNbemsMocks([]); return; }
     fetch(`${API_URL}/nbems-mock/mocks?series_id=${open.id}`)
       .then((r) => r.json())
-      .then((d) => setMockCount((d?.mocks || []).length))
+      .then((d) => { setMockCount((d?.mocks || []).length); setNbemsMocks(d?.mocks || []); })
       .catch(() => setMockCount(0));
   }, [open]);
   function openTyping() { if (open) go(open, "typing"); }
@@ -405,17 +407,28 @@ export default function Tier2Page() {
             {/* NBEMS: Excel + Word + PowerPoint ek hi section me (skill test me
                 teeno aate hain). Baaki exams me Word/PPT nahi — wahan pehle jaisa
                 sirf Excel. Word/PPT hamesha free aur ready, isliye card hamesha. */}
-            {isNbemsSeries(open.title) && <NbemsExamStructure />}
+            {/* Exam structure sirf yahin — naya pattern ho to wahi, saath me practice mocks ki ek line */}
+            {isNbemsSeries(open.title) && (() => {
+              const v2 = nbemsMocks.find((m) => m.pattern === "v2");
+              const hasV1 = nbemsMocks.some((m) => m.pattern !== "v2");
+              return v2
+                ? <NbemsExamStructure sections={v2.sections} pattern="v2" restMinutes={v2.duration_min} practiceNote={hasV1} />
+                : <NbemsExamStructure sections={nbemsMocks[0]?.sections} />;
+            })()}
             {isNbemsSeries(open.title) && (
               <SectionCard
                 emoji="⏱️"
-                title="Full mocks · 75 minutes"
-                sub={[
-                  mockCount ? `${mockCount} full mocks` : "Full mocks",
-                  "Typing, Excel, Word, PowerPoint and 15 MCQ on one clock",
-                  "combined scorecard",
-                  "Mock 1 free",
-                ].join(" · ")}
+                title="Full mocks"
+                sub={(() => {
+                  const n2 = nbemsMocks.filter((m) => m.pattern === "v2").length;
+                  const n1 = nbemsMocks.length - n2;
+                  return [
+                    mockCount ? `${mockCount} full mocks` : "Full mocks",
+                    n2 && n1 ? `${n2} exam pattern + ${n1} practice (75 min)` : "",
+                    "combined scorecard",
+                    nbemsMocks.some((m) => m.is_free) ? "1 mock free" : "",
+                  ].filter(Boolean).join(" · ");
+                })()}
                 onClick={() => router.push(`/nbems-mock?s=${open.id}`)}
               />
             )}

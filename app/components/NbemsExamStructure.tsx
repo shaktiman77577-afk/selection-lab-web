@@ -13,8 +13,8 @@ import { DEFAULT_SECTIONS, MOCK_DISCLAIMER, PASS_PCT_GENERAL, PASS_PCT_RESERVED,
 
 const GOLD = "#FFAB00";
 
-export default function NbemsExamStructure({ sections = DEFAULT_SECTIONS, startOpen = false, pattern = "v1", restMinutes }:
-  { sections?: MockSection[]; startOpen?: boolean; pattern?: "v1" | "v2"; restMinutes?: number }) {
+export default function NbemsExamStructure({ sections = DEFAULT_SECTIONS, startOpen = false, pattern = "v1", restMinutes, practiceNote = false }:
+  { sections?: MockSection[]; startOpen?: boolean; pattern?: "v1" | "v2"; restMinutes?: number; practiceNote?: boolean }) {
   const [open, setOpen] = useState(startOpen);
   const v2 = pattern === "v2";
   const total = sections.reduce((a, s) => a + s.marks, 0);
@@ -89,6 +89,13 @@ export default function NbemsExamStructure({ sections = DEFAULT_SECTIONS, startO
               <b style={{ width: 64, textAlign: "right", color: GOLD }}>{total} marks</b>
             </div>
           </div>
+
+          {practiceNote && (
+            <div style={{ fontSize: 12.5, lineHeight: 1.65, marginBottom: 10 }}>
+              <b>Also included:</b> 5 practice mocks on our older 75-minute pattern (typing, Excel, Word, PowerPoint
+              and 15 computer MCQs on one clock) for extra practice.
+            </div>
+          )}
 
           <div role="note" style={{ fontSize: 12, lineHeight: 1.65, color: "var(--muted)", background: "var(--chip)", borderRadius: 10, padding: "9px 11px" }}>
             <b style={{ color: "var(--text)" }}>Please note:</b> {MOCK_DISCLAIMER}

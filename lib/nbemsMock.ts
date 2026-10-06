@@ -49,6 +49,28 @@ export function mmss(total: number): string {
   return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 }
 
+/** Sab students ke submit hue attempts — backend /nbems-mock/mocks deta hai */
+export type MockStats = { attempts: number; avg_pct: number | null };
+
+/** Kam se kam itne attempts ke baad hi difficulty tag — warna ek-do bachchon se galat tag lagta */
+export const DIFFICULTY_MIN_ATTEMPTS = 10;
+
+/** Average % se Easy / Medium / Hard. Kam data par null (tag nahi dikhta). */
+export function difficultyOf(s?: MockStats | null): { label: "Easy" | "Medium" | "Hard"; color: string } | null {
+  if (!s || s.attempts < DIFFICULTY_MIN_ATTEMPTS || s.avg_pct == null) return null;
+  if (s.avg_pct >= 60) return { label: "Easy", color: "#2e8b4a" };
+  if (s.avg_pct >= 40) return { label: "Medium", color: "#d68910" };
+  return { label: "Hard", color: "#c0392b" };
+}
+
+/** Dono pattern ke group — Full mocks list aur series card me yahi naam */
+export const PATTERN_GROUPS = [
+  { pattern: "v2" as const, title: "Exam Pattern Mocks", tag: "Latest",
+    sub: "Same as the reported NBEMS skill test: typing first (10 / 15 / 25 min), then fill in the blanks, mail merge and Excel" },
+  { pattern: "v1" as const, title: "Practice Mocks · 75 min", tag: "",
+    sub: "Extra practice on one 75-minute clock: typing, Excel, Word, PowerPoint and 15 computer MCQs" },
+];
+
 export function isNbemsSeries(title?: string | null): boolean {
   return /nbems/i.test(title || "");
 }

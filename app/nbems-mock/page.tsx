@@ -9,8 +9,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getUser } from "@/lib/api";
 import { API_URL } from "@/lib/config";
-import NbemsExamStructure from "@/app/components/NbemsExamStructure";
-import { mmss, type MockSection } from "@/lib/nbemsMock";
+import { mmss, difficultyOf, PATTERN_GROUPS, type MockSection, type MockStats } from "@/lib/nbemsMock";
 
 const GOLD = "#FFAB00";
 const GREEN = "#2e8b4a";
@@ -23,6 +22,7 @@ type MockRow = {
   pattern?: "v1" | "v2"; typing_minute_options?: number[] | null;
   in_progress: { attempt_id: number; remaining: number } | null;
   last: Summary | null; best: Summary | null; attempts: number;
+  stats?: MockStats;
 };
 
 export default function NbemsMockList() {
@@ -48,9 +48,13 @@ export default function NbemsMockList() {
     router.push(`/nbems-mock/${m.id}?s=${sid}`);
   }
 
-  // Naya pattern (v2) ho to structure card usi ka — wahi asli test jaisa hai
-  const v2Mock = mocks?.find((m) => m.pattern === "v2");
-  const sections = (v2Mock || mocks?.[0])?.sections;
+  // Do group: Exam Pattern (naya) upar, Practice 75 min (purana) neeche.
+  // Number har group me 1 se — database ka mock_number (6-10) student ko nahi dikhta.
+  const groups = PATTERN_GROUPS.map((g) => ({
+    ...g,
+    list: (mocks || []).filter((m) => (m.pattern === "v2" ? "v2" : "v1") === g.pattern)
+      .sort((a, b) => a.mock_number - b.mock_number),
+  })).filter((g) => g.list.length > 0);
 
   return (
     <div style={{ maxWidth: 760, margin: "0 auto", padding: "14px 14px 40px", color: "var(--text)" }}>
@@ -63,28 +67,39 @@ export default function NbemsMockList() {
         </div>
       </div>
 
-      <NbemsExamStructure sections={sections} pattern={v2Mock ? "v2" : "v1"} restMinutes={v2Mock?.duration_min} />
-
       {mocks === null && <p style={{ color: "var(--muted)", fontSize: 14 }}>Loading…</p>}
       {error && <p style={{ color: RED, fontSize: 13.5 }}>{error}</p>}
       {mocks && !error && mocks.length === 0 && <p style={{ color: "var(--muted)", fontSize: 14 }}>The full mocks are coming soon.</p>}
 
-      {(mocks || []).map((m) => {
+      {groups.map((g) => (
+        <section key={g.pattern} style={{ marginBottom: 22 }}>
+          <div style={{ margin: "6px 2px 10px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <h2 style={{ fontSize: 16, fontWeight: 800, margin: 0 }}>{g.title}</h2>
+              {g.tag && <span style={{ fontSize: 10.5, fontWeight: 900, color: "#1a1a1a", background: GOLD, borderRadius: 20, padding: "2px 8px" }}>{g.tag.toUpperCase()}</span>}
+              <span style={{ fontSize: 12.5, color: "var(--muted)" }}>· {g.list.length} mocks</span>
+            </div>
+            <div style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 3, lineHeight: 1.5 }}>{g.sub}</div>
+          </div>
+      {g.list.map((m, idx) => {
         const run = m.in_progress;
+        const diff = difficultyOf(m.stats);
+        const label = g.pattern === "v2" ? `Exam Pattern Mock ${idx + 1}` : `Practice Mock ${idx + 1}`;
         return (
           <div key={m.id} style={{ background: "var(--card)", border: `1px solid ${run ? GOLD : "var(--line)"}`, borderRadius: 14,
                                    padding: 14, marginBottom: 10, boxShadow: "var(--shadow)" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <span style={{ width: 38, height: 38, borderRadius: 10, background: "rgba(255,171,0,0.14)", color: GOLD, fontWeight: 900,
-                             display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{m.mock_number}</span>
+                             display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{idx + 1}</span>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 14.5, fontWeight: 800 }}>
-                  {m.title}
+                  {label}
+                  {diff && <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 800, color: diff.color, border: `1px solid ${diff.color}`, borderRadius: 6, padding: "1px 6px" }}>{diff.label}</span>}
                   {m.is_free && <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 800, color: GREEN, border: `1px solid ${GREEN}`, borderRadius: 6, padding: "1px 6px" }}>FREE</span>}
                 </div>
                 <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 3 }}>
                   {m.pattern === "v2"
-                    ? <>New pattern · typing {(m.typing_minute_options || [10, 15, 25]).join("/")} min + {m.duration_min} min · {m.total_marks} marks · Typing, Fill in the blanks, Mail merge, Excel</>
+                    ? <>Typing {(m.typing_minute_options || [10, 15, 25]).join("/")} min + {m.duration_min} min · {m.total_marks} marks · Typing, Fill in the blanks, Mail merge, Excel</>
                     : <>{m.duration_min} min · {m.total_marks} marks · Typing, Excel, Word, PowerPoint, 15 MCQ</>}
                 </div>
                 {run && <div style={{ fontSize: 12.5, color: GOLD, fontWeight: 700, marginTop: 4 }}>In progress · {mmss(run.remaining)} left on the clock</div>}
@@ -112,6 +127,8 @@ export default function NbemsMockList() {
           </div>
         );
       })}
+        </section>
+      ))}
     </div>
   );
 }
