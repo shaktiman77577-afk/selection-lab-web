@@ -435,5 +435,121 @@ export const MOCK_PPT_TASKS: Task<PptDoc>[] = [
   },
 ];
 
-export const MOCK_TASKS: Task<any>[] = [...MOCK_WORD_TASKS, ...MOCK_PPT_TASKS];
+// ═══════════════════════════════════════════════════════════════════════════
+//  FILL IN THE BLANKS (naya pattern v2) — Word me type karke, har task 25 marks
+//  10 blanks × 2 · koi ____ na bache 2 · Save As 3
+//  Passage me [[jawab]] likhiye; document me wahan ________ aata hai.
+// ═══════════════════════════════════════════════════════════════════════════
+const BLANK = "__________";
+const BLANK_RE = /\[\[([^\]]+)\]\]/g;
+
+function fillTask(t: { id: string; title: string; heading: string; paras: string[]; fileName: string }): Task<WordDoc> {
+  const answers: string[] = [];
+  type Spot = { answer: string; before: string; after: string; atStart: boolean; atEnd: boolean };
+  const spots: Spot[] = [];
+  for (const para of t.paras) {
+    const parts = para.split(BLANK_RE);                // [text, ans, text, ans, text]
+    for (let i = 1; i < parts.length; i += 2) {
+      answers.push(parts[i]);
+      // Pados ka text (agle/pichhle blank tak), zyada se zyada 4 shabd
+      const before = parts[i - 1].split(/\s+/).slice(-4).join(" ");
+      const after = (parts[i + 1] ?? "").split(/\s+/).slice(0, 4).join(" ");
+      spots.push({ answer: parts[i], before, after, atStart: i === 1 && !norm(parts[0]), atEnd: i === parts.length - 2 && !norm(parts[i + 1] ?? "") });
+    }
+  }
+  const ok = (d: WordDoc, s: Spot) => {
+    const want = low(s.answer);
+    return paras(d).some((p) => {
+      const line = low(p.text);
+      let from = 0;
+      for (;;) {
+        const i = line.indexOf(want, from);
+        if (i < 0) return false;
+        const left = norm(line.slice(0, i)), right = norm(line.slice(i + want.length));
+        const b = low(s.before), a = low(s.after);
+        const okL = s.atStart ? left === "" : b === "" || left.endsWith(b);
+        const okR = s.atEnd ? right === "" : a === "" || right.startsWith(a);
+        // jawab ke dono taraf seedha shabd na chipka ho (e.g. "data" ki jagah "metadata")
+        const glueL = i > 0 && /[a-z0-9_]/i.test(line[i - 1]);
+        const glueR = /[a-z0-9_]/i.test(line[i + want.length] || "");
+        if (okL && okR && !glueL && !glueR) return true;
+        from = i + 1;
+      }
+    });
+  };
+  const box = [...answers].sort((x, y) => x.toLowerCase().localeCompare(y.toLowerCase()));
+  const start = [t.heading, ...t.paras.map((p) => p.replace(BLANK_RE, BLANK))];
+  return {
+    id: t.id, app: "word", title: t.title, minutes: 15,
+    intro: `The document below has ${answers.length} blanks (${BLANK}). Fill each blank with the right word from the Word Box.`,
+    steps: [
+      "Word Box: " + box.join(" · "),
+      "Select a blank (all its underscores) and type the right word over it. No underscores should remain.",
+      "Each word is used once. Do not change any other text.",
+      `Save the file as ${t.fileName}`,
+    ],
+    start: () => makeDoc(start, 12),
+    checks: [
+      ...spots.map((s, i) => ({
+        label: `Blank ${i + 1} filled correctly`, marks: 2,
+        fix: `Blank ${i + 1}: …${s.before} ${BLANK} ${s.after}… — check the spelling and that the underscores are gone.`,
+        test: (d: WordDoc) => ok(d, s),
+      })),
+      { label: "No blank left", marks: 2, fix: "Some underscores (____) are still in the document. Fill every blank.",
+        test: (d: WordDoc) => !plainText(d).includes("___") && answers.some((a) => plainText(d).toLowerCase().includes(a.toLowerCase())) },
+      { label: `Saved as ${t.fileName}`, marks: 3, fix: `Press Save As and type ${t.fileName.replace(/\.docx$/i, "")}.`,
+        test: (d: WordDoc) => fileIs(d.fileName, t.fileName) },
+    ],
+  };
+}
+
+export const MOCK_FILL_TASKS: Task<WordDoc>[] = [
+  fillTask({
+    id: "fb1-computer", title: "Fill in the blanks — Computer fundamentals", heading: "COMPUTER FUNDAMENTALS", fileName: "FillBlanks1.docx",
+    paras: [
+      "A computer is an electronic device that accepts [[data]], processes it and gives the result as information. The physical parts of a computer are called [[hardware]], while the programs that run on it are called software.",
+      "The [[CPU]] is known as the brain of the computer. The keyboard and the [[mouse]] are input devices, whereas the monitor and the printer are [[output]] devices.",
+      "[[RAM]] is a temporary memory and its contents are lost when the power is switched off. The hard disk stores data [[permanently]]. One [[byte]] is made up of eight bits.",
+      "The [[operating]] system manages all the resources of a computer. Windows and [[Linux]] are popular examples of it.",
+    ],
+  }),
+  fillTask({
+    id: "fb2-word", title: "Fill in the blanks — MS Word", heading: "WORKING WITH MS WORD", fileName: "FillBlanks2.docx",
+    paras: [
+      "MS Word is a [[word]] processing program used to create letters, reports and notices. The [[ribbon]] at the top of the window contains tabs such as Home, Insert and Layout.",
+      "To make the selected text darker, we use [[Bold]], and to draw a line below it, we use [[Underline]]. The [[Justify]] option aligns the text evenly on both the left and the right margins.",
+      "The Find and [[Replace]] feature is used to change a word throughout the document in one step. A [[table]] is inserted from the Insert tab to arrange data in rows and columns.",
+      "[[Mail]] merge is used to send the same letter to many people. Before printing, the [[Print]] Preview option shows how the pages will look. The default file extension of a Word document is [[docx]].",
+    ],
+  }),
+  fillTask({
+    id: "fb3-office", title: "Fill in the blanks — Office procedure", heading: "OFFICE PROCEDURE", fileName: "FillBlanks3.docx",
+    paras: [
+      "A [[circular]] is used to convey the same information to a large number of persons or offices. An office [[order]] is issued to give directions on internal matters such as transfers and postings.",
+      "A demi-official letter is written in a [[personal]] style and begins with the name of the officer. A [[memorandum]] is generally written in the third person and does not have a salutation.",
+      "Every letter received in the office is first entered in the [[diary]] register. The noting is done on the [[file]], and the final reply is issued after the draft is [[approved]] by the competent authority.",
+      "Files that are no longer needed for daily work are sent to the [[record]] room. Casual [[leave]] is not treated as a regular kind of leave. Urgent papers are marked with a [[priority]] label.",
+    ],
+  }),
+  fillTask({
+    id: "fb4-internet", title: "Fill in the blanks — Internet and e-mail", heading: "INTERNET AND E-MAIL", fileName: "FillBlanks4.docx",
+    paras: [
+      "The [[Internet]] is a worldwide network of computers. A [[browser]] such as Chrome or Firefox is used to open websites.",
+      "Every website has a unique address called a [[URL]]. The pages of a website are written in [[HTML]].",
+      "In an e-mail, the address of the main receiver is typed in the To box. The [[CC]] box sends a copy to other persons, while [[BCC]] hides their addresses from the others. Files are sent with an e-mail as an [[attachment]].",
+      "Unwanted bulk e-mail is called [[spam]]. A [[password]] should never be shared with anyone. A [[firewall]] protects a computer network from unauthorised access.",
+    ],
+  }),
+  fillTask({
+    id: "fb5-excel", title: "Fill in the blanks — MS Excel", heading: "WORKING WITH MS EXCEL", fileName: "FillBlanks5.docx",
+    paras: [
+      "MS Excel is a [[spreadsheet]] program. A file in Excel is called a [[workbook]], and each workbook can have many worksheets.",
+      "The meeting point of a row and a column is called a [[cell]]. Columns are named by [[letters]] and rows are named by numbers.",
+      "Every formula in Excel begins with the [[equal]] sign. The [[SUM]] function adds a range of numbers, and the [[AVERAGE]] function gives their mean.",
+      "Data can be arranged in ascending order with the [[Sort]] option. The [[Filter]] option shows only the rows that match a condition. A [[chart]] presents the data in the form of a graph.",
+    ],
+  }),
+];
+
+export const MOCK_TASKS: Task<any>[] = [...MOCK_WORD_TASKS, ...MOCK_PPT_TASKS, ...MOCK_FILL_TASKS];
 export const mockTask = (id?: string | null) => MOCK_TASKS.find((t) => t.id === id);

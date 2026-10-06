@@ -15,6 +15,12 @@
  * browser band ho ya phone badle, wahin se chalu. Ghadi khatam = auto submit.
  *
  * Word/PPT ki jaanch yahin browser me (lib/nbemsMockTasks.ts), baaki backend me.
+ *
+ * NAYA PATTERN (mock.pattern = "v2"): Typing · Fill in the blanks · Mail merge
+ * · Excel. Student shuru me typing ka time chunta hai (10/15/25). Pehle sirf
+ * typing khulti hai — uski ghadi server ki hai, shuru hote hi chalti hai. Time
+ * poora ho ya "Finish typing" dabaye, to typing band aur baaki teen hisse
+ * apni ghadi (duration_min) par khulte hain.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -22,7 +28,9 @@ import { getUser } from "@/lib/api";
 import { API_URL } from "@/lib/config";
 import { grade, type WordDoc, type PptDoc } from "@/lib/officeTasks";
 import { mockTask } from "@/lib/nbemsMockTasks";
-import { DEFAULT_SECTIONS, MOCK_DISCLAIMER, SECTION_EMOJI, mmss, type MockSection, type SectionKey } from "@/lib/nbemsMock";
+import { DEFAULT_SECTIONS, V2_SECTIONS, MOCK_DISCLAIMER, SECTION_EMOJI, SHORT_NAME, mmss, type MockSection, type SectionKey } from "@/lib/nbemsMock";
+import { mergeTaskById, type MergeDoc } from "@/lib/nbemsMailMerge";
+import MailMergeSim, { MergeBrief } from "@/app/components/MailMergeSim";
 import WordSimTiptap from "@/app/components/WordSimTiptap";
 import PptSim from "@/app/components/PptSim";
 import PdfViewer from "@/app/components/PdfViewer";
@@ -32,16 +40,17 @@ const GOLD = "#FFAB00";
 const GREEN = "#2e8b4a";
 const RED = "#c0392b";
 const SAVE_EVERY_MS = 20000;
-const SHORT: Record<SectionKey, string> = { typing: "Typing", excel: "Excel", word: "Word", ppt: "PowerPoint", mcq: "MCQ" };
+const SHORT = SHORT_NAME;
 
 type Grade = { rows: { label: string; fix: string; marks: number; ok: boolean }[]; score: number; total: number; touched: boolean };
 type StartData = {
-  attempt_id: number; remaining: number; resumed: boolean; state: any;
-  mock: { id: number; title: string; duration_min: number; total_marks: number; sections: MockSection[] };
+  attempt_id: number; remaining: number; resumed: boolean; state: any; typing_left?: number;
+  mock: { id: number; title: string; duration_min: number; total_marks: number; sections: MockSection[];
+          pattern?: "v1" | "v2"; typing_minute_options?: number[] | null };
   typing: { title: string; passage: string; minutes: number; target_wpm: number; check_line_breaks: boolean };
   excel: null | { test_id: number; title: string; start_cell: string; start_strict: boolean; has_merge: boolean; has_borders: boolean;
                   instructions: { label_en: string; marks: number }[] };
-  word_task_id: string; ppt_task_id: string;
+  word_task_id: string; ppt_task_id: string; fill_task_id?: string; merge_task_id?: string;
   mcq: { id: number; q_no: number; question: string; options: string[] }[];
 };
 
@@ -83,19 +92,40 @@ export default function NbemsMockRunner() {
   const [wordGrade, setWordGrade] = useState<Grade | null>(null);
   const [pptGrade, setPptGrade] = useState<Grade | null>(null);
   const [mcq, setMcq] = useState<Record<string, string>>({});
+  // v2
+  const [pickMins, setPickMins] = useState<number | null>(null);
+  const [typingLeft, setTypingLeft] = useState(0);         // server se, typing ke bache second
+  const [typingClosed, setTypingClosed] = useState(false);
+  const [confirmTyping, setConfirmTyping] = useState(false);
+  const fillDoc = useRef<WordDoc | null>(null);
+  const fillBase = useRef<string | null>(null);
+  const fillTouched = useRef(false);
+  const [fillGrade, setFillGrade] = useState<Grade | null>(null);
+  const mergeDoc = useRef<MergeDoc | null>(null);
+  const mergeTouched = useRef(false);
+  const [mergeGrade, setMergeGrade] = useState<Grade | null>(null);
   const [times, setTimes] = useState<Record<string, number>>({});
 
   const dirty = useRef(false);
   const dataRef = useRef<StartData | null>(null);
   const finished = useRef(false);
 
-  const sections = data?.mock.sections?.length ? data.mock.sections : (meta?.sections || DEFAULT_SECTIONS);
-  const secOf = (k: SectionKey) => sections.find((s: MockSection) => s.key === k) || DEFAULT_SECTIONS.find((s) => s.key === k)!;
+  const v2 = (data?.mock.pattern || meta?.pattern) === "v2";
+  const sections = data?.mock.sections?.length ? data.mock.sections : (meta?.sections || (v2 ? V2_SECTIONS : DEFAULT_SECTIONS));
+  const secOf = (k: SectionKey) => sections.find((s: MockSection) => s.key === k) || [...DEFAULT_SECTIONS, ...V2_SECTIONS].find((s) => s.key === k)!;
   const typingLimit = (data?.typing.minutes || 10) * 60;
-  const typingLocked = typingSecs >= typingLimit || remaining <= 0;
+  const typingPhase = v2 && !typingClosed && typingLeft > 0;
+  const typingLocked = v2 ? !typingPhase || remaining <= 0 : typingSecs >= typingLimit || remaining <= 0;
+  const typingShown = v2 ? typingLeft : typingLimit - typingSecs;
+  const minuteOpts: number[] = (meta?.typing_minute_options || data?.mock.typing_minute_options || [10, 15, 25]) as number[];
+  const restMins = Number(meta?.duration_min || data?.mock.duration_min || 60);
 
   const wordTask = useMemo(() => mockTask(data?.word_task_id), [data?.word_task_id]);
   const pptTask = useMemo(() => mockTask(data?.ppt_task_id), [data?.ppt_task_id]);
+  const fillTask = useMemo(() => mockTask(data?.fill_task_id), [data?.fill_task_id]);
+  const mergeTask = useMemo(() => mergeTaskById(data?.merge_task_id), [data?.merge_task_id]);
+  const fillStart = useMemo(() => (data ? (data.state?.fill_doc as WordDoc) || (fillTask?.start ? fillTask.start() : undefined) : undefined), [data, fillTask]);
+  const mergeStart = useMemo(() => (data && mergeTask ? (data.state?.merge_doc as MergeDoc) || mergeTask.start!() : undefined), [data, mergeTask]);
   // Simulator sirf pehli baar start padhta hai — resume par saved kaam, warna task ka
   const wordStart = useMemo(() => (data ? (data.state?.word_doc as WordDoc) || (wordTask?.start ? wordTask.start() : undefined) : undefined), [data, wordTask]);
   const pptStart = useMemo(() => (data ? (data.state?.ppt_doc as PptDoc) || (pptTask?.start ? pptTask.start() : { slides: [], deletedTitles: [], fileName: "" }) : undefined), [data, pptTask]);
@@ -120,6 +150,8 @@ export default function NbemsMockRunner() {
              align: sheet.align || {}, wrap: sheet.wrap || [], num_formats: sheet.fmt || {} },
     word_doc: wordDoc.current, word_grade: wordGrade,
     ppt_doc: pptDoc.current, ppt_grade: pptGrade,
+    fill_doc: fillDoc.current, fill_grade: fillGrade,
+    merge_doc: mergeDoc.current, merge_grade: mergeGrade,
     mcq, times, tab,
   });
 
@@ -139,6 +171,7 @@ export default function NbemsMockRunner() {
       const d = await r.json();
       if (d?.submitted) { goResult(data.attempt_id); return; }
       if (typeof d?.remaining === "number") setRemaining(d.remaining);   // server ki ghadi se milao
+      if (typeof d?.typing_left === "number" && dataRef.current?.mock.pattern === "v2") setTypingLeft(d.typing_left);
       setSaveNote(`Saved ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`);
     } catch {
       dirty.current = true;
@@ -173,7 +206,7 @@ export default function NbemsMockRunner() {
     try {
       const r = await fetch(`${API_URL}/nbems-mock/start`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_id: uid, mock_id: mockId }),
+        body: JSON.stringify({ user_id: uid, mock_id: mockId, ...(pickMins ? { typing_minutes: pickMins } : {}) }),
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.detail || "Could not start the mock");
@@ -191,7 +224,17 @@ export default function NbemsMockRunner() {
       pptTouched.current = !!st.ppt_grade?.touched;
       setMcq(st.mcq || {});
       setTimes(st.times || {});
-      if (st.tab) setTab(st.tab);
+      fillDoc.current = st.fill_doc || null; mergeDoc.current = st.merge_doc || null;
+      if (st.fill_grade) setFillGrade(st.fill_grade);
+      if (st.merge_grade) setMergeGrade(st.merge_grade);
+      fillTouched.current = !!st.fill_grade?.touched;
+      mergeTouched.current = !!st.merge_grade?.touched;
+      const isV2 = d.mock?.pattern === "v2";
+      const left = Number(d.typing_left || 0);
+      setTypingLeft(left);
+      setTypingClosed(isV2 && left <= 0);
+      if (isV2) setTab(left > 0 ? "typing" : (st.tab && st.tab !== "typing" ? st.tab : "fill"));
+      else if (st.tab) setTab(st.tab);
       setRemaining(d.remaining);
       dataRef.current = d;
       setData(d);
@@ -213,6 +256,7 @@ export default function NbemsMockRunner() {
       const k = tabRef.current;
       setTimes((x) => ({ ...x, [k]: (x[k] || 0) + 1 }));
       if (k === "typing" && typStartRef.current) setTypingSecs((s) => Math.min(typingLimit, s + 1));
+      setTypingLeft((s) => Math.max(0, s - 1));
     }, 1000);
     return () => clearInterval(t);
   }, [stage, typingLimit]);
@@ -224,6 +268,36 @@ export default function NbemsMockRunner() {
       submit();
     }
   }, [remaining, stage, data, submit]);
+
+  // ── v2: typing band — time poora ya student ne khud band kiya ──
+  const closing = useRef(false);
+  const closeTyping = useCallback(async () => {
+    if (!data || closing.current || finished.current) return;
+    closing.current = true;
+    setConfirmTyping(false);
+    setTypingClosed(true);
+    setTab((t) => (t === "typing" ? "fill" : t));
+    for (let tryNo = 0; tryNo < 3; tryNo++) {
+      try {
+        const r = await fetch(`${API_URL}/nbems-mock/typing-done`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ user_id: uid, attempt_id: data.attempt_id, typing: latest.current().typing }),
+        });
+        const d = await r.json();
+        if (d?.submitted) { goResult(data.attempt_id); return; }
+        if (typeof d?.remaining === "number") setRemaining(d.remaining);
+        setTypingLeft(0);
+        return;
+      } catch {
+        await new Promise((res) => setTimeout(res, 1500));
+      }
+    }
+    // Net nahi chala — aakhri autosave par server khud typing band kar dega
+  }, [data, uid, goResult]);
+
+  useEffect(() => {
+    if (stage === "work" && v2 && !typingClosed && typingLeft <= 0 && data) closeTyping();
+  }, [stage, v2, typingClosed, typingLeft, data, closeTyping]);
 
   // ── Autosave ──
   useEffect(() => {
@@ -238,6 +312,7 @@ export default function NbemsMockRunner() {
 
   function switchTab(k: SectionKey) {
     if (k === tab) return;
+    if (v2 && typingPhase && k !== "typing") return;   // pehle typing
     setTab(k);
     if (dirty.current) save();
     window.scrollTo({ top: 0 });
@@ -279,12 +354,31 @@ export default function NbemsMockRunner() {
     dirty.current = true;
   }
 
+  function onFill(d: WordDoc) {
+    fillDoc.current = d;
+    const js = JSON.stringify(d);
+    if (fillBase.current === null) { fillBase.current = js; if (!fillTouched.current) return; }
+    if (js !== fillBase.current) fillTouched.current = true;
+    const t = mockTask(dataRef.current?.fill_task_id);
+    if (t) setFillGrade({ ...grade(t, d), touched: fillTouched.current });
+    dirty.current = true;
+  }
+  function onMerge(d: MergeDoc) {
+    mergeDoc.current = d;
+    if (!mergeTouched.current && JSON.stringify(d) !== JSON.stringify(mergeStart)) mergeTouched.current = true;
+    const t = mergeTaskById(dataRef.current?.merge_task_id);
+    if (t) setMergeGrade({ ...grade(t, d), touched: mergeTouched.current });
+    dirty.current = true;
+  }
+
   const attempted: Record<SectionKey, boolean> = {
     typing: typed.trim().length > 0,
     excel: Object.values(sheet.cells).some((v) => (v || "").trim()),
     word: !!wordGrade?.touched,
     ppt: !!pptGrade?.touched,
     mcq: Object.keys(mcq).length > 0,
+    fill: !!fillGrade?.touched,
+    merge: !!mergeGrade?.touched,
   };
 
   // ════════════════ BRIEF ════════════════
@@ -296,18 +390,47 @@ export default function NbemsMockRunner() {
           style={{ background: "transparent", border: "none", fontSize: 20, cursor: "pointer", color: "var(--text)", padding: 0, marginBottom: 8 }}>←</button>
         <h1 style={{ fontSize: 20, fontWeight: 900, margin: "0 0 4px" }}>{meta?.title || "NBEMS full mock"}</h1>
         <p style={{ fontSize: 13, color: "var(--muted)", margin: "0 0 14px" }}>
-          {meta?.duration_min || 75} minutes · {meta?.total_marks || 100} marks · five parts on one clock
+          {v2
+            ? <>Typing ({minuteOpts.join(" / ")} min, your choice) + {restMins} minutes for the other three parts · {meta?.total_marks || 100} marks</>
+            : <>{meta?.duration_min || 75} minutes · {meta?.total_marks || 100} marks · five parts on one clock</>}
         </p>
 
         <div style={{ border: "1px solid var(--line)", borderRadius: 12, overflow: "hidden", marginBottom: 14 }}>
           {sections.map((s: MockSection, i: number) => (
             <div key={s.key} style={{ display: "flex", gap: 10, padding: "9px 12px", fontSize: 13.5, borderTop: i ? "1px solid var(--line)" : "none", background: "var(--card)" }}>
               <span>{SECTION_EMOJI[s.key]}</span><span style={{ flex: 1 }}>{s.name}</span>
-              <span style={{ color: "var(--muted)" }}>{s.minutes} min</span><b style={{ width: 70, textAlign: "right" }}>{s.marks} marks</b>
+              <span style={{ color: "var(--muted)" }}>{v2 && s.key === "typing" ? `${minuteOpts.join("/")} min` : `${s.minutes} min`}</span><b style={{ width: 70, textAlign: "right" }}>{s.marks} marks</b>
             </div>
           ))}
         </div>
 
+        {v2 ? (
+        <div style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12, padding: 14, fontSize: 13.5, lineHeight: 1.75, marginBottom: 14 }}>
+          <b>How this mock works</b>
+          <ol style={{ margin: "6px 0 0", paddingLeft: 20, color: "var(--muted)" }}>
+            <li><b style={{ color: "var(--text)" }}>Typing comes first</b>, on its own clock of the minutes you choose below. The clock starts as soon as you press Start.</li>
+            <li>Your speed is always worked out over the full time you chose, even if you finish early. {secOf("typing").marks} marks at 35 net words per minute.</li>
+            <li>When the typing time ends, or you press <b style={{ color: "var(--text)" }}>Finish typing</b>, typing closes and the other three parts open on one clock of <b style={{ color: "var(--text)" }}>{restMins} minutes</b>. Unused typing time is not added to it.</li>
+            <li>Move between Fill in the blanks, Mail merge and Excel at any time. Your work in each part stays.</li>
+            <li><b style={{ color: "var(--text)" }}>Fill in the blanks</b> and the merged letters: finish with <b style={{ color: "var(--text)" }}>Save As</b> and the exact file name asked for. It carries marks.</li>
+            <li>Your work is saved every few seconds. If the page closes, open this mock again and press Resume. The clock does not stop.</li>
+          </ol>
+          {!run && (
+            <div style={{ marginTop: 12 }}>
+              <div style={{ fontWeight: 800, color: "var(--text)", marginBottom: 6 }}>Choose your typing time</div>
+              <div role="radiogroup" aria-label="Typing time" style={{ display: "flex", gap: 8 }}>
+                {minuteOpts.map((m) => (
+                  <button key={m} type="button" role="radio" aria-checked={pickMins === m} onClick={() => setPickMins(m)}
+                    style={{ flex: 1, padding: "10px 6px", borderRadius: 10, cursor: "pointer", fontWeight: 800, fontSize: 15, color: "var(--text)",
+                             border: `1.5px solid ${pickMins === m ? GOLD : "var(--line)"}`, background: pickMins === m ? "rgba(255,171,0,0.14)" : "transparent" }}>
+                    {m} min
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+        ) : (
         <div style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12, padding: 14, fontSize: 13.5, lineHeight: 1.75, marginBottom: 14 }}>
           <b>How this mock works</b>
           <ol style={{ margin: "6px 0 0", paddingLeft: 20, color: "var(--muted)" }}>
@@ -319,15 +442,19 @@ export default function NbemsMockRunner() {
             <li>When the clock reaches zero, the test is submitted on its own.</li>
           </ol>
         </div>
+        )}
 
         <p role="note" style={{ fontSize: 12, color: "var(--muted)", lineHeight: 1.65, background: "var(--chip)", borderRadius: 10, padding: "9px 11px", marginBottom: 14 }}>
-          <b style={{ color: "var(--text)" }}>Practice only.</b> {MOCK_DISCLAIMER} The Word, PowerPoint and Excel editors here work like the real
+          <b style={{ color: "var(--text)" }}>Practice only.</b> {MOCK_DISCLAIMER} The {v2 ? "Word, Mail merge" : "Word, PowerPoint"} and Excel editors here work like the real
           software but are not the same, so also practise on a real computer if you can.
         </p>
 
         {error && <p style={{ color: RED, fontSize: 13.5 }}>{error}</p>}
-        <button onClick={start} disabled={stage === "starting"} style={goldBtn}>
-          {stage === "starting" ? "Opening…" : run ? `Resume — ${mmss(run.remaining)} left` : "Start — the 75-minute clock begins"}
+        <button onClick={start} disabled={stage === "starting" || (v2 && !run && !pickMins)}
+          style={{ ...goldBtn, opacity: v2 && !run && !pickMins ? 0.5 : 1 }}>
+          {stage === "starting" ? "Opening…" : run ? `Resume — ${mmss(run.remaining)} left`
+            : v2 ? (pickMins ? `Start — ${pickMins}-minute typing begins` : "Choose your typing time first")
+            : `Start — the ${meta?.duration_min || 75}-minute clock begins`}
         </button>
       </Shell>
     );
@@ -372,8 +499,10 @@ export default function NbemsMockRunner() {
             <div style={{ fontSize: 11, color: "var(--muted)" }}>{saveNote || "Your work is saved automatically"}</div>
           </div>
           <div style={{ textAlign: "right" }}>
-            <div style={{ fontSize: 10.5, color: "var(--muted)" }}>Time left</div>
-            <div style={{ fontSize: 20, fontWeight: 900, fontVariantNumeric: "tabular-nums", color: low ? RED : "var(--text)" }}>{mmss(remaining)}</div>
+            <div style={{ fontSize: 10.5, color: "var(--muted)" }}>{typingPhase ? "Typing time" : "Time left"}</div>
+            <div style={{ fontSize: 20, fontWeight: 900, fontVariantNumeric: "tabular-nums", color: low || (typingPhase && typingLeft <= 60) ? RED : "var(--text)" }}>
+              {mmss(typingPhase ? typingLeft : remaining)}
+            </div>
           </div>
           <button onClick={() => setConfirm(true)} disabled={stage === "submitting"}
             style={{ background: GOLD, color: "#1a1a1a", border: "none", borderRadius: 10, padding: "10px 14px", fontWeight: 800, cursor: "pointer", flexShrink: 0 }}>
@@ -387,15 +516,18 @@ export default function NbemsMockRunner() {
             const on = s.key === tab;
             return (
               <button key={s.key} role="tab" aria-selected={on} onClick={() => switchTab(s.key)}
+                aria-disabled={v2 && typingPhase && s.key !== "typing"}
                 style={{ flexShrink: 0, padding: "7px 11px", borderRadius: 10, cursor: "pointer", textAlign: "left",
-                         border: `1.5px solid ${on ? GOLD : "var(--line)"}`, background: on ? "rgba(255,171,0,0.12)" : "var(--card)", color: "var(--text)" }}>
+                         border: `1.5px solid ${on ? GOLD : "var(--line)"}`, background: on ? "rgba(255,171,0,0.12)" : "var(--card)", color: "var(--text)",
+                         opacity: v2 && typingPhase && s.key !== "typing" ? 0.5 : 1 }}>
                 <div style={{ fontSize: 13, fontWeight: 800 }}>
                   {SECTION_EMOJI[s.key]} {SHORT[s.key]}{" "}
                   <span style={{ display: "inline-block", width: 7, height: 7, borderRadius: 7, marginLeft: 3, verticalAlign: "middle",
                                  background: attempted[s.key] ? GREEN : "var(--line)" }} aria-label={attempted[s.key] ? "attempted" : "not attempted"} />
                 </div>
                 <div style={{ fontSize: 10.5, color: "var(--muted)" }}>
-                  {s.marks} marks · {s.key === "typing" ? `${mmss(typingLimit - typingSecs)} left` : `${s.minutes} min`}
+                  {s.marks} marks · {s.key === "typing" ? (v2 && typingClosed ? "closed" : `${mmss(typingShown)} left`)
+                    : v2 && typingPhase ? "after typing" : `${s.minutes} min`}
                 </div>
               </button>
             );
@@ -404,7 +536,8 @@ export default function NbemsMockRunner() {
       </div>
 
       <div style={{ fontSize: 12, color: "var(--muted)", margin: "2px 2px 10px" }}>
-        {cur.name} · suggested {cur.minutes} min · {cur.marks} marks · time spent here {mmss(times[tab] || 0)}
+        {cur.name} · {v2 && tab === "typing" ? `${data.typing.minutes} min` : `suggested ${cur.minutes} min`} · {cur.marks} marks · time spent here {mmss(times[tab] || 0)}
+        {typingPhase && <> · the other parts open after typing ({restMins} min)</>}
       </div>
       {error && <p style={{ color: RED, fontSize: 13 }}>{error}</p>}
 
@@ -414,13 +547,15 @@ export default function NbemsMockRunner() {
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
             <b style={{ flex: 1, fontSize: 14 }}>{data.typing.title}</b>
             <span style={{ fontSize: 13, fontWeight: 800, fontVariantNumeric: "tabular-nums", color: typingLocked ? RED : "var(--text)" }}>
-              Typing time {mmss(typingLimit - typingSecs)}
+              Typing time {mmss(typingShown)}
             </span>
           </div>
           <div style={{ fontSize: 12, color: "var(--muted)", lineHeight: 1.6, marginBottom: 8 }}>
             Type the letter below exactly, with the same capital letters and punctuation.
             {data.typing.check_line_breaks ? " Press Enter wherever the letter starts a new line — line breaks are checked." : ""}{" "}
-            Your {data.typing.minutes} minutes run only while this tab is open, from your first key. Aim for {data.typing.target_wpm} words per minute or more.
+            {v2
+              ? <>You chose {data.typing.minutes} minutes. The clock is already running. Speed is worked out over the full {data.typing.minutes} minutes. Aim for {data.typing.target_wpm} words per minute or more.</>
+              : <>Your {data.typing.minutes} minutes run only while this tab is open, from your first key. Aim for {data.typing.target_wpm} words per minute or more.</>}
           </div>
           <div onCopy={(e) => e.preventDefault()} className="nbm-type-passage"
             style={{ background: "#fff", color: "#111", border: "1px solid var(--line)", borderRadius: 10, padding: "10px 12px",
@@ -452,6 +587,11 @@ export default function NbemsMockRunner() {
           {typed.trim() ? typed.trim().split(/\s+/).length : 0} words · {Math.max(keysRef.current, typed.length).toLocaleString("en-IN")} keystrokes
           {typingLocked && typed.trim() ? " · typing closed — it will be checked when you submit" : ""}
         </div>
+        {typingPhase && (
+          <button type="button" onClick={() => setConfirmTyping(true)} style={{ ...ghostBtn, marginTop: 10, width: "100%" }}>
+            Finish typing and go to the other parts →
+          </button>
+        )}
       </div>
 
       {/* ════ EXCEL ════ */}
@@ -517,8 +657,45 @@ export default function NbemsMockRunner() {
         )}
       </div>
 
+      {/* ════ FILL IN THE BLANKS (v2) ════ */}
+      {v2 && (
+        <div style={{ display: tab === "fill" ? "block" : "none" }}>
+          {!fillTask ? (
+            <Card><p style={{ margin: 0, color: "var(--muted)", fontSize: 13.5 }}>This mock has no fill-in-the-blanks task yet.</p></Card>
+          ) : !typingClosed ? null : (
+            <div className="nbm-split instr-right">
+              <div className="nbm-instr"><TaskBox title={fillTask.title} intro={fillTask.intro} steps={fillTask.steps} /></div>
+              <div className="nbm-work"><WordSimTiptap start={fillStart as WordDoc | undefined} onChange={onFill} /></div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ════ MAIL MERGE (v2) ════ */}
+      {v2 && (
+        <div style={{ display: tab === "merge" ? "block" : "none" }}>
+          {!mergeTask ? (
+            <Card><p style={{ margin: 0, color: "var(--muted)", fontSize: 13.5 }}>This mock has no mail merge task yet.</p></Card>
+          ) : !typingClosed ? null : (
+            <div className="nbm-split instr-left">
+              <div className="nbm-instr">
+                <Card>
+                  <b style={{ fontSize: 14 }}>{mergeTask.title}</b>
+                  <div style={{ fontSize: 13, margin: "6px 0" }}>{mergeTask.intro}</div>
+                  <ol style={{ margin: 0, paddingLeft: 20, fontSize: 13, lineHeight: 1.7 }}>
+                    {mergeTask.steps.map((x, i) => <li key={i}>{x}</li>)}
+                  </ol>
+                  <MergeBrief letter={mergeTask.letter} columns={mergeTask.columns} records={mergeTask.records} />
+                </Card>
+              </div>
+              <div className="nbm-work"><MailMergeSim start={mergeStart as MergeDoc} onChange={onMerge} /></div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ════ MCQ ════ */}
-      <div className="nbm-narrow" style={{ display: tab === "mcq" ? "block" : "none" }}>
+      <div className="nbm-narrow" style={{ display: tab === "mcq" && !v2 ? "block" : "none" }}>
         <Card>
           <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 8 }}>
             {Object.keys(mcq).length} of {data.mcq.length} answered · 1 mark each · no negative marking
@@ -557,6 +734,24 @@ export default function NbemsMockRunner() {
         })}
       </div>
 
+      {/* ── v2: typing band karne se pehle ── */}
+      {confirmTyping && (
+        <div role="dialog" aria-modal="true" onClick={() => setConfirmTyping(false)}
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--card)", color: "var(--text)", borderRadius: 14, padding: 18, width: "100%", maxWidth: 420 }}>
+            <div style={{ fontSize: 17, fontWeight: 900, marginBottom: 4 }}>Finish typing?</div>
+            <div style={{ fontSize: 13, color: "var(--muted)", lineHeight: 1.6 }}>
+              {mmss(typingLeft)} of typing time is still left. You cannot come back to typing, and your speed is still worked out over the full {data.typing.minutes} minutes.
+              The other three parts will open with {restMins} minutes.
+            </div>
+            <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+              <button onClick={() => setConfirmTyping(false)} style={{ ...ghostBtn, flex: 1 }}>Keep typing</button>
+              <button onClick={closeTyping} style={{ ...goldBtn, flex: 1, marginTop: 0 }}>Finish typing</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Submit se pehle ── */}
       {confirm && (
         <div role="dialog" aria-modal="true" onClick={() => setConfirm(false)}
@@ -568,14 +763,19 @@ export default function NbemsMockRunner() {
               <div key={s.key} style={{ display: "flex", justifyContent: "space-between", fontSize: 13.5, padding: "6px 0", borderTop: "1px solid var(--line)" }}>
                 <span>{SECTION_EMOJI[s.key]} {SHORT[s.key]}</span>
                 <b style={{ color: s.key === "mcq" && attempted.mcq && Object.keys(mcq).length < data.mcq.length ? GOLD : attempted[s.key] ? GREEN : RED }}>
-                  {s.key === "mcq" ? `${Object.keys(mcq).length}/${data.mcq.length} answered` : attempted[s.key] ? "Attempted" : "Not attempted"}
+                  {s.key === "mcq" ? `${Object.keys(mcq).length}/${data.mcq.length} answered`
+                    : s.key === "merge" && mergeGrade ? `${mergeGrade.rows.filter((x) => x.ok).length}/${mergeGrade.rows.length} steps done`
+                    : attempted[s.key] ? "Attempted" : "Not attempted"}
                 </b>
               </div>
             ))}
-            {((wordGrade?.touched && !wordDoc.current?.fileName) || (pptGrade?.touched && !pptDoc.current?.fileName)) && (
+            {((wordGrade?.touched && !wordDoc.current?.fileName) || (pptGrade?.touched && !pptDoc.current?.fileName)
+              || (fillGrade?.touched && !fillDoc.current?.fileName) || (mergeGrade?.touched && !mergeDoc.current?.mergedFile)) && (
               <p style={{ fontSize: 12.5, color: RED, margin: "8px 0 0" }}>
                 {wordGrade?.touched && !wordDoc.current?.fileName ? "Your Word file is not saved yet. " : ""}
                 {pptGrade?.touched && !pptDoc.current?.fileName ? "Your PowerPoint file is not saved yet. " : ""}
+                {fillGrade?.touched && !fillDoc.current?.fileName ? "Your fill-in-the-blanks file is not saved yet. " : ""}
+                {mergeGrade?.touched && !mergeDoc.current?.mergedFile ? "Your merged letters are not saved yet. " : ""}
                 Saving with the right name carries marks.
               </p>
             )}

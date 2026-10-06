@@ -13,10 +13,13 @@ import { DEFAULT_SECTIONS, MOCK_DISCLAIMER, PASS_PCT_GENERAL, PASS_PCT_RESERVED,
 
 const GOLD = "#FFAB00";
 
-export default function NbemsExamStructure({ sections = DEFAULT_SECTIONS, startOpen = false }:
-  { sections?: MockSection[]; startOpen?: boolean }) {
+export default function NbemsExamStructure({ sections = DEFAULT_SECTIONS, startOpen = false, pattern = "v1", restMinutes }:
+  { sections?: MockSection[]; startOpen?: boolean; pattern?: "v1" | "v2"; restMinutes?: number }) {
   const [open, setOpen] = useState(startOpen);
+  const v2 = pattern === "v2";
   const total = sections.reduce((a, s) => a + s.marks, 0);
+  const rest = restMinutes || sections.filter((s) => s.key !== "typing").reduce((a, s) => a + s.minutes, 0);
+  const opts = sections.find((s) => s.key === "typing")?.minute_options || [10, 15, 25];
   const mins = sections.reduce((a, s) => a + s.minutes, 0);
 
   const fact = (k: string, v: string) => (
@@ -57,12 +60,18 @@ export default function NbemsExamStructure({ sections = DEFAULT_SECTIONS, startO
 
           <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 6 }}>What is asked</div>
           <div style={{ fontSize: 13, lineHeight: 1.7, color: "var(--muted)", marginBottom: 12 }}>
-            Typing of an official letter, data entry in an Excel sheet, a document in MS Word, a short
-            presentation in MS PowerPoint, and objective questions on computer knowledge.
+            {v2
+              ? <>As reported by candidates who took the skill test: typing (25 marks), fill in the blanks in MS Word (25),
+                 mail merge (25), and five tasks to perform in MS Excel (25).</>
+              : <>Typing of an official letter, data entry in an Excel sheet, a document in MS Word, a short
+                 presentation in MS PowerPoint, and objective questions on computer knowledge.</>}
           </div>
 
           <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 6 }}>
-            Our mock pattern <span style={{ fontWeight: 500, color: "var(--muted)" }}>· one {mins}-minute clock, move between parts freely</span>
+            Our mock pattern <span style={{ fontWeight: 500, color: "var(--muted)" }}>
+              {v2 ? `· typing first on its own clock (${opts.join(" / ")} min, your choice), then ${rest} minutes for the rest`
+                  : `· one ${mins}-minute clock, move between parts freely`}
+            </span>
           </div>
           <div style={{ border: "1px solid var(--line)", borderRadius: 10, overflow: "hidden", marginBottom: 10 }}>
             {sections.map((s, i) => (
@@ -70,13 +79,13 @@ export default function NbemsExamStructure({ sections = DEFAULT_SECTIONS, startO
                                         borderTop: i ? "1px solid var(--line)" : "none" }}>
                 <span style={{ width: 22 }}>{SECTION_EMOJI[s.key]}</span>
                 <span style={{ flex: 1, minWidth: 0 }}>{s.name}</span>
-                <span style={{ color: "var(--muted)", fontVariantNumeric: "tabular-nums", width: 54, textAlign: "right" }}>{s.minutes} min</span>
+                <span style={{ color: "var(--muted)", fontVariantNumeric: "tabular-nums", width: 54, textAlign: "right" }}>{v2 && s.key === "typing" ? `${opts.join("/")}` : s.minutes} min</span>
                 <b style={{ fontVariantNumeric: "tabular-nums", width: 64, textAlign: "right" }}>{s.marks} marks</b>
               </div>
             ))}
             <div style={{ display: "flex", gap: 10, padding: "8px 10px", fontSize: 13, borderTop: "1px solid var(--line)", background: "var(--chip)" }}>
               <b style={{ flex: 1, paddingLeft: 32 }}>Total</b>
-              <b style={{ width: 54, textAlign: "right" }}>{mins} min</b>
+              <b style={{ width: 54, textAlign: "right" }}>{v2 ? `+${rest}` : mins} min</b>
               <b style={{ width: 64, textAlign: "right", color: GOLD }}>{total} marks</b>
             </div>
           </div>

@@ -20,6 +20,7 @@ type Summary = { attempt_id: number; total_marks: number; qualified: boolean; su
 type MockRow = {
   id: number; title: string; mock_number: number; duration_min: number; total_marks: number;
   is_free: boolean; unlocked: boolean; sections: MockSection[];
+  pattern?: "v1" | "v2"; typing_minute_options?: number[] | null;
   in_progress: { attempt_id: number; remaining: number } | null;
   last: Summary | null; best: Summary | null; attempts: number;
 };
@@ -47,7 +48,9 @@ export default function NbemsMockList() {
     router.push(`/nbems-mock/${m.id}?s=${sid}`);
   }
 
-  const sections = mocks?.[0]?.sections;
+  // Naya pattern (v2) ho to structure card usi ka — wahi asli test jaisa hai
+  const v2Mock = mocks?.find((m) => m.pattern === "v2");
+  const sections = (v2Mock || mocks?.[0])?.sections;
 
   return (
     <div style={{ maxWidth: 760, margin: "0 auto", padding: "14px 14px 40px", color: "var(--text)" }}>
@@ -55,12 +58,12 @@ export default function NbemsMockList() {
         <button onClick={() => router.push(sid ? `/tier2?s=${sid}` : "/tier2")} aria-label="Back"
           style={{ background: "transparent", border: "none", fontSize: 20, cursor: "pointer", color: "var(--text)" }}>←</button>
         <div>
-          <div style={{ fontSize: 18, fontWeight: 800 }}>Full mocks · 75 minutes</div>
-          <div style={{ fontSize: 12.5, color: "var(--muted)" }}>NBEMS Junior Assistant skill test · all five parts on one clock</div>
+          <div style={{ fontSize: 18, fontWeight: 800 }}>Full mocks</div>
+          <div style={{ fontSize: 12.5, color: "var(--muted)" }}>NBEMS Junior Assistant skill test</div>
         </div>
       </div>
 
-      <NbemsExamStructure sections={sections} />
+      <NbemsExamStructure sections={sections} pattern={v2Mock ? "v2" : "v1"} restMinutes={v2Mock?.duration_min} />
 
       {mocks === null && <p style={{ color: "var(--muted)", fontSize: 14 }}>Loading…</p>}
       {error && <p style={{ color: RED, fontSize: 13.5 }}>{error}</p>}
@@ -80,7 +83,9 @@ export default function NbemsMockList() {
                   {m.is_free && <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 800, color: GREEN, border: `1px solid ${GREEN}`, borderRadius: 6, padding: "1px 6px" }}>FREE</span>}
                 </div>
                 <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 3 }}>
-                  {m.duration_min} min · {m.total_marks} marks · Typing, Excel, Word, PowerPoint, 15 MCQ
+                  {m.pattern === "v2"
+                    ? <>New pattern · typing {(m.typing_minute_options || [10, 15, 25]).join("/")} min + {m.duration_min} min · {m.total_marks} marks · Typing, Fill in the blanks, Mail merge, Excel</>
+                    : <>{m.duration_min} min · {m.total_marks} marks · Typing, Excel, Word, PowerPoint, 15 MCQ</>}
                 </div>
                 {run && <div style={{ fontSize: 12.5, color: GOLD, fontWeight: 700, marginTop: 4 }}>In progress · {mmss(run.remaining)} left on the clock</div>}
                 {!run && m.last && (

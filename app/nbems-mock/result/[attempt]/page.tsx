@@ -70,7 +70,8 @@ export default function NbemsMockResult() {
             : <>Below the qualifying mark ({passGen} general, {passRes} SC/ST).</>}
         </div>
         <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 6 }}>
-          {pct}% · time used {mmss(d.seconds_used || 0)} of {r.mock.duration_min}:00
+          {pct}% · time used {mmss(d.seconds_used || 0)} of {r.total_minutes || r.mock.duration_min}:00
+          {r.mock.pattern === "v2" && r.typing_minutes ? ` · typing ${r.typing_minutes} min` : ""}
           {d.auto_submitted ? " · submitted automatically when the time ran out" : ""}
         </div>
       </div>
@@ -142,7 +143,7 @@ function review(key: SectionKey, d: any, r: any) {
     return (
       <>
         {rows.map(([k, v]) => <Row key={k} k={k} v={v} />)}
-        <Muted>Marks = net WPM × 30 ÷ {part.target_wpm}, up to 30. Speed is worked out over the full typing time.</Muted>
+        <Muted>Marks = net WPM × {part.marks_max ?? 30} ÷ {part.target_wpm}, up to {part.marks_max ?? 30}. Speed is worked out over the full typing time{part.minutes ? ` (${part.minutes} minutes)` : ""}.</Muted>
         <div style={{ background: "#fff", color: "#111", border: "1px solid var(--line)", borderRadius: 10, padding: 12, marginTop: 10, fontSize: 13.5,
                       lineHeight: 1.9, fontFamily: "Consolas, 'Courier New', monospace", whiteSpace: "pre-wrap", wordBreak: "break-word",
                       WebkitUserSelect: "none", userSelect: "none", maxHeight: 420, overflowY: "auto" }}>
@@ -174,7 +175,7 @@ function review(key: SectionKey, d: any, r: any) {
     );
   }
 
-  if (key === "word" || key === "ppt") {
+  if (key === "word" || key === "ppt" || key === "fill" || key === "merge") {
     return (
       <>
         {(part.rows || []).map((x: any, i: number) => (

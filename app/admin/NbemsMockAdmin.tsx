@@ -15,7 +15,9 @@
  * (Mock column ho to sirf is mock ke number wali rows lete hain — ek hi file sab mocks ke liye.)
  */
 import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
-import { MOCK_WORD_TASKS, MOCK_PPT_TASKS } from "@/lib/nbemsMockTasks";
+import { MOCK_WORD_TASKS, MOCK_PPT_TASKS, MOCK_FILL_TASKS } from "@/lib/nbemsMockTasks";
+import { MERGE_TASKS } from "@/lib/nbemsMailMerge";
+import { LONG_PASSAGE_WORDS } from "@/lib/nbemsMock";
 
 type ApiFn = (path: string, method?: string, body?: any) => Promise<any>;
 
@@ -76,7 +78,24 @@ const EMPTY = {
   word_task_id: "", word_minutes: 20, word_marks_max: 20,
   ppt_task_id: "", ppt_minutes: 10, ppt_marks_max: 10,
   mcq_minutes: 15, mcq_marks_max: 15,
+  pattern: "v1", typing_minute_options: "10,15,25",
+  fill_task_id: "", fill_minutes: 15, fill_marks_max: 25,
+  merge_task_id: "", merge_minutes: 20, merge_marks_max: 25,
 };
+
+/** Naya pattern (v2) ke defaults — Typing / Fill / Mail merge / Excel, 25-25 */
+const EMPTY_V2 = {
+  ...EMPTY, pattern: "v2", duration_min: 60,
+  typing_minutes: 10, typing_marks_max: 25, typing_check_line_breaks: true,
+  excel_minutes: 25, excel_marks_max: 25,
+  word_marks_max: 0, ppt_marks_max: 0, mcq_marks_max: 0,
+};
+
+/** Pattern badalte waqt sirf pehchaan wali cheezein rakho, marks/time naye default se */
+function pick(f: any) {
+  const keep = ["id", "series_id", "mock_number", "title", "is_free", "display_order", "typing_title", "typing_passage", "excel_test_id"];
+  return Object.fromEntries(keep.filter((k) => k in f).map((k) => [k, f[k]]));
+}
 
 export default function NbemsMockAdmin({ api }: { api: ApiFn }) {
   const [seriesList, setSeriesList] = useState<any[]>([]);
@@ -142,17 +161,26 @@ export default function NbemsMockAdmin({ api }: { api: ApiFn }) {
   // ── Add / edit ──
   if (form) {
     const words = (form.typing_passage || "").trim() ? form.typing_passage.trim().split(/\s+/).length : 0;
-    const marks = ["typing", "excel", "word", "ppt", "mcq"].reduce((a, k) => a + Number(form[`${k}_marks_max`] || 0), 0);
+    const v2 = form.pattern === "v2";
+    const marks = (v2 ? ["typing", "fill", "merge", "excel"] : ["typing", "excel", "word", "ppt", "mcq"])
+      .reduce((a, k) => a + Number(form[`${k}_marks_max`] || 0), 0);
     return (
       <div>
         <button onClick={() => setForm(null)} style={ghostBtn}>← Back</button>
         <h2 style={{ fontSize: 18, fontWeight: 800, margin: "12px 0" }}>{form.id ? "Edit mock" : "New mock"}</h2>
         {error && <p style={{ color: RED }}>{error}</p>}
         <div style={cardBox}>
+          <Field label="Pattern">
+            <select style={inputStyle} value={form.pattern || "v1"}
+              onChange={(e) => setForm(e.target.value === "v2" ? { ...EMPTY_V2, ...pick(form), pattern: "v2" } : { ...form, pattern: "v1" })}>
+              <option value="v1">Purana — Typing + Excel + Word + PPT + 15 MCQ (ek ghadi)</option>
+              <option value="v2">Naya — Typing (10/15/25 chunav) + Fill blanks + Mail merge + Excel</option>
+            </select>
+          </Field>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
             {num("mock_number", "Mock number")}
-            {num("display_order", "Display order")}
-            {num("duration_min", "Total minutes")}
+            {num("display_order", "Display order", "Chhota = upar")}
+            {num("duration_min", v2 ? "Baaki hisson ke minute" : "Total minutes", v2 ? "Typing ke baad ki ghadi (Fill + Merge + Excel)" : undefined)}
           </div>
           <Field label="Title"><input style={inputStyle} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="NBEMS Skill Test — Full Mock 1" /></Field>
           <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13.5, marginBottom: 6 }}>
@@ -165,11 +193,20 @@ export default function NbemsMockAdmin({ api }: { api: ApiFn }) {
         <div style={cardBox}>
           <b>⌨️ Typing</b>
           <Field label="Passage title"><input style={inputStyle} value={form.typing_title} onChange={(e) => setForm({ ...form, typing_title: e.target.value })} /></Field>
-          <Field label={`Passage (letter format — har line apni jagah) · ${words} words`} hint="Line breaks jaanche jaate hain agar neeche wala box on hai. ~350-400 words rakhiye (35 WPM × 10 min se zyada).">
+          <Field label={`Passage (har line apni jagah) · ${words} words`}
+            hint={v2 ? `Kam se kam ${LONG_PASSAGE_WORDS} words — 25 min chunne wala tez typist bhi passage khatam na kare.` : "Line breaks jaanche jaate hain agar neeche wala box on hai. ~350-400 words rakhiye (35 WPM × 10 min se zyada)."}>
             <textarea style={{ ...inputStyle, minHeight: 220, fontFamily: "monospace" }} value={form.typing_passage} onChange={(e) => setForm({ ...form, typing_passage: e.target.value })} />
           </Field>
+          {v2 && words > 0 && words < LONG_PASSAGE_WORDS && (
+            <div style={{ color: RED, fontSize: 12.5, marginBottom: 8 }}>⚠ Passage chhota hai ({words} words) — {LONG_PASSAGE_WORDS}+ rakhiye.</div>
+          )}
+          {v2 && (
+            <Field label="Typing minute options (student chunega)" hint="Comma se: 10,15,25">
+              <input style={inputStyle} value={form.typing_minute_options || ""} onChange={(e) => setForm({ ...form, typing_minute_options: e.target.value })} />
+            </Field>
+          )}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
-            {num("typing_minutes", "Typing minutes")}
+            {!v2 && num("typing_minutes", "Typing minutes")}
             {num("typing_target_wpm", "Target WPM", "Is speed par poore marks")}
             {num("typing_marks_max", "Marks")}
           </div>
@@ -188,9 +225,30 @@ export default function NbemsMockAdmin({ api }: { api: ApiFn }) {
             </select>
           </Field>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>{num("excel_minutes", "Suggested minutes")}{num("excel_marks_max", "Marks", "Worksheet ka score isi par scale hota hai")}</div>
+          {v2 && <div style={{ fontSize: 12, color: MUTED }}>Naye pattern me worksheet ke instructions me 5 kaam (tasks) rakhiye.</div>}
         </div>
 
-        <div style={cardBox}>
+        {v2 && (
+          <div style={cardBox}>
+            <b>✏️ Fill in the blanks · ✉️ Mail merge</b>
+            <Field label="Fill in the blanks task (Word)" hint="Tasks code me: lib/nbemsMockTasks.ts (MOCK_FILL_TASKS)">
+              <select style={inputStyle} value={form.fill_task_id || ""} onChange={(e) => setForm({ ...form, fill_task_id: e.target.value })}>
+                <option value="">— none —</option>
+                {MOCK_FILL_TASKS.map((t) => <option key={t.id} value={t.id}>{t.id} · {t.title}</option>)}
+              </select>
+            </Field>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>{num("fill_minutes", "Suggested minutes")}{num("fill_marks_max", "Marks")}</div>
+            <Field label="Mail merge task" hint="Tasks code me: lib/nbemsMailMerge.ts">
+              <select style={inputStyle} value={form.merge_task_id || ""} onChange={(e) => setForm({ ...form, merge_task_id: e.target.value })}>
+                <option value="">— none —</option>
+                {MERGE_TASKS.map((t) => <option key={t.id} value={t.id}>{t.id} · {t.title}</option>)}
+              </select>
+            </Field>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>{num("merge_minutes", "Suggested minutes")}{num("merge_marks_max", "Marks")}</div>
+          </div>
+        )}
+
+        {!v2 && <div style={cardBox}>
           <b>📝 Word · 📽️ PowerPoint</b>
           <Field label="Word task" hint="Tasks code me hain: lib/nbemsMockTasks.ts">
             <select style={inputStyle} value={form.word_task_id} onChange={(e) => setForm({ ...form, word_task_id: e.target.value })}>
@@ -206,13 +264,13 @@ export default function NbemsMockAdmin({ api }: { api: ApiFn }) {
             </select>
           </Field>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>{num("ppt_minutes", "PPT minutes")}{num("ppt_marks_max", "PPT marks")}</div>
-        </div>
+        </div>}
 
-        <div style={cardBox}>
+        {!v2 && <div style={cardBox}>
           <b>❓ MCQ</b>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 8 }}>{num("mcq_minutes", "Suggested minutes")}{num("mcq_marks_max", "Marks (barabar baante jaate hain)")}</div>
           <div style={{ fontSize: 12, color: MUTED }}>Sawaal save karne ke baad list me "MCQ" button se chadhaiye.</div>
-        </div>
+        </div>}
 
         <button onClick={saveMock} disabled={busy} style={{ ...goldBtn, width: "100%" }}>{busy ? "Saving…" : "Save mock"}</button>
       </div>
@@ -225,36 +283,48 @@ export default function NbemsMockAdmin({ api }: { api: ApiFn }) {
   // ── List ──
   return (
     <div>
-      <h2 style={{ fontSize: 18, fontWeight: 800, margin: "0 0 4px" }}>NBEMS full mocks (75 min)</h2>
-      <p style={{ fontSize: 12.5, color: MUTED, margin: "0 0 12px" }}>Typing + Excel + Word + PPT + 15 MCQ, ek ghadi. Access usi Tier 2 series se.</p>
+      <h2 style={{ fontSize: 18, fontWeight: 800, margin: "0 0 4px" }}>NBEMS full mocks</h2>
+      <p style={{ fontSize: 12.5, color: MUTED, margin: "0 0 12px" }}>
+        Purana: Typing + Excel + Word + PPT + 15 MCQ (ek ghadi). Naya: Typing (10/15/25) + Fill blanks + Mail merge + Excel. Access usi Tier 2 series se.
+      </p>
       {error && <p style={{ color: RED }}>{error}</p>}
       <Field label="Series">
         <select style={inputStyle} value={sid || ""} onChange={(e) => setSid(Number(e.target.value))}>
           {seriesList.map((s) => <option key={s.id} value={s.id}>{s.title} (id {s.id})</option>)}
         </select>
       </Field>
-      <button onClick={() => setForm({ ...EMPTY, mock_number: (mocks.reduce((a, m) => Math.max(a, m.mock_number || 0), 0) || 0) + 1 })} style={{ ...goldBtn, marginBottom: 12 }}>+ New mock</button>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+        <button onClick={() => setForm({ ...EMPTY_V2, mock_number: (mocks.reduce((a, m) => Math.max(a, m.mock_number || 0), 0) || 0) + 1 })} style={goldBtn}>+ New mock (naya pattern)</button>
+        <button onClick={() => setForm({ ...EMPTY, mock_number: (mocks.reduce((a, m) => Math.max(a, m.mock_number || 0), 0) || 0) + 1 })} style={ghostBtn}>+ Purana pattern</button>
+      </div>
       {mocks.length === 0 && <p style={{ color: MUTED, fontSize: 13 }}>Is series me abhi koi mock nahi. SQL seed chalaiye ya "+ New mock".</p>}
       {mocks.map((m) => {
-        const problems = [
+        const isV2 = m.pattern === "v2";
+        const problems = (isV2 ? [
+          !m.typing_passage && "no passage", m.typing_passage && (m.passage_words || 0) < LONG_PASSAGE_WORDS && `passage short (${m.passage_words} words)`,
+          !m.excel_test_id && "no worksheet", !m.fill_task_id && "no fill-blanks task", !m.merge_task_id && "no mail merge task",
+        ] : [
           !m.typing_passage && "no passage", !m.excel_test_id && "no worksheet", !m.word_task_id && "no Word task",
           !m.ppt_task_id && "no PPT task", (m.mcq_count || 0) !== 15 && `${m.mcq_count || 0} MCQ`,
-        ].filter(Boolean);
+        ]).filter(Boolean);
         return (
           <div key={m.id} style={cardBox}>
             <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
               <b style={{ color: GOLD, fontSize: 18 }}>#{m.mock_number}</b>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 800 }}>{m.title} {m.is_free && <span style={{ color: GREEN, fontSize: 12 }}>· FREE</span>}</div>
+                <div style={{ fontWeight: 800 }}>{m.title} {m.is_free && <span style={{ color: GREEN, fontSize: 12 }}>· FREE</span>}
+                  {isV2 && <span style={{ color: GOLD, fontSize: 12 }}> · NAYA</span>}</div>
                 <div style={{ fontSize: 12, color: MUTED }}>
-                  {m.passage_words} words · worksheet {m.excel_test_id ?? "—"} · {m.word_task_id || "—"} · {m.ppt_task_id || "—"} · {m.mcq_count} MCQ · {m.attempt_count} attempts
+                  {isV2
+                    ? <>{m.passage_words} words · typing {m.typing_minute_options} · worksheet {m.excel_test_id ?? "—"} · {m.fill_task_id || "—"} · {m.merge_task_id || "—"} · {m.attempt_count} attempts</>
+                    : <>{m.passage_words} words · worksheet {m.excel_test_id ?? "—"} · {m.word_task_id || "—"} · {m.ppt_task_id || "—"} · {m.mcq_count} MCQ · {m.attempt_count} attempts</>}
                 </div>
                 {problems.length > 0 && <div style={{ fontSize: 12, color: GOLD }}>⚠ {problems.join(", ")}</div>}
               </div>
             </div>
             <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
               <button onClick={() => setForm({ ...m })} style={ghostBtn}>Edit</button>
-              <button onClick={() => setMcqFor(m)} style={ghostBtn}>MCQ ({m.mcq_count})</button>
+              {!isV2 && <button onClick={() => setMcqFor(m)} style={ghostBtn}>MCQ ({m.mcq_count})</button>}
               <button onClick={() => setAttFor(m)} style={ghostBtn}>Attempts</button>
               <button onClick={() => delMock(m)} style={dangerBtn}>Delete</button>
             </div>
@@ -362,12 +432,13 @@ function AttemptsPanel({ api, mock, onBack }: { api: ApiFn; mock: any; onBack: (
       {rows === null ? <p style={{ color: MUTED }}>Loading…</p> : (
         <>
           <p style={{ fontSize: 12.5, color: MUTED }}>
-            {done.length} submitted · avg total {avg("total_marks")} · typing {avg("typing_marks")} · excel {avg("excel_marks")} · word {avg("word_marks")} · ppt {avg("ppt_marks")} · mcq {avg("mcq_marks")}
+            {done.length} submitted · avg total {avg("total_marks")} · typing {avg("typing_marks")} · excel {avg("excel_marks")} ·{" "}
+            {mock.pattern === "v2" ? <>fill {avg("fill_marks")} · merge {avg("merge_marks")}</> : <>word {avg("word_marks")} · ppt {avg("ppt_marks")} · mcq {avg("mcq_marks")}</>}
           </p>
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", fontSize: 12.5, borderCollapse: "collapse" }}>
               <thead><tr style={{ color: MUTED, textAlign: "left" }}>
-                {["User", "Status", "Started", "Typing", "Excel", "Word", "PPT", "MCQ", "Total"].map((h) => <th key={h} style={{ padding: 6 }}>{h}</th>)}
+                {["User", "Status", "Started", ...(mock.pattern === "v2" ? ["Typing (min)", "Fill", "Merge", "Excel"] : ["Typing", "Excel", "Word", "PPT", "MCQ"]), "Total"].map((h) => <th key={h} style={{ padding: 6 }}>{h}</th>)}
               </tr></thead>
               <tbody>
                 {rows.map((r) => (
@@ -375,7 +446,12 @@ function AttemptsPanel({ api, mock, onBack }: { api: ApiFn; mock: any; onBack: (
                     <td style={{ padding: 6 }}>{r.user_id}</td>
                     <td style={{ padding: 6 }}>{r.status}</td>
                     <td style={{ padding: 6 }}>{(r.started_at || "").slice(0, 16).replace("T", " ")}</td>
-                    {["typing_marks", "excel_marks", "word_marks", "ppt_marks", "mcq_marks"].map((k) => <td key={k} style={{ padding: 6 }}>{r[k] ?? "—"}</td>)}
+                    {mock.pattern === "v2" ? (
+                      <>
+                        <td style={{ padding: 6 }}>{r.typing_marks ?? "—"}{r.typing_minutes ? ` (${r.typing_minutes})` : ""}</td>
+                        {["fill_marks", "merge_marks", "excel_marks"].map((k) => <td key={k} style={{ padding: 6 }}>{r[k] ?? "—"}</td>)}
+                      </>
+                    ) : ["typing_marks", "excel_marks", "word_marks", "ppt_marks", "mcq_marks"].map((k) => <td key={k} style={{ padding: 6 }}>{r[k] ?? "—"}</td>)}
                     <td style={{ padding: 6, fontWeight: 800, color: r.qualified ? GREEN : "#fff" }}>{r.total_marks ?? "—"}</td>
                   </tr>
                 ))}

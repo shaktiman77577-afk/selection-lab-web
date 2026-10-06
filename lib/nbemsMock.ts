@@ -3,9 +3,9 @@
  * Backend: /api/nbems-mock/... (routers/nbems_mock.py)
  */
 
-export type SectionKey = "typing" | "excel" | "word" | "ppt" | "mcq";
+export type SectionKey = "typing" | "excel" | "word" | "ppt" | "mcq" | "fill" | "merge";
 
-export type MockSection = { key: SectionKey; name: string; minutes: number; marks: number };
+export type MockSection = { key: SectionKey; name: string; minutes: number; marks: number; minute_options?: number[] };
 
 /** Backend na bataye to yahi (SelectionLab ka mock pattern — NBEMS ka chhapa hua nahi) */
 export const DEFAULT_SECTIONS: MockSection[] = [
@@ -16,9 +16,24 @@ export const DEFAULT_SECTIONS: MockSection[] = [
   { key: "mcq", name: "Computer Knowledge (MCQ)", minutes: 15, marks: 15 },
 ];
 
+/** Naya pattern (v2): typing ka time student chunta hai, baaki teen ek ghadi par */
+export const V2_SECTIONS: MockSection[] = [
+  { key: "typing", name: "Typing", minutes: 10, marks: 25, minute_options: [10, 15, 25] },
+  { key: "fill", name: "Fill in the blanks (Word)", minutes: 15, marks: 25 },
+  { key: "merge", name: "Mail merge", minutes: 20, marks: 25 },
+  { key: "excel", name: "Excel (5 tasks)", minutes: 25, marks: 25 },
+];
+
 export const SECTION_EMOJI: Record<SectionKey, string> = {
-  typing: "⌨️", excel: "📊", word: "📝", ppt: "📽️", mcq: "❓",
+  typing: "⌨️", excel: "📊", word: "📝", ppt: "📽️", mcq: "❓", fill: "✏️", merge: "✉️",
 };
+
+export const SHORT_NAME: Record<SectionKey, string> = {
+  typing: "Typing", excel: "Excel", word: "Word", ppt: "PowerPoint", mcq: "MCQ", fill: "Fill blanks", merge: "Mail merge",
+};
+
+/** Typing passage kam se kam itne shabd — 25 min me tez typist bhi khatam na kare */
+export const LONG_PASSAGE_WORDS = 1200;
 
 /** Har jagah ek hi baat — asli test nahi, details aane par badlega */
 export const MOCK_DISCLAIMER =
