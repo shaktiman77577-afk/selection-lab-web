@@ -1,6 +1,7 @@
 // Naye design (v2) wale pages is wrapper ke andar aate hain.
-// Isi se naya font aur v2.css lagta hai - purane pages par kuch nahi badalta.
+// Isi se naya font aur v2 CSS lagta hai - purane pages par kuch nahi badalta.
 import "../../v2.css";
+import "../../v2-detail.css";
 import { jakarta, deva } from "./fonts";
 
 export default function V2Shell({ children }: { children: React.ReactNode }) {

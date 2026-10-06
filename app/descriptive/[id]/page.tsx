@@ -1,14 +1,20 @@
 "use client";
 
+// Descriptive series detail - website redesign (Oct 2026).
+// Sirf LOOK badla hai: laptop par baayen tests, daayen chipka hua price card;
+// phone par neeche "Unlock" patti. Khareedne (Razorpay + verify) ka logic
+// purane page jaisa hi.
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter, useParams } from "next/navigation";
 import { getUser, User } from "@/lib/api";
 import { API_URL } from "@/lib/config";
-import ThemeToggle from "@/app/components/ThemeToggle";
-import SideMenu from "@/app/components/SideMenu";
+import V2Shell from "@/app/components/v2/V2Shell";
+import SiteHeader from "@/app/components/v2/SiteHeader";
+import SiteFooter from "@/app/components/v2/SiteFooter";
+import { IconLock, IconPen } from "@/app/components/v2/Icons";
 
 const GOLD = "#FFAB00";
-const NAVY = "#1a2f55";
 
 function loadScript(src: string): Promise<boolean> {
   return new Promise((resolve) => {
@@ -30,7 +36,6 @@ export default function SeriesDetailPage() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [menuOpen, setMenuOpen] = useState(false);
   const [buying, setBuying] = useState(false);
 
   function load() {
@@ -117,6 +122,9 @@ export default function SeriesDetailPage() {
   const tests: any[] = data?.tests || [];
   const purchased = !!data?.is_purchased;
   const price = Number(series?.price || 0);
+  const original = Number(series?.original_price || 0);
+  const off = original > price && original > 0 ? Math.round(((original - price) / original) * 100) : 0;
+  const forSale = !purchased && price > 0;
 
   function openTest(t: any) {
     if (t.unlocked) router.push(`/descriptive-test/${t.id}`);
@@ -124,149 +132,147 @@ export default function SeriesDetailPage() {
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--text)" }}>
-      <SideMenu open={menuOpen} onClose={() => setMenuOpen(false)} />
+    <V2Shell>
+      <SiteHeader />
+      <main className="v2-wrap v2-main">
+        <nav className="v2-crumb" aria-label="Breadcrumb">
+          <Link href="/">Home</Link> / <Link href="/descriptive">Descriptive</Link>
+          {series?.title ? (
+            <>
+              {" "}/ <span style={{ color: "var(--text)", fontWeight: 700 }}>{series.title}</span>
+            </>
+          ) : null}
+        </nav>
 
-      <header
-        style={{
-          position: "sticky",
-          top: 0,
-          zIndex: 50,
-          display: "flex",
-          alignItems: "center",
-          gap: 10,
-          padding: "10px 14px",
-          background: "var(--header)",
-          backdropFilter: "blur(8px)",
-          borderBottom: "1px solid var(--line)",
-        }}
-      >
-        <button onClick={() => router.back()} aria-label="Back" style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "var(--text)", padding: 4 }}>
-          ←
-        </button>
-        <div style={{ fontWeight: 800, fontSize: 16, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {series?.title || "Descriptive Series"}
-        </div>
-        <ThemeToggle />
-        <button onClick={() => setMenuOpen(true)} aria-label="Menu" style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "var(--text)", padding: 4 }}>
-          ☰
-        </button>
-      </header>
-
-      <main style={{ maxWidth: 900, margin: "0 auto", padding: "16px 16px 40px" }}>
         {loading ? (
-          <p style={{ color: "var(--muted)", fontSize: 14 }}>Loading…</p>
+          <div className="v2-detail" aria-hidden="true">
+            <div>
+              <div className="v2-skel" style={{ height: 30, width: "60%" }} />
+              <div className="v2-skel" style={{ height: 14, width: "80%", marginTop: 12 }} />
+              {[0, 1, 2].map((k) => (
+                <div key={k} className="v2-skel" style={{ height: 66, marginTop: 12, borderRadius: 14 }} />
+              ))}
+            </div>
+            <div className="v2-desk">
+              <div className="v2-skel" style={{ height: 200, borderRadius: 18 }} />
+            </div>
+          </div>
         ) : error && !series ? (
-          <p style={{ color: "#c0392b", fontSize: 14 }}>{error}</p>
+          <div className="v2-msg err" style={{ marginTop: 16 }}>{error}</div>
         ) : !series ? (
-          <p style={{ color: "var(--muted)", fontSize: 14 }}>Series not found.</p>
+          <div className="v2-empty">Series not found.</div>
         ) : (
-          <>
-            {/* Series hero */}
-            <section
-              style={{
-                background: `linear-gradient(135deg, ${NAVY}, #2c4a85)`,
-                borderRadius: 18,
-                padding: "22px 20px",
-                color: "#fff",
-                position: "relative",
-                overflow: "hidden",
-              }}
-            >
-              <div style={{ position: "absolute", right: -30, top: -30, width: 150, height: 150, borderRadius: "50%", background: "rgba(255,171,0,0.15)" }} />
-              <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, lineHeight: 1.3 }}>{series.title}</h1>
-              {series.description ? (
-                <p style={{ margin: "8px 0 0", fontSize: 13.5, lineHeight: 1.6, color: "rgba(255,255,255,0.85)", maxWidth: 460 }}>{series.description}</p>
-              ) : null}
-              <div style={{ marginTop: 14, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-                {purchased ? (
-                  <span style={{ background: "rgba(93,217,124,0.2)", color: "#c8f7d4", fontWeight: 800, fontSize: 13, padding: "8px 14px", borderRadius: 10 }}>
-                    ✓ Purchased
-                  </span>
-                ) : price > 0 ? (
-                  <>
-                    <div style={{ fontSize: 20, fontWeight: 800 }}>
-                      ₹{price}
-                      {Number(series.original_price) > price && (
-                        <span style={{ fontSize: 13, textDecoration: "line-through", color: "rgba(255,255,255,0.6)", marginLeft: 8 }}>₹{series.original_price}</span>
-                      )}
-                    </div>
-                    <button onClick={buy} disabled={buying} style={{ ...goldBtn, opacity: buying ? 0.6 : 1 }}>
-                      {buying ? "Please wait…" : "Unlock full series"}
-                    </button>
-                  </>
-                ) : (
-                  <span style={{ background: "rgba(93,217,124,0.2)", color: "#c8f7d4", fontWeight: 800, fontSize: 13, padding: "8px 14px", borderRadius: 10 }}>Free series</span>
-                )}
+          <div className="v2-detail">
+            <div>
+              <h1 className="v2-h1">{series.title}</h1>
+              {series.description ? <p className="v2-sub" style={{ fontSize: 15 }}>{series.description}</p> : null}
+              <div className="v2-stat">
+                <span>
+                  {tests.length} test{tests.length === 1 ? "" : "s"}
+                </span>
+                {purchased && <span className="ok">✓ Purchased</span>}
+                {!purchased && price <= 0 && <span className="ok">Free series</span>}
               </div>
-            </section>
 
-            {error ? <p style={{ color: "#c0392b", fontSize: 13, marginTop: 12 }}>{error}</p> : null}
+              {/* Phone par price yahin */}
+              {forSale && (
+                <div className="v2-mob v2-bigprice" style={{ marginTop: 14 }}>
+                  <span className="p">₹{price}</span>
+                  {original > price && <span className="s">₹{original}</span>}
+                  {off > 0 && <span className="v2-tag">{off}% OFF</span>}
+                </div>
+              )}
 
-            <h2 style={h2}>Tests</h2>
+              {error ? <div className="v2-msg err" style={{ marginTop: 14 }}>{error}</div> : null}
 
-            {tests.length === 0 ? (
-              <p style={{ color: "var(--muted)", fontSize: 14 }}>No tests in this series yet.</p>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                {tests.map((t) => (
+              <h2 className="v2-section-title">Tests</h2>
+              {tests.length === 0 ? (
+                <p className="v2-sub">No tests in this series yet.</p>
+              ) : (
+                tests.map((t, i) => (
                   <div
                     key={t.id}
+                    className={`v2-test open${t.unlocked ? "" : " locked"}`}
                     onClick={() => openTest(t)}
-                    style={{
-                      background: "var(--card)",
-                      border: "1px solid var(--line)",
-                      borderRadius: 14,
-                      padding: 14,
-                      boxShadow: "var(--shadow)",
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      gap: 12,
-                      opacity: t.unlocked ? 1 : 0.85,
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") openTest(t);
                     }}
                   >
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontWeight: 700, fontSize: 14.5 }}>{t.title}</div>
-                      <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 3 }}>
+                    <span className="n">{t.unlocked ? i + 1 : <IconLock size={16} />}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div className="t">{t.title}</div>
+                      <div className="m">
                         {t.question_count ?? 0} question{(t.question_count ?? 0) === 1 ? "" : "s"} · {t.duration_min ?? 30} min
                         {t.is_free ? " · Free" : ""}
                       </div>
                     </div>
                     {t.unlocked ? (
-                      <span style={{ ...goldBtn, padding: "9px 14px", fontSize: 13 }}>Start →</span>
+                      <span className="v2-btn v2-btn-gold v2-btn-sm">Start →</span>
                     ) : (
-                      <span style={{ fontSize: 13, fontWeight: 700, color: "var(--muted)", border: "1px solid var(--line)", borderRadius: 10, padding: "9px 14px" }}>🔒 Locked</span>
+                      <span className="v2-mini" style={{ display: "inline-flex", alignItems: "center" }}>
+                        Locked
+                      </span>
                     )}
                   </div>
-                ))}
-              </div>
-            )}
+                ))
+              )}
+            </div>
 
-            {!purchased && price > 0 && (
-              <div style={{ marginTop: 20, textAlign: "center" }}>
-                <button onClick={buy} disabled={buying} style={{ ...goldBtn, padding: "13px 24px", opacity: buying ? 0.6 : 1 }}>
-                  {buying ? "Please wait…" : `Unlock all tests · ₹${price}`}
-                </button>
+            {/* Laptop: chipka hua card */}
+            <aside className="v2-desk">
+              <div className="v2-buycard">
+                {forSale ? (
+                  <>
+                    <div className="v2-bigprice">
+                      <span className="p">₹{price}</span>
+                      {original > price && <span className="s">₹{original}</span>}
+                      {off > 0 && <span className="v2-tag">{off}% OFF</span>}
+                    </div>
+                    <button onClick={buy} disabled={buying} className="v2-btn v2-btn-gold" style={{ width: "100%", marginTop: 16 }}>
+                      {buying ? "Please wait…" : "Unlock full series"}
+                    </button>
+                    <ul className="v2-points">
+                      <li>Unlock all {tests.length} tests</li>
+                      <li>Model answers and auto-score after every test</li>
+                    </ul>
+                  </>
+                ) : (
+                  <>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 20, fontWeight: 800, color: "var(--v2-green)" }}>
+                      <IconPen /> {purchased ? "Purchased" : "Free series"}
+                    </div>
+                    <p className="v2-sub">All tests are open for you. Pick any test from the list to start writing.</p>
+                  </>
+                )}
               </div>
-            )}
-          </>
+            </aside>
+          </div>
         )}
+
+        {series && forSale && <div className="v2-mobpad" />}
       </main>
-    </div>
+      <SiteFooter />
+
+      {/* Phone: neeche chipki patti */}
+      {series && forSale && (
+        <div className="v2-mobbar">
+          <div style={{ flex: 1 }}>
+            <span className="v2-price" style={{ fontSize: 18 }}>
+              ₹{price}
+            </span>
+            {original > price && (
+              <span className="v2-strike" style={{ marginLeft: 6 }}>
+                ₹{original}
+              </span>
+            )}
+          </div>
+          <button onClick={buy} disabled={buying} className="v2-btn v2-btn-gold">
+            {buying ? "Please wait…" : "Unlock full series"}
+          </button>
+        </div>
+      )}
+    </V2Shell>
   );
 }
-
-const goldBtn: React.CSSProperties = {
-  background: GOLD,
-  color: "#1a1a1a",
-  border: "none",
-  borderRadius: 10,
-  padding: "11px 18px",
-  fontWeight: 800,
-  fontSize: 14,
-  cursor: "pointer",
-};
-
-const h2: React.CSSProperties = { fontSize: 18, fontWeight: 800, margin: "26px 0 10px" };

@@ -1,16 +1,22 @@
 "use client";
 
+// Course detail - website redesign (Oct 2026).
+// Sirf LOOK badla hai: laptop par do column (baayen content, daayen chipka hua
+// price card), phone par neeche Buy patti. Kharidne, free enroll, coupon,
+// Razorpay, verify aur review ka saara logic purane page jaisa hi hai.
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { API_URL } from "@/lib/config";
 import { getUser, User } from "@/lib/api";
 import { getCourses, Course, courseTitle, courseImage } from "@/lib/supabase";
 import CheckoutSheet from "@/app/components/CheckoutSheet";
+import V2Shell from "@/app/components/v2/V2Shell";
+import SiteHeader from "@/app/components/v2/SiteHeader";
+import SiteFooter from "@/app/components/v2/SiteFooter";
+import { IconLock, IconRight, IconSend } from "@/app/components/v2/Icons";
 
 const GOLD = "#FFAB00";
-const BG = "var(--bg)";
-const CARD = "var(--card)";
-const BORDER = "rgba(255,171,0,0.25)";
 
 declare global {
   interface Window {
@@ -214,22 +220,31 @@ export default function CourseDetailPage() {
 
   if (loading) {
     return (
-      <Shell>
-        <p style={{ color: "var(--muted)", padding: 20 }}>Loading course...</p>
-      </Shell>
+      <Frame>
+        <div className="v2-detail" aria-hidden="true">
+          <div>
+            <div className="v2-skel" style={{ aspectRatio: "16 / 9", borderRadius: 18 }} />
+            <div className="v2-skel" style={{ height: 30, width: "70%", marginTop: 18 }} />
+            <div className="v2-skel" style={{ height: 14, width: "40%", marginTop: 12 }} />
+          </div>
+          <div className="v2-desk">
+            <div className="v2-skel" style={{ height: 220, borderRadius: 18 }} />
+          </div>
+        </div>
+      </Frame>
     );
   }
 
   if (!course) {
     return (
-      <Shell>
-        <div style={{ padding: 20, textAlign: "center" }}>
-          <p style={{ color: "var(--muted)" }}>Course not found.</p>
-          <button onClick={() => router.push("/")} style={goldBtn}>
-            Back to home
-          </button>
+      <Frame>
+        <div className="v2-empty">
+          <p style={{ margin: "0 0 16px" }}>Course not found.</p>
+          <Link href="/courses" className="v2-btn v2-btn-gold">
+            See all courses
+          </Link>
         </div>
-      </Shell>
+      </Frame>
     );
   }
 
@@ -240,281 +255,247 @@ export default function CourseDetailPage() {
     .split(",")
     .map((f: string) => f.trim())
     .filter(Boolean);
+  const img = courseImage(course);
+  const imgMob = String((course as any).thumbnail_url_mobile || "");
+  const tg = (course as any).telegram_group as string | undefined;
 
-  return (
-    <Shell>
-      {/* Thumbnail */}
-      {courseImage(course) && (
-        <div style={{ width: "100%", background: "#000", display: "flex", justifyContent: "center" }}>
-          <img
-            src={courseImage(course)}
-            alt={courseTitle(course)}
-            style={{ width: "100%", maxWidth: 780, aspectRatio: "16 / 9", objectFit: "cover", display: "block" }}
-          />
-        </div>
-      )}
+  const buyLabel = paying ? "Please wait..." : owned ? "✓ Enrolled — My Learning" : price === 0 ? "Enroll Free" : "Buy Now";
+  const onBuyClick = () => {
+    if (owned || price === 0) {
+      handleBuy();
+      return;
+    }
+    if (!user) {
+      router.push("/login");
+      return;
+    }
+    setShowCheckout(true);
+  };
 
-      <div style={{ padding: 16 }}>
-        {/* Title + rating */}
-        <h1 style={{ fontSize: 22, fontWeight: 800, margin: 0, lineHeight: 1.3 }}>{courseTitle(course)}</h1>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8, flexWrap: "wrap" }}>
-          {avg > 0 && (
-            <span style={{ color: GOLD, fontWeight: 800, fontSize: 14 }}>
-              ★ {avg} <span style={{ color: "var(--muted)", fontWeight: 600 }}>({reviews.length})</span>
-            </span>
-          )}
-          {course.course_type && (
-            <span style={{ fontSize: 11, color: "var(--muted)", border: `1px solid ${BORDER}`, borderRadius: 6, padding: "2px 8px" }}>
-              {course.course_type}
-            </span>
-          )}
-        </div>
-
-        {/* Social proof */}
-        {Number(course.recent_buyers) > 0 && (
-          <div style={{ marginTop: 10, fontSize: 13.5, color: "#ff9c5b", fontWeight: 700 }}>
-            🔥 {course.recent_buyers} people recently purchased this course
-          </div>
-        )}
-
-        {/* Price */}
-        <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginTop: 14 }}>
-          {price === 0 ? (
-            <span style={{ color: "#5dd97c", fontWeight: 800, fontSize: 26 }}>FREE</span>
-          ) : (
+  const priceBlock = (
+    <div className="v2-bigprice">
+      {price === 0 ? (
+        <span className="free">FREE</span>
+      ) : (
+        <>
+          <span className="p">₹{price}</span>
+          {original > price && (
             <>
-              <span style={{ color: GOLD, fontWeight: 800, fontSize: 26 }}>₹{price}</span>
-              {original > price && (
-                <>
-                  <span style={{ color: "var(--muted)", textDecoration: "line-through", fontSize: 16 }}>₹{original}</span>
-                  <span style={{ color: "#5dd97c", fontWeight: 800, fontSize: 14 }}>{discountPct}% OFF</span>
-                </>
-              )}
+              <span className="s">₹{original}</span>
+              <span className="v2-tag">{discountPct}% OFF</span>
             </>
           )}
-        </div>
+        </>
+      )}
+    </div>
+  );
 
-        {/* Bundle me kya-kya milega — kharidne se pehle saaf dikhna chahiye */}
-        {bundle.length > 0 && (
-          <div
-            style={{
-              marginTop: 16,
-              border: `1.5px solid ${GOLD}`,
-              background: "rgba(255,171,0,0.06)",
-              borderRadius: 16,
-              padding: "16px 16px 14px",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 4 }}>
-              <span style={{ fontSize: 20 }}>🎁</span>
-              <h2 style={{ margin: 0, fontSize: 16.5, fontWeight: 800 }}>
-                This bundle includes {bundle.length} things
-              </h2>
+  return (
+    <Frame>
+      <nav className="v2-crumb" aria-label="Breadcrumb">
+        <Link href="/">Home</Link> / <Link href="/courses">Courses</Link> /{" "}
+        <span style={{ color: "var(--text)", fontWeight: 700 }}>{courseTitle(course)}</span>
+      </nav>
+
+      <div className="v2-detail">
+        <div>
+          {(img || imgMob) && (
+            <div className="v2-cover">
+              <div className="v2-media-bg" style={{ backgroundImage: `url(${JSON.stringify(img || imgMob)})` }} aria-hidden="true" />
+              <picture>
+                {imgMob && img ? <source media="(max-width: 819px)" srcSet={imgMob} /> : null}
+                <img src={img || imgMob} alt={courseTitle(course)} fetchPriority="high" />
+              </picture>
             </div>
-            <p style={{ fontSize: 12.5, color: "var(--muted)", margin: "0 0 12px", lineHeight: 1.55 }}>
-              {owned
-                ? "All of these are already unlocked for you — tap any one to open it."
-                : "Buy once and everything below unlocks together."}
-            </p>
+          )}
 
-            {bundle.map((b: any) => (
-              <div
-                key={`${b.type}-${b.id}`}
-                onClick={() => owned && router.push(b.link)}
-                style={{
-                  display: "flex", alignItems: "center", gap: 12,
-                  background: "var(--card)", border: "1px solid var(--line)",
-                  borderRadius: 12, padding: 12, marginBottom: 9,
-                  cursor: owned ? "pointer" : "default",
-                }}
-              >
-                {b.thumbnail_url ? (
-                  <img
-                    src={b.thumbnail_url}
-                    alt=""
-                    style={{ width: 58, height: 36, objectFit: "cover", borderRadius: 7, flexShrink: 0, background: "var(--chip)" }}
-                  />
-                ) : (
-                  <span style={{ fontSize: 23, flexShrink: 0 }}>{b.icon}</span>
-                )}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 0.8, color: GOLD }}>
-                    {String(b.label).toUpperCase()}
-                  </div>
-                  <div style={{ fontWeight: 700, fontSize: 13.8, marginTop: 2, lineHeight: 1.35 }}>{b.title}</div>
-                </div>
-                {owned ? (
-                  <span style={{ color: GOLD, fontWeight: 800, fontSize: 17 }}>→</span>
-                ) : (
-                  <span style={{ fontSize: 15, opacity: 0.55 }}>🔒</span>
-                )}
-              </div>
-            ))}
-
-            {owned && (
-              <button
-                onClick={() => router.push("/my-learning")}
-                style={{
-                  width: "100%", marginTop: 4, background: "transparent", color: GOLD,
-                  border: `1px solid ${GOLD}`, borderRadius: 11, padding: "10px 0",
-                  fontWeight: 800, fontSize: 13.5, cursor: "pointer",
-                }}
-              >
-                Open My Learning →
-              </button>
+          <h1 className="v2-h1" style={{ marginTop: 18 }}>
+            {courseTitle(course)}
+          </h1>
+          <div className="v2-meta" style={{ marginTop: 10, alignItems: "center" }}>
+            {avg > 0 && (
+              <span style={{ color: "var(--v2-gold-ink)", fontWeight: 800 }}>
+                ★ {avg} <span style={{ color: "var(--v2-muted)", fontWeight: 600 }}>({reviews.length} reviews)</span>
+              </span>
+            )}
+            {course.course_type && <span className="v2-tag gold">{course.course_type}</span>}
+            {Number(course.recent_buyers) > 0 && (
+              <span style={{ color: "#c25e00", fontWeight: 700 }}>{course.recent_buyers} people recently purchased this course</span>
             )}
           </div>
-        )}
 
-        {/* Dedicated Telegram group — sabko dikhta hai, kharida ho ya na ho */}
-        {(course as any).telegram_group && (
-          <a
-            href={(course as any).telegram_group}
-            target="_blank"
-            rel="noreferrer"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 12,
-              marginTop: 16,
-              padding: "13px 15px",
-              borderRadius: 14,
-              textDecoration: "none",
-              background: "linear-gradient(135deg, #229ED9, #1c8bbf)",
-              color: "#fff",
-              boxShadow: "var(--shadow)",
-            }}
-          >
-            <span style={{ fontSize: 26 }}>✈️</span>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontWeight: 800, fontSize: 14.5 }}>Join dedicated Telegram channel</div>
-              <div style={{ fontSize: 12, opacity: 0.9 }}>
-                Is exam ke updates, doubts aur free material — sab yahan
-              </div>
-            </div>
-            <span style={{ fontWeight: 800, fontSize: 18 }}>→</span>
-          </a>
-        )}
-
-        {/* Description */}
-        {course.description && (
-          <p style={{ color: "var(--text2)", fontSize: 14.5, lineHeight: 1.6, marginTop: 16 }}>{course.description}</p>
-        )}
-
-        {/* Features */}
-        {features.length > 0 && (
-          <div style={{ marginTop: 16 }}>
-            <h2 style={sectionTitle}>What you get</h2>
-            {features.map((f: string) => (
-              <div key={f} style={{ display: "flex", gap: 8, fontSize: 14, color: "#e0dacb", marginBottom: 8 }}>
-                <span style={{ color: "#5dd97c" }}>✔</span> {f}
-              </div>
-            ))}
+          {/* Phone par price yahin, Buy neeche ki patti me */}
+          <div className="v2-mob" style={{ marginTop: 16 }}>
+            {priceBlock}
           </div>
-        )}
 
-        {/* Reviews */}
-        <div style={{ marginTop: 22 }}>
-          <h2 style={sectionTitle}>Student Reviews</h2>
+          {/* Bundle me kya-kya milega — kharidne se pehle saaf dikhna chahiye */}
+          {bundle.length > 0 && (
+            <div className="v2-bundle" style={{ marginTop: 22 }}>
+              <h2 style={{ margin: 0, fontSize: 17, fontWeight: 800 }}>This bundle includes {bundle.length} things</h2>
+              <p className="v2-sub" style={{ marginTop: 4 }}>
+                {owned ? "All of these are already unlocked for you — tap any one to open it." : "Buy once and everything below unlocks together."}
+              </p>
+              {bundle.map((b: any) => {
+                const inner = (
+                  <>
+                    {b.thumbnail_url ? <img src={b.thumbnail_url} alt="" loading="lazy" /> : <span style={{ fontSize: 22 }}>{b.icon}</span>}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div className="k">{String(b.label).toUpperCase()}</div>
+                      <div className="t">{b.title}</div>
+                    </div>
+                    {owned ? <IconRight size={18} /> : <IconLock size={16} />}
+                  </>
+                );
+                return owned ? (
+                  <Link key={`${b.type}-${b.id}`} href={b.link} className="v2-row">
+                    {inner}
+                  </Link>
+                ) : (
+                  <div key={`${b.type}-${b.id}`} className="v2-row" style={{ opacity: 0.9 }}>
+                    {inner}
+                  </div>
+                );
+              })}
+              {owned && (
+                <Link href="/my-learning" className="v2-btn v2-btn-sm" style={{ width: "100%", marginTop: 10, border: "1px solid var(--v2-gold)", color: "var(--v2-gold-ink)" }}>
+                  Open My Learning →
+                </Link>
+              )}
+            </div>
+          )}
 
-          {/* Write review */}
-          <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 14, padding: 14, marginBottom: 14 }}>
-            <div style={{ fontSize: 13.5, color: "var(--muted)", marginBottom: 8 }}>
+          {/* Dedicated Telegram group — sabko dikhta hai, kharida ho ya na ho */}
+          {tg && (
+            <a href={tg} target="_blank" rel="noreferrer" className="v2-tgcard">
+              <IconSend />
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <span style={{ display: "block", fontWeight: 800, fontSize: 14.5 }}>Join dedicated Telegram channel</span>
+                <span style={{ display: "block", fontSize: 12.5, opacity: 0.9 }}>Is exam ke updates, doubts aur free material — sab yahan</span>
+              </span>
+              <IconRight size={18} />
+            </a>
+          )}
+
+          {course.description && (
+            <>
+              <h2 className="v2-section-title">About this course</h2>
+              <p className="v2-prose">{course.description}</p>
+            </>
+          )}
+
+          {features.length > 0 && (
+            <>
+              <h2 className="v2-section-title">What you get</h2>
+              <ul className="v2-feats">
+                {features.map((f: string) => (
+                  <li key={f}>{f}</li>
+                ))}
+              </ul>
+            </>
+          )}
+
+          {/* Reviews */}
+          <h2 className="v2-section-title">Student reviews</h2>
+          <div className="v2-box" style={{ marginBottom: 14 }}>
+            <div className="v2-sub" style={{ margin: "0 0 8px" }}>
               {user ? "Rate this course" : "Sign in to write a review"}
             </div>
-            <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+            <div className="v2-stars" role="radiogroup" aria-label="Your rating">
               {[1, 2, 3, 4, 5].map((s) => (
-                <span
+                <button
                   key={s}
+                  type="button"
+                  className={`v2-star${s <= myRating ? " on" : ""}`}
+                  aria-label={`${s} star${s > 1 ? "s" : ""}`}
+                  aria-pressed={s <= myRating}
+                  disabled={!user}
                   onClick={() => user && setMyRating(s)}
-                  style={{
-                    fontSize: 26,
-                    cursor: user ? "pointer" : "default",
-                    color: s <= myRating ? GOLD : "#4a4436",
-                  }}
                 >
                   ★
-                </span>
+                </button>
               ))}
             </div>
-            {user && (
+            {user ? (
               <>
                 <textarea
+                  className="v2-input"
                   placeholder="Share your experience (optional)"
                   value={myReview}
                   onChange={(e) => setMyReview(e.target.value)}
-                  style={{ ...inputStyle, minHeight: 60 }}
+                  style={{ minHeight: 70, marginTop: 10 }}
                 />
-                <button onClick={submitReview} disabled={submitting} style={{ ...goldBtn, width: "100%" }}>
+                <button onClick={submitReview} disabled={submitting} className="v2-btn v2-btn-gold" style={{ width: "100%", marginTop: 10 }}>
                   {submitting ? "Posting..." : "Post review"}
                 </button>
               </>
-            )}
-            {!user && (
-              <button onClick={() => router.push("/login")} style={{ ...goldBtn, width: "100%" }}>
+            ) : (
+              <Link href="/login" className="v2-btn v2-btn-gold" style={{ width: "100%", marginTop: 10 }}>
                 Sign in
-              </button>
+              </Link>
             )}
-            {submitMsg && <p style={{ fontSize: 13, color: submitMsg.startsWith("Thank") ? "#5dd97c" : "#ff6b6b", marginTop: 10 }}>{submitMsg}</p>}
+            {submitMsg && (
+              <p className={`v2-msg ${submitMsg.startsWith("Thank") ? "ok" : "err"}`} style={{ marginTop: 10, marginBottom: 0 }}>
+                {submitMsg}
+              </p>
+            )}
           </div>
 
-          {/* Review list */}
-          {reviews.length === 0 && <p style={{ color: "var(--muted)", fontSize: 13.5 }}>No reviews yet. Be the first!</p>}
+          {reviews.length === 0 && <p className="v2-sub">No reviews yet. Be the first!</p>}
           {reviews.map((r) => (
-            <div key={r.id} style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 14, padding: 12, marginBottom: 10 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div key={r.id} className="v2-review">
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
                 <span style={{ fontWeight: 700, fontSize: 14 }}>{r.user_name || "Student"}</span>
-                <span style={{ color: GOLD, fontSize: 13 }}>
+                <span style={{ color: GOLD, fontSize: 13 }} aria-label={`${r.rating} out of 5`}>
                   {"★".repeat(r.rating)}
-                  <span style={{ color: "#4a4436" }}>{"★".repeat(5 - r.rating)}</span>
+                  <span style={{ color: "var(--v2-line2)" }}>{"★".repeat(5 - r.rating)}</span>
                 </span>
               </div>
-              {r.review && <p style={{ fontSize: 13.5, color: "var(--text2)", margin: "6px 0 0", lineHeight: 1.5 }}>{r.review}</p>}
+              {r.review && <p style={{ fontSize: 14, color: "var(--text2)", margin: "6px 0 0", lineHeight: 1.6 }}>{r.review}</p>}
             </div>
           ))}
         </div>
 
-        <div style={{ height: 90 }} />
+        {/* Laptop: chipka hua price card */}
+        <aside className="v2-desk">
+          <div className="v2-buycard">
+            {priceBlock}
+            <button onClick={onBuyClick} disabled={paying} className={`v2-btn ${owned ? "v2-btn-green" : "v2-btn-gold"}`} style={{ width: "100%", marginTop: 16 }}>
+              {buyLabel}
+            </button>
+            <ul className="v2-points">
+              <li>Unlocks right after payment</li>
+              <li>Also available in the Selection Lab app</li>
+              {price > 0 && !owned && <li>Have a coupon? Apply it at checkout</li>}
+            </ul>
+          </div>
+        </aside>
       </div>
 
-      {/* Sticky Buy bar */}
-      <div
-        style={{
-          position: "fixed",
-          bottom: 0,
-          left: 0,
-          right: 0,
-          padding: "12px 16px",
-          background: "var(--header)",
-          borderTop: `1px solid ${BORDER}`,
-          display: "flex",
-          alignItems: "center",
-          gap: 12,
-          zIndex: 20,
-        }}
-      >
+      <div className="v2-mobpad" />
+
+      {/* Phone: neeche chipki Buy patti */}
+      <div className="v2-mobbar">
         <div style={{ flex: 1 }}>
           {price === 0 ? (
-            <span style={{ color: "#5dd97c", fontWeight: 800, fontSize: 18 }}>FREE</span>
+            <span className="v2-free" style={{ fontSize: 18 }}>
+              FREE
+            </span>
           ) : (
             <>
-              <span style={{ color: GOLD, fontWeight: 800, fontSize: 18 }}>₹{price}</span>
+              <span className="v2-price" style={{ fontSize: 18 }}>
+                ₹{price}
+              </span>
               {original > price && (
-                <span style={{ color: "var(--muted)", textDecoration: "line-through", fontSize: 13, marginLeft: 6 }}>₹{original}</span>
+                <span className="v2-strike" style={{ marginLeft: 6 }}>
+                  ₹{original}
+                </span>
               )}
             </>
           )}
         </div>
-        <button
-          onClick={() => {
-            if (owned || price === 0) { handleBuy(); return; }
-            if (!user) { router.push("/login"); return; }
-            setShowCheckout(true);
-          }}
-          disabled={paying}
-          style={{ ...goldBtn, padding: "13px 28px", fontSize: 15, opacity: paying ? 0.6 : 1, background: owned ? "#2e8b4a" : GOLD, color: owned ? "#fff" : "#1a1a1a" }}
-        >
-          {paying ? "Please wait..." : owned ? "✓ Enrolled — My Learning" : price === 0 ? "Enroll Free" : "Buy Now"}
+        <button onClick={onBuyClick} disabled={paying} className={`v2-btn ${owned ? "v2-btn-green" : "v2-btn-gold"}`}>
+          {buyLabel}
         </button>
       </div>
 
@@ -535,108 +516,33 @@ export default function CourseDetailPage() {
 
       {/* Payment result modal */}
       {payMsg && (
-        <div
-          onClick={() => setPayMsg(null)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.7)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 30,
-            padding: 20,
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{ background: CARD, border: `1px solid ${payMsg.ok ? "rgba(93,217,124,0.5)" : "rgba(255,107,107,0.5)"}`, borderRadius: 16, padding: 22, maxWidth: 360, width: "100%", textAlign: "center" }}
-          >
+        <div className="v2-modal" onClick={() => setPayMsg(null)}>
+          <div onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
             <div style={{ fontSize: 34 }}>{payMsg.ok ? "✅" : "⚠️"}</div>
-            <p style={{ color: payMsg.ok ? "#5dd97c" : "#ff8a8a", fontSize: 14.5, lineHeight: 1.6, margin: "12px 0 16px" }}>
+            <p className={`v2-msg ${payMsg.ok ? "ok" : "err"}`} style={{ margin: "12px 0 16px" }}>
               {payMsg.text}
             </p>
             {!payMsg.ok && course.whatsapp_support && (
-              <a
-                href={course.whatsapp_support}
-                target="_blank"
-                style={{ ...goldBtn, display: "block", textDecoration: "none", marginBottom: 10 }}
-              >
+              <a href={course.whatsapp_support} target="_blank" rel="noreferrer" className="v2-btn v2-btn-gold" style={{ width: "100%", marginBottom: 10 }}>
                 Contact support on WhatsApp
               </a>
             )}
-            <button onClick={() => setPayMsg(null)} style={{ ...ghostBtn, width: "100%" }}>
+            <button onClick={() => setPayMsg(null)} className="v2-btn" style={{ width: "100%", border: "1px solid var(--v2-line2)", background: "transparent", color: "var(--text)" }}>
               Close
             </button>
           </div>
         </div>
       )}
-    </Shell>
+    </Frame>
   );
 }
 
-function Shell({ children }: { children: React.ReactNode }) {
-  const router = useRouter();
+function Frame({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ minHeight: "100vh", background: BG, color: "var(--text)" }}>
-      <header
-        style={{
-          position: "sticky",
-          top: 0,
-          zIndex: 10,
-          display: "flex",
-          alignItems: "center",
-          gap: 10,
-          padding: "10px 16px",
-          background: "var(--header)",
-          borderBottom: `1px solid ${BORDER}`,
-          backdropFilter: "blur(8px)",
-        }}
-      >
-        <button onClick={() => router.push("/")} style={{ ...ghostBtn, padding: "7px 12px" }}>
-          ←
-        </button>
-        <div style={{ fontWeight: 800, fontSize: 16 }}>
-          Selection <span style={{ color: GOLD }}>Lab</span>
-        </div>
-      </header>
-      {children}
-    </div>
+    <V2Shell>
+      <SiteHeader />
+      <main className="v2-wrap v2-main">{children}</main>
+      <SiteFooter />
+    </V2Shell>
   );
 }
-
-const sectionTitle: React.CSSProperties = { fontSize: 17, fontWeight: 800, margin: "0 0 12px" };
-
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "12px",
-  borderRadius: 10,
-  border: "1px solid var(--line)",
-  background: "var(--chip)",
-  color: "var(--text)",
-  fontSize: 14,
-  marginBottom: 12,
-  boxSizing: "border-box",
-};
-
-const goldBtn: React.CSSProperties = {
-  background: GOLD,
-  color: "#1a1a1a",
-  border: "none",
-  borderRadius: 10,
-  padding: "12px 18px",
-  fontWeight: 800,
-  fontSize: 14,
-  cursor: "pointer",
-};
-
-const ghostBtn: React.CSSProperties = {
-  background: "transparent",
-  color: "var(--text)",
-  border: `1px solid ${BORDER}`,
-  borderRadius: 10,
-  padding: "9px 14px",
-  fontWeight: 700,
-  fontSize: 13,
-  cursor: "pointer",
-};
