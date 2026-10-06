@@ -65,7 +65,9 @@ function RichText({ text, style }: { text?: string | null; style?: React.CSSProp
   }
   if (last < text.length) parts.push(text.slice(last));
 
-  return <span style={{ whiteSpace: "pre-wrap", ...style }}>{parts}</span>;
+  // overflowWrap: PDF se aaye chipke lambe shabd (bina space) screen ke bahar
+  // na jaayein — mobile par question box ke andar hi toot kar agli line me aayein.
+  return <span style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere", ...style }}>{parts}</span>;
 }
 
 const LETTERS = ["A", "B", "C", "D"] as const;
