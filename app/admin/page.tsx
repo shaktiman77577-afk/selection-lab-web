@@ -19,6 +19,7 @@ import ComposerAdmin from "./ComposerAdmin";
 import ExtractorAdmin from "./ExtractorAdmin";
 import VolatileAdmin from "./VolatileAdmin";
 import { downloadZip } from "./downloadZip";
+import FixUploadModal, { type FixTarget } from "./FixUpload";
 
 const GOLD = "#FFAB00";
 const BG = "#0d0b08";
@@ -3735,6 +3736,7 @@ function MockTestsTab() {
   const [sEditId, setSEditId] = useState<number | null>(null); // null = naya banao, id = edit karo
   const [sSaving, setSSaving] = useState(false);
   const [zipBusy, setZipBusy] = useState<number | null>(null);
+  const [fixFor, setFixFor] = useState<FixTarget | null>(null);   // ⬆ Upload fixes panel
 
   // Series ke saare mock ek ZIP me — team ko bhejne aur TSV theek karke
   // wapas upload karne ke liye (Questions tab, question_id se update hota hai)
@@ -4177,6 +4179,10 @@ function MockTestsTab() {
               title="Saare mock — questions.tsv + images, mock-wise folder">
               {zipBusy === s.id ? "ZIP ban raha…" : "⬇ ZIP"}
             </button>
+            <button onClick={() => setFixFor({ kind: "series", id: s.id, title: s.title })} style={smallBtn}
+              title="Theek ki hui TSV + charts — sirf isi series ke questions badlenge">
+              ⬆ Fixes
+            </button>
             <button onClick={() => editSeries(s)} style={smallBtn}>
               Edit
             </button>
@@ -4277,6 +4283,10 @@ function MockTestsTab() {
               {t.total_questions} Qs · {t.duration_minutes} min · boost {t.registration_boost || 0}/{t.display_boost || 0}
             </div>
           </div>
+          <button onClick={() => setFixFor({ kind: "mock", id: t.id, title: t.title })} style={smallBtn}
+            title="Theek ki hui TSV + charts — sirf isi mock ke questions badlenge">
+            ⬆ Fixes
+          </button>
           <button onClick={() => openCharts(t)} style={{ ...smallBtn, color: GOLD, borderColor: "rgba(212,175,55,0.5)" }}>
             🖼 Charts
           </button>
@@ -4305,6 +4315,10 @@ function MockTestsTab() {
               </div>
             )}
           </div>
+          <button onClick={() => setFixFor({ kind: "mock", id: t.id, title: t.title })} style={smallBtn}
+            title="Theek ki hui TSV + charts — sirf isi mock ke questions badlenge">
+            ⬆ Fixes
+          </button>
           <button onClick={() => openCharts(t)} style={{ ...smallBtn, color: GOLD, borderColor: "rgba(212,175,55,0.5)" }}>
             🖼 Charts
           </button>
@@ -4316,6 +4330,8 @@ function MockTestsTab() {
           </button>
         </div>
       ))}
+
+      {fixFor && <FixUploadModal target={fixFor} onClose={() => { setFixFor(null); load(); }} />}
 
       {/* ── Chart / image picker panel — attach a DI chart to any question in this test ── */}
       {chartsFor && (
