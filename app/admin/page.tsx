@@ -18,6 +18,7 @@ import ScoreCheckerAdmin from "./ScoreCheckerAdmin";
 import ComposerAdmin from "./ComposerAdmin";
 import ExtractorAdmin from "./ExtractorAdmin";
 import VolatileAdmin from "./VolatileAdmin";
+import { downloadZip } from "./downloadZip";
 
 const GOLD = "#FFAB00";
 const BG = "#0d0b08";
@@ -3134,6 +3135,8 @@ function QuestionsTab() {
     explanation_image_url: ["explanation_image_url", "explanation_image"],
     volatile: ["volatile"],
     volatile_note: ["volatile_note", "volatile_reason"],
+    // Series / bank ke ZIP export se aayi file — is id wale question ko seedha badlo
+    question_id: ["question_id"],
   };
 
   // Purana 17-column kram — jab file me header na ho
@@ -3212,6 +3215,7 @@ function QuestionsTab() {
         explanation_image_url: get("explanation_image_url"),
         volatile: get("volatile"),
         volatile_note: get("volatile_note"),
+        question_id: Number(get("question_id")) || null,
         row_no: i + 1,             // file ki line — server chhodi hui row isi number se batata hai
       });
     }
@@ -3545,6 +3549,9 @@ function QuestionsTab() {
           Image ke column me pura URL ya sirf file ka naam (M7-Q30-Clock.png) — naam likha ho to
           Composer ke Images tab se upload kar dena, apne aap lag jayega.
           Bina header wali purani 17-column file bhi chalti rahegi.
+          <b> Mock Tests / Composer se download ki hui ZIP ki TSV</b> yahin upload kariye — jis row me
+          <code>question_id</code> hai wo naya question nahi banati, usi question ko sudharti hai
+          (har mock aur bank me ek saath). Khaali cell purani value rehne deta hai; field hatana ho to <code>-</code> likhiye.
           Exam/Subject niche wala poori file par lagta hai. Topic apne aap ban jaate hain
           chune hue Subject ke andar.
         </p>
@@ -3727,6 +3734,23 @@ function MockTestsTab() {
   const [board, setBoard] = useState<any[] | null>(null);
   const [sEditId, setSEditId] = useState<number | null>(null); // null = naya banao, id = edit karo
   const [sSaving, setSSaving] = useState(false);
+  const [zipBusy, setZipBusy] = useState<number | null>(null);
+
+  // Series ke saare mock ek ZIP me — team ko bhejne aur TSV theek karke
+  // wapas upload karne ke liye (Questions tab, question_id se update hota hai)
+  async function exportSeries(s: any) {
+    setZipBusy(s.id);
+    setError("");
+    setMsg("ZIP ban raha hai — images download ho rahi hain, bade series me 1-2 minute lag sakte hain…");
+    try {
+      await downloadZip(`/qexport/series/${s.id}`, `series_${s.id}.zip`);
+      setMsg("✓ ZIP download ho gaya. Andar README.txt me theek karke wapas upload karne ka tareeka hai.");
+    } catch (e: any) {
+      setMsg("");
+      setError(e.message);
+    }
+    setZipBusy(null);
+  }
 
   // Chart picker — attach/edit a question's image_url without leaving this tab
   const [chartsFor, setChartsFor] = useState<any | null>(null);
@@ -4149,6 +4173,10 @@ function MockTestsTab() {
                 ID {s.id} · ₹{s.price} · {tests.filter((t) => t.series_id === s.id && t.is_active !== false).length} tests
               </div>
             </div>
+            <button onClick={() => exportSeries(s)} disabled={zipBusy === s.id} style={smallBtn}
+              title="Saare mock — questions.tsv + images, mock-wise folder">
+              {zipBusy === s.id ? "ZIP ban raha…" : "⬇ ZIP"}
+            </button>
             <button onClick={() => editSeries(s)} style={smallBtn}>
               Edit
             </button>

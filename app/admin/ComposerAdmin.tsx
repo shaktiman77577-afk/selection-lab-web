@@ -24,6 +24,7 @@
 
 import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { API_URL } from "@/lib/config";
+import { downloadZip } from "./downloadZip";
 
 type ApiFn = (path: string, method?: string, body?: any) => Promise<any>;
 
@@ -172,7 +173,7 @@ function adoptLegacy(p: Part, cat: CatSubject[]): Part {
 
 // ===========================================================================
 export default function ComposerAdmin({ api }: { api: ApiFn }) {
-  const [view, setView] = useState<"blueprints" | "generate" | "drafts" | "images">("blueprints");
+  const [view, setView] = useState<"blueprints" | "generate" | "drafts" | "images" | "export">("blueprints");
   const [err, setErr] = useState("");
   const [ok, setOk] = useState("");
 
@@ -182,7 +183,7 @@ export default function ComposerAdmin({ api }: { api: ApiFn }) {
     <div>
       <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
         {([["blueprints", "📐 Blueprints"], ["generate", "⚙️ Generate"],
-           ["drafts", "📄 Drafts"], ["images", "🖼️ Images"]] as const).map(([k, label]) => (
+           ["drafts", "📄 Drafts"], ["images", "🖼️ Images"], ["export", "⬇ Download"]] as const).map(([k, label]) => (
           <button key={k} onClick={() => { setView(k); setErr(""); }}
             style={view === k ? { ...goldBtn, padding: "9px 14px" } : ghostBtn}>{label}</button>
         ))}
@@ -195,6 +196,7 @@ export default function ComposerAdmin({ api }: { api: ApiFn }) {
       {view === "generate" && <Generate api={api} onErr={setErr} onOk={flash} />}
       {view === "drafts" && <Drafts api={api} onErr={setErr} onOk={flash} />}
       {view === "images" && <Images api={api} onErr={setErr} onOk={flash} />}
+      {view === "export" && <ExportBank api={api} onErr={setErr} onOk={flash} />}
     </div>
   );
 }
@@ -1324,6 +1326,94 @@ function Preview({ api, testId, onBack, onErr, onOk }: {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+
+// ── DOWNLOAD (bank ka ZIP) ────────────────────────────────────────────────────
+// Bank ke questions images ke saath — team ko bhejo, TSV theek karo, Questions
+// tab me wapas upload karo. question_id wali row usi question ko sudharti hai,
+// isliye har mock aur bank dono me ek saath theek ho jaata hai.
+function ExportBank({ api, onErr, onOk }: { api: ApiFn; onErr: (s: string) => void; onOk: (s: string) => void }) {
+  const [catalog, setCatalog] = useState<CatSubject[] | null>(null);
+  const [subjectId, setSubjectId] = useState("");
+  const [topicId, setTopicId] = useState("");
+  const [tag, setTag] = useState("");
+  const [images, setImages] = useState(true);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    api("/qbank/catalog").then((d) => setCatalog(d.subjects || [])).catch((e) => { onErr(e.message); setCatalog([]); });
+  }, []);
+
+  const subjects = (catalog || []).filter((x) => x.id != null);
+  const subject = subjects.find((x) => String(x.id) === subjectId) || null;
+  const topic = subject?.topics.find((t) => String(t.id) === topicId) || null;
+  const count = topic ? topic.questions_all : subject ? subject.questions_all : null;
+
+  async function run() {
+    setBusy(true); onErr("");
+    const qs = new URLSearchParams();
+    if (subjectId) qs.set("subject_id", subjectId);
+    if (topicId) qs.set("topic_id", topicId);
+    if (tag.trim()) qs.set("exam_tag", tag.trim());
+    if (!images) qs.set("images", "false");
+    try {
+      await downloadZip(`/qexport/qbank?${qs.toString()}`, "qbank.zip");
+      onOk("✓ ZIP download ho gaya — README.txt me wapas upload karne ka tareeka hai");
+    } catch (e: any) {
+      onErr(e.message);
+    }
+    setBusy(false);
+  }
+
+  return (
+    <div style={cardBox}>
+      <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 4 }}>Question bank download (ZIP)</div>
+      <p style={{ margin: "0 0 12px", fontSize: 12.5, color: MUTED, lineHeight: 1.6 }}>
+        <code>questions.tsv</code> + <code>images/</code> folder. Har row me <code>question_id</code> aur
+        "kis series / mock me use hua" hai. TSV theek karke <b>Questions</b> tab me upload kariye —
+        question_id wali row naya question nahi banati, usi ko sudharti hai.
+      </p>
+
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+        <div style={{ flex: "1 1 200px" }}>
+          <Field label="Subject">
+            <select style={inputStyle} value={subjectId} onChange={(e) => { setSubjectId(e.target.value); setTopicId(""); }}>
+              <option value="">— Saare subject —</option>
+              {subjects.map((x) => <option key={String(x.id)} value={String(x.id)}>{x.name} ({x.questions_all})</option>)}
+            </select>
+          </Field>
+        </div>
+        <div style={{ flex: "1 1 200px" }}>
+          <Field label="Topic">
+            <select style={inputStyle} value={topicId} disabled={!subject} onChange={(e) => setTopicId(e.target.value)}>
+              <option value="">— Saare topic —</option>
+              {(subject?.topics || []).map((t) => <option key={t.id} value={String(t.id)}>{t.name} ({t.questions_all})</option>)}
+            </select>
+          </Field>
+        </div>
+        <div style={{ flex: "1 1 160px" }}>
+          <Field label="Exam tag" hint="khaali = sab">
+            <input style={inputStyle} value={tag} onChange={(e) => setTag(e.target.value)} placeholder="SSC" />
+          </Field>
+        </div>
+      </div>
+
+      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, margin: "4px 0 12px" }}>
+        <input type="checkbox" checked={images} onChange={(e) => setImages(e.target.checked)} />
+        Images bhi saath me (bade bank me der lagti hai — sirf text chahiye to hata dijiye)
+      </label>
+
+      <button onClick={run} disabled={busy || catalog === null} style={{ ...goldBtn, opacity: busy ? 0.6 : 1 }}>
+        {busy ? "ZIP ban raha hai…" : `⬇ Download ZIP${count != null ? ` (~${count} questions)` : ""}`}
+      </button>
+      {!subjectId && (
+        <div style={{ fontSize: 12, color: MUTED, marginTop: 8 }}>
+          Bina subject ke poora bank aata hai — topic-less purane questions bhi isi me milenge.
+        </div>
+      )}
     </div>
   );
 }
