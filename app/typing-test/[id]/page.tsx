@@ -35,6 +35,9 @@ const GREEN = "#1c7a3e";
 
 type Stage = "instructions" | "select" | "typing" | "result";
 
+// Ek change event me isse zyada akshar aayein to wo typing nahi, paste hai
+const BULK_INSERT_LIMIT = 25;
+
 // ═══════════════════ SKAU — synchronized typing ═══════════════════
 // SKAU ke official notice (point 3-4) ka niyam:
 //   - Upar passage me laal highlight wala shabd hi abhi type karna hai
@@ -361,6 +364,15 @@ export default function TypingTestPage() {
 
   function onChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
     const v = e.target.value;
+    // Ek hi baar me bahut saara text — mobile keyboard ki clipboard suggestion,
+    // autofill ya voice typing. Ye "paste" event nahi bhejte, isliye onPaste
+    // inhe nahi pakadta. Insaan ek key me itna nahi likhta (swipe/Hindi
+    // transliteration bhi ek shabd hi daalte hain), isliye yahin rok dete hain.
+    // Pehle isi raste 1 second me poora passage aa jaata tha aur 11,000+ WPM banta.
+    if (v.length - text.length > BULK_INSERT_LIMIT) {
+      blockPaste();
+      return;
+    }
     if (sync) {
       // Lock ho chuka hissa badal nahi sakta — Backspace, autocorrect, undo,
       // cursor le jaakar beech me likhna, sab yahin rukta hai. Mobile keyboard
@@ -1203,6 +1215,11 @@ export default function TypingTestPage() {
             {r.verdict}
           </div>
           {result.auto && <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 6 }}>Time over — submitted automatically</div>}
+          {r.not_counted && (
+            <div style={{ fontSize: 12, color: RED, fontWeight: 700, marginTop: 8, lineHeight: 1.5 }}>
+              This speed is not possible by typing, so this attempt is not counted in rank, average or your graph.
+            </div>
+          )}
           {result.is_past_attempt && (
             <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 6 }}>
               Your last attempt
@@ -1846,7 +1863,7 @@ function CompareCard({ passageId, refreshKey }: { passageId: number; refreshKey?
   const n = Number(d.candidates);
   const me = d.my_best_wpm != null ? Number(d.my_best_wpm) : null;
   const buckets: { from: number; count: number }[] = d.buckets || [];
-  const myBucket = me != null ? Math.min(Math.floor(me / 5), 20) * 5 : null;
+  const myBucket = me != null ? Math.min(Math.floor(me / 5), 30) * 5 : null;
   const maxC = Math.max(1, ...buckets.map((b) => b.count));
   const fmt = (v: any) => (v == null ? "–" : Number(v).toLocaleString("en-IN", { maximumFractionDigits: 1 }));
 
@@ -1857,7 +1874,7 @@ function CompareCard({ passageId, refreshKey }: { passageId: number; refreshKey?
     const hi = Math.max(...buckets.map((b) => b.from), myBucket ?? -Infinity);
     for (let f = lo; f <= hi; f += 5) all.push({ from: f, count: buckets.find((b) => b.from === f)?.count || 0 });
   }
-  const label = (f: number) => (f >= 100 ? "100+" : `${f}–${f + 4}`);
+  const label = (f: number) => `${f}–${f + 4}`;
 
   return (
     <div style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: 14, padding: 14, marginBottom: 16 }}>
