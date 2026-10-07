@@ -891,7 +891,16 @@ export default function TypingTestPage() {
     const liveKeys = std ? Math.max(keystrokeRef.current, text.length) : keystrokeRef.current;
     const liveBackspace = backspaceRef.current;
     const totalWordsLive = meta.keystroke_word_count || meta.word_count || 0;
-    const typedWordsLive = Math.floor(liveKeys / 5);
+    // P&H (word mode) me result ASLI type kiye shabdon se banta hai — counter
+    // bhi wahi dikhaye. Pehle yahan bhi keys ÷ 5 tha: Backspace se mitaye
+    // akshar bhi gine jaate the, aur student ko upar 281 dikhte the jabki
+    // result 215 shabdon par bana — lagta tha shabd "kat" gaye.
+    // Baaki modes (standard, ntpc, keystroke) me score sach me keys ÷ 5 se
+    // banta hai, isliye wahan wahi rehta hai, bas label "gross words" hai.
+    const grossWordsMode = (meta.scoring_mode || "word") !== "word";
+    const typedWordsLive = grossWordsMode
+      ? Math.floor(liveKeys / 5)
+      : (text.trim() ? text.trim().split(/\s+/).length : 0);
     const pendingWordsLive = Math.max(0, totalWordsLive - typedWordsLive);
     const liveErrs = liveErrorCount();
 
@@ -991,7 +1000,7 @@ export default function TypingTestPage() {
           </span>
           {totalWordsLive > 0 && (
             <span style={{ fontWeight: 800, color: pendingWordsLive === 0 ? "#1c7a3e" : "#333", fontVariantNumeric: "tabular-nums" }}>
-              {typedWordsLive.toLocaleString("en-IN")} / {totalWordsLive.toLocaleString("en-IN")} <span style={{ fontWeight: 500, color: "#8a8f99" }}>words</span>
+              {typedWordsLive.toLocaleString("en-IN")} / {totalWordsLive.toLocaleString("en-IN")} <span style={{ fontWeight: 500, color: "#8a8f99" }}>{grossWordsMode ? "gross words (keys ÷ 5)" : "words"}</span>
             </span>
           )}
           {liveErrs !== null && (
