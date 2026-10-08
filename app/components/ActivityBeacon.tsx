@@ -29,6 +29,9 @@ function describe(path: string): { page: string; activity: string } {
   return { page: path, activity: "browsing" };
 }
 
+// Saare pages ke beech ek hi ginti (component har page par dobara banta hai)
+let lastPing = 0;
+
 export default function ActivityBeacon() {
   const pathname = usePathname();
 
@@ -38,9 +41,14 @@ export default function ActivityBeacon() {
 
     const { page, activity } = describe(pathname || "/");
 
-    const ping = () => {
+    const ping = (force = false) => {
       // Tab background me ho to mat bhejo — warna galat lagega ki banda active hai
       if (document.visibilityState !== "visible") return;
+      // Har ping = ek database likhai (Supabase log). 45 second me ek se zyada
+      // nahi — page badalne ya tab par lautne par bhi. Admin "active" 5 min tak maanta hai.
+      const now = Date.now();
+      if (!force && now - lastPing < 45000) return;
+      lastPing = now;
       fetch(`${API_URL}/admin-extra/heartbeat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -54,13 +62,15 @@ export default function ActivityBeacon() {
       }).catch(() => {});
     };
 
-    ping();                                   // page khulte hi
-    const t = setInterval(ping, 60000);       // phir har minute
-    document.addEventListener("visibilitychange", ping);
+    const onVis = () => ping();
+    // Test shuru hona zaroori khabar hai (deploy rokne ke liye) — turant bhejo
+    ping(activity === "taking_test");          // page khulte hi
+    const t = setInterval(() => ping(true), 180000);   // phir har 3 minute (pehle har minute)
+    document.addEventListener("visibilitychange", onVis);
 
     return () => {
       clearInterval(t);
-      document.removeEventListener("visibilitychange", ping);
+      document.removeEventListener("visibilitychange", onVis);
     };
   }, [pathname]);
 
