@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Tinos } from "next/font/google";
 import ActivityBeacon from "@/app/components/ActivityBeacon";
+import PromoPopup from "@/app/components/PromoPopup";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -148,6 +149,8 @@ export default function RootLayout({
         {/* Google ke liye: ye site kiski hai aur search kaise hota hai */}
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ORG_LD }} />
         {children}
+        {/* Targeted popup (admin → Popups). Test ke beech nahi khulta. */}
+        <PromoPopup />
       </body>
     </html>
   );

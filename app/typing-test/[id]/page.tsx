@@ -103,6 +103,10 @@ export default function TypingTestPage() {
   // /tier2 ke naye language-selector se ?script= aa gaya to dobara nahi poochte
   const [scriptPreset, setScriptPreset] = useState(false);
   const [result, setResult] = useState<any>(null);
+  // Result aate hi targeted popup (PromoPopup) khul sakta hai — test ke beech nahi
+  useEffect(() => {
+    window.dispatchEvent(new Event(result ? "sl:result-shown" : "sl:result-hidden"));
+  }, [result]);
   // ?view=last — list se "Last result" dabaya gaya hai. Naya test shuru karne
   // ke bajay purana attempt wahi result screen par khol dete hain.
   const [viewingPast, setViewingPast] = useState(false);

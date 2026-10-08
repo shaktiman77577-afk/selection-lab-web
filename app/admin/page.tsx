@@ -18,6 +18,7 @@ import ScoreCheckerAdmin from "./ScoreCheckerAdmin";
 import ComposerAdmin from "./ComposerAdmin";
 import ExtractorAdmin from "./ExtractorAdmin";
 import VolatileAdmin from "./VolatileAdmin";
+import PromoAdmin from "./PromoAdmin";
 import { downloadZip } from "./downloadZip";
 import FixUploadModal, { type FixTarget } from "./FixUpload";
 
@@ -34,7 +35,7 @@ const ME_KEY = "sl_admin_me";
 type Me = { role: "owner" | "staff"; name: string; perms: string[] };
 const TAB_PERM: Record<string, string> = {
   dashboard: "finance", coupons: "finance", partners: "finance", live: "finance",
-  courses: "courses", appcontent: "courses", banners: "courses",
+  courses: "courses", appcontent: "courses", banners: "courses", promos: "courses",
   mocktests: "mocks", descriptive: "mocks", tier2: "mocks", excel: "mocks", nbemsmock: "mocks",
   questions: "mocks", qbank: "mocks", composer: "mocks", extractor: "mocks", volatile: "mocks", scorechecker: "mocks",
   blog: "seo", seo: "seo", search: "seo",
@@ -54,7 +55,7 @@ function canOpen(me: Me, tab: string): boolean {
   return !!need && need !== "owner" && me.perms.includes(need);
 }
 
-type Tab = "home" | "health" | "seo" | "live" | "tickets" | "dashboard" | "courses" | "questions" | "qbank" | "mocktests" | "blog" | "banners" | "notifications" | "reviews" | "users" | "coupons" | "descriptive" | "appcontent" | "approvals" | "tier2" | "excel" | "nbemsmock" | "search" | "email" | "partners" | "scorechecker" | "composer" | "extractor" | "volatile" | "team";
+type Tab = "home" | "health" | "seo" | "live" | "tickets" | "dashboard" | "courses" | "questions" | "qbank" | "mocktests" | "blog" | "banners" | "notifications" | "reviews" | "users" | "coupons" | "descriptive" | "appcontent" | "approvals" | "tier2" | "excel" | "nbemsmock" | "search" | "email" | "partners" | "scorechecker" | "composer" | "extractor" | "volatile" | "promos" | "team";
 
 // ── API helpers ──────────────────────────────────────────────────────────────
 function token(): string {
@@ -290,6 +291,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
 
     { id: "appcontent",    icon: "🎨", title: "App Content",   sub: "Home slides, faculty, countdown",    color: "#D6568F", group: "App aur Website" },
     { id: "banners",       icon: "🖼️", title: "Banners",       sub: "Promo images carousel me",           color: "#F08A3C", group: "App aur Website" },
+    { id: "promos",        icon: "💬", title: "Popups",        sub: "Student ke kaam ke hisaab se popup", color: "#D9A23C", group: "App aur Website" },
     { id: "scorechecker",  icon: "🎯", title: "Score Checker", sub: "Exam data, objection PDF, export", color: "#C15A3A", group: "App aur Website" },
     { id: "search",        icon: "🔎", title: "Search",        sub: "What people searched, trending chips", color: "#4A9DE0", group: "App aur Website" },
     { id: "email",         icon: "📧", title: "Email",         sub: "Send mails, read replies",            color: "#7C6CE0", group: "App aur Website" },
@@ -563,6 +565,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         {tab === "volatile" && <VolatileAdmin api={api} />}
         {tab === "blog" && <BlogTab />}
         {tab === "banners" && <BannersTab />}
+        {tab === "promos" && can("promos") && <PromoAdmin api={api} />}
         {tab === "notifications" && <NotificationsTab />}
         {tab === "reviews" && <ReviewsTab />}
         {tab === "users" && <UsersTab />}
