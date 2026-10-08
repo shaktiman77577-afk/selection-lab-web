@@ -20,7 +20,7 @@ const API_URL = "https://api.selectionlab.online/api";
 
 async function getExams() {
   try {
-    const res = await fetch(`${API_URL}/exam-updates/`, { next: { revalidate: 300 } });
+    const res = await fetch(`${API_URL}/exam-updates/`, { next: { revalidate: 60 } });
     if (!res.ok) return [];
     const d = await res.json();
     return d.exams || [];
@@ -97,6 +97,10 @@ export default async function ExamUpdatesPage({ searchParams }: { searchParams: 
               {e.state && <span style={{ fontSize: 11.5, color: "var(--muted)" }}>{e.state}</span>}
               {e.category && <span style={{ fontSize: 11.5, color: "var(--muted)" }}>· {e.category}</span>}
             </div>
+            {e.cover_url && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={e.cover_url} alt={e.cover_alt || e.title} loading="lazy" style={{ display: "block", width: "100%", aspectRatio: "16 / 9", objectFit: "cover", borderRadius: 10, margin: "2px 0 10px" }} />
+            )}
             <div style={{ fontWeight: 800, fontSize: 15.5, lineHeight: 1.45 }}>{e.title}</div>
             {e.organization && <div style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 3 }}>{e.organization}</div>}
             {e.latest_update && (

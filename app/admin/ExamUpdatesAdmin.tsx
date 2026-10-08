@@ -12,6 +12,7 @@
  */
 
 import { useEffect, useState, type CSSProperties } from "react";
+import ImageField from "./ImageField";
 
 type ApiFn = (path: string, method?: string, body?: any) => Promise<any>;
 
@@ -53,6 +54,7 @@ const BOOL_FIELDS: [string, string][] = [
   ["has_written_exam", "Written exam"], ["has_typing_test", "Typing test"], ["has_skill_test", "Skill / Excel test"],
   ["has_descriptive", "Descriptive"], ["has_interview", "Interview"],
 ];
+const SITE = "https://www.selectionlab.in";
 const QUICK_DATES = ["Admit card", "Exam date", "Answer key", "Result", "Skill test"];
 const QUICK_LINKS = ["Admit Card", "Answer Key", "Result", "Exam City Slip", "Notice"];
 
@@ -147,6 +149,7 @@ function List({ api, onUpload, onEdit }: { api: ApiFn; onUpload: () => void; onE
                 ✗ Platform pe nahi: {missing.map((g: any) => g.need).join(" · ")}
               </div>
             )}
+            {e.gsc_due && <GscBox api={api} exam={e} onDone={load} />}
             <div style={{ display: "flex", gap: 8, marginTop: 9, flexWrap: "wrap" }}>
               <button style={btn} onClick={() => onEdit(e.id)}>Edit / update</button>
               <button style={btn} onClick={() => pub(e)}>{e.is_published ? "Unpublish" : "Publish"}</button>
@@ -156,6 +159,40 @@ function List({ api, onUpload, onEdit }: { api: ApiFn; onUpload: () => void; onE
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// ── Google Search Console ────────────────────────────────────────────────────
+// Publish ke baad, aur har naye update (admit card, result) ke baad dobara.
+function GscBox({ api, exam, onDone }: { api: ApiFn; exam: any; onDone: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const url = `${SITE}/exam-updates/${exam.slug}`;
+  async function copy() {
+    try { await navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch {}
+  }
+  async function done() {
+    try { await api(`/exam-updates/admin/${exam.id}/gsc-done`, "POST"); onDone(); } catch (x: any) { alert(x.message); }
+  }
+  if (!open) {
+    return (
+      <button style={{ ...btn, marginTop: 8, borderColor: "rgba(93,217,124,0.5)", color: GREEN }} onClick={() => setOpen(true)}>
+        🔎 Google ko bhejo{exam.gsc_requested_at ? " (naya update)" : ""}
+      </button>
+    );
+  }
+  return (
+    <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 10, padding: 10, marginTop: 8, fontSize: 12.5, lineHeight: 1.7 }}>
+      <div style={{ fontWeight: 800, marginBottom: 4 }}>Search Console me (30 second)</div>
+      <div>1. Link copy karo: <button style={{ ...btn, padding: "3px 8px" }} onClick={copy}>{copied ? "Copied ✓" : "Copy link"}</button></div>
+      <div style={{ fontSize: 11, color: MUTED, wordBreak: "break-all" }}>{url}</div>
+      <div>2. <a href="https://search.google.com/search-console" target="_blank" rel="noopener" style={{ color: GOLD }}>Search Console kholo</a>, upar wale search box me link paste karke Enter.</div>
+      <div>3. &quot;Request Indexing&quot; dabao, 1-2 minute ruko.</div>
+      <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+        <button style={goldBtn} onClick={done}>Ho gaya</button>
+        <button style={btn} onClick={() => setOpen(false)}>Baad me</button>
+      </div>
     </div>
   );
 }
@@ -247,7 +284,7 @@ function Edit({ api, id, onBack }: { api: ApiFn; id: number; onBack: () => void 
     setBusy(true); setMsg({ t: "", ok: false });
     try {
       const fields: any = {};
-      [...TEXT_FIELDS.map((x) => x[0]), "latest_update", ...INT_FIELDS.map((x) => x[0]), ...BOOL_FIELDS.map((x) => x[0])]
+      [...TEXT_FIELDS.map((x) => x[0]), "latest_update", "cover_url", "cover_alt", ...INT_FIELDS.map((x) => x[0]), ...BOOL_FIELDS.map((x) => x[0])]
         .forEach((k) => { fields[k] = f[k] ?? null; });
       const r = await api(`/exam-updates/admin/${id}`, "PUT", { fields, dates, links, is_published: pub });
       setMsg({ t: `Save ho gaya.${r.latest_update ? ` Latest update: "${r.latest_update}"` : ""}`, ok: true });
@@ -290,6 +327,22 @@ function Edit({ api, id, onBack }: { api: ApiFn; id: number; onBack: () => void 
         <div style={lbl}>Latest update (khaali chhodo to link/date jodne par apne aap banta hai)</div>
         <input style={{ ...input, marginBottom: 6 }} value={f.latest_update || ""} onChange={(x) => setF({ ...f, latest_update: x.target.value })} placeholder="Admit Card out" />
         {e.source_url && <a href={e.source_url} target="_blank" style={{ fontSize: 12, color: GOLD }}>Source kholo ↗ (aankde yahan se milao)</a>}
+      </div>
+
+      <div style={box}>
+        <div style={{ fontWeight: 800, marginBottom: 6 }}>🖼️ Image (optional)</div>
+        <ImageField
+          label="Cover image"
+          value={f.cover_url || ""}
+          onChange={(v) => setF({ ...f, cover_url: v })}
+          reqW={1200}
+          reqH={675}
+          where="Exam page ke upar, Blog ke exam card par, aur WhatsApp/Facebook share preview me. Google Discover ke liye bada image zaroori hai."
+          hint="Apna template: logo + exam ka naam + posts + last date. Dusri site ki image mat lagana."
+        />
+        <div style={lbl}>Image ka alt text (Google ke liye — image me kya hai)</div>
+        <input style={input} value={f.cover_alt || ""} placeholder="SCI Junior Court Assistant 2026 notification — 250 posts"
+          onChange={(x) => setF({ ...f, cover_alt: x.target.value })} />
       </div>
 
       {/* Platform gaps */}

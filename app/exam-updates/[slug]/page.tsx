@@ -17,7 +17,7 @@ const SITE = "https://www.selectionlab.in";
 
 async function getExam(slug: string) {
   try {
-    const res = await fetch(`${API_URL}/exam-updates/${slug}`, { next: { revalidate: 300 } });
+    const res = await fetch(`${API_URL}/exam-updates/${slug}`, { next: { revalidate: 60 } });
     if (!res.ok) return null;
     const d = await res.json();
     return d.exam || null;
@@ -40,8 +40,10 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     description,
     alternates: { canonical: `/exam-updates/${e.slug}` },
     openGraph: { title, description, url: `/exam-updates/${e.slug}`, type: "article",
-                 modifiedTime: e.updated_at || undefined },
-    twitter: { card: "summary", title, description },
+                 modifiedTime: e.updated_at || undefined,
+                 images: e.cover_url ? [{ url: e.cover_url, alt: e.cover_alt || e.title }] : undefined },
+    twitter: { card: e.cover_url ? "summary_large_image" : "summary", title, description,
+               images: e.cover_url ? [e.cover_url] : undefined },
   };
 }
 
@@ -61,6 +63,7 @@ function jsonLd(e: any) {
       "@context": "https://schema.org", "@type": "Article", headline: e.title,
       description: e.short_info || e.title, mainEntityOfPage: url,
       datePublished: e.created_at, dateModified: e.updated_at || e.created_at,
+      ...(e.cover_url ? { image: [e.cover_url] } : {}),
       author: { "@type": "Organization", name: "Selection Lab" },
       publisher: { "@type": "Organization", name: "Selection Lab", logo: { "@type": "ImageObject", url: `${SITE}/logo.png` } },
     },
@@ -141,6 +144,10 @@ export default async function ExamUpdatePage({ params }: { params: Promise<{ slu
           </div>
         )}
 
+        {e.cover_url && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={e.cover_url} alt={e.cover_alt || e.title} style={{ display: "block", width: "100%", maxWidth: 820, height: "auto", borderRadius: 14, margin: "14px 0 4px", border: "1px solid var(--line)" }} />
+        )}
         {e.latest_update && (
           <div style={{ margin: "14px 0", padding: "10px 12px", borderRadius: 12, background: "rgba(255,171,0,0.14)", border: `1px solid ${GOLD}`, fontWeight: 700, fontSize: 14 }}>
             🔔 Latest update: {e.latest_update}

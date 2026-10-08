@@ -15,7 +15,7 @@ const API_URL = "https://api.selectionlab.online/api";
 // Exam Updates (job notifications) — blog ke upar hi dikhte hain, alag menu nahi
 async function getExamUpdates() {
   try {
-    const res = await fetch(`${API_URL}/exam-updates/`, { next: { revalidate: 300 } });
+    const res = await fetch(`${API_URL}/exam-updates/`, { next: { revalidate: 60 } });
     if (!res.ok) return [];
     const d = await res.json();
     return d.exams || [];
@@ -75,6 +75,10 @@ export default async function BlogPage() {
                   {e.total_vacancies ? <span style={{ fontSize: 11.5, color: "var(--muted)" }}>{Number(e.total_vacancies).toLocaleString("en-IN")} posts</span> : null}
                   {e.last_date && <span style={{ fontSize: 11.5, color: "var(--muted)" }}>· Last date {fmtDate(e.last_date)}</span>}
                 </div>
+                {e.cover_url && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={e.cover_url} alt={e.cover_alt || e.title} loading="lazy" style={{ display: "block", width: "100%", aspectRatio: "16 / 9", objectFit: "cover", borderRadius: 9, margin: "4px 0 8px" }} />
+                )}
                 <div style={{ fontWeight: 700, fontSize: 14.5, lineHeight: 1.4 }}>{e.title}</div>
                 {e.latest_update && <div style={{ fontSize: 12, color: GOLD, fontWeight: 700, marginTop: 4 }}>🔔 {e.latest_update}</div>}
               </Link>
