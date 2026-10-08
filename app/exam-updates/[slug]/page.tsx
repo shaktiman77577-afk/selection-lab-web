@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { CSSProperties, ReactNode } from "react";
-import { STATUS_COLOR, fmtDate } from "@/lib/examUpdates";
+import { STATUS_COLOR, fmtDate, WIDE_CSS } from "@/lib/examUpdates";
 
 /**
  * /exam-updates/[slug] — ek vacancy ki poori jaankari.
@@ -111,6 +111,10 @@ export default async function ExamUpdatePage({ params }: { params: Promise<{ slu
   const relax = pairs(e.age_relaxation);
   const salary = list(e.salary);
   const prods = e.products || [];
+  const lastDate = (e.dates || []).find((d: any) => d.label === "Last date to apply");
+  const linkOf = (re: RegExp) => ((e.links || []).find((l: any) => l.url && re.test(l.label || "")) || {}).url;
+  const applyLink = linkOf(/apply/i);
+  const pdfLink = linkOf(/notification/i);
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--text)" }}>
@@ -122,11 +126,12 @@ export default async function ExamUpdatePage({ params }: { params: Promise<{ slu
       </header>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(e) }} />
 
-      <main style={{ maxWidth: 760, margin: "0 auto", padding: "20px 16px 60px", lineHeight: 1.65 }}>
+      <style dangerouslySetInnerHTML={{ __html: WIDE_CSS }} />
+      <main className="sl-wide" style={{ lineHeight: 1.65 }}>
         <span style={{ fontSize: 11.5, fontWeight: 800, color: "#fff", background: STATUS_COLOR[e.status?.code] || "#8a8f99", borderRadius: 6, padding: "3px 9px" }}>
           {e.status?.text}
         </span>
-        <h1 style={{ fontSize: 23, lineHeight: 1.35, margin: "10px 0 4px" }}>{e.title}</h1>
+        <h1 className="sl-h1" style={{ fontSize: 23, lineHeight: 1.35, margin: "10px 0 4px" }}>{e.title}</h1>
         <div style={{ fontSize: 13, color: "var(--muted)" }}>
           {[e.organization, e.advt_no ? `Advt. No. ${e.advt_no}` : "", e.state].filter(Boolean).join(" · ")}
         </div>
@@ -143,27 +148,46 @@ export default async function ExamUpdatePage({ params }: { params: Promise<{ slu
         )}
         {e.short_info && <p style={{ fontSize: 14.5, margin: "14px 0" }}>{e.short_info}</p>}
 
-        {prods.length > 0 && (
-          <div style={{ ...card, border: `1.5px solid ${GOLD}` }}>
-            <h2 style={h2}>🎯 Prepare for this exam on Selection Lab</h2>
-            {prods.map((p: any) => (
-              <Link key={`${p.kind}-${p.id}`} href={p.link} style={{ display: "flex", gap: 10, alignItems: "center", padding: "8px 0", borderTop: "1px solid var(--line)", textDecoration: "none", color: "var(--text)" }}>
-                {p.thumbnail_url && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={p.thumbnail_url} alt="" style={{ width: 64, height: 40, objectFit: "cover", borderRadius: 6, flexShrink: 0 }} />
-                )}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 11, color: GOLD, fontWeight: 800 }}>{p.kind_label}</div>
-                  <div style={{ fontSize: 13.5, fontWeight: 700, lineHeight: 1.4 }}>{p.title}</div>
+        <div className="eu-grid">
+          <aside className="eu-side">
+            <div style={card}>
+              <h2 style={h2}>⚡ Quick facts</h2>
+              <Table rows={[
+                ["Total posts", e.total_vacancies ? Number(e.total_vacancies).toLocaleString("en-IN") : ""],
+                ["Last date", lastDate ? fmtDate(lastDate.date_text) : ""],
+                ["Salary", salary[0] || ""],
+                ["Age", e.age_min || e.age_max ? `${e.age_min || "?"}–${e.age_max || "?"} years` : ""],
+              ]} />
+              {(applyLink || pdfLink) && (
+                <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+                  {applyLink && <a href={applyLink} target="_blank" rel="noopener nofollow" style={{ flex: 1, textAlign: "center", background: GOLD, color: "#1a1a1a", borderRadius: 10, padding: "10px 12px", fontWeight: 800, fontSize: 13.5, textDecoration: "none" }}>Apply online ↗</a>}
+                  {pdfLink && <a href={pdfLink} target="_blank" rel="noopener nofollow" style={{ flex: 1, textAlign: "center", border: `1px solid ${GOLD}`, color: "var(--text)", borderRadius: 10, padding: "10px 12px", fontWeight: 700, fontSize: 13.5, textDecoration: "none" }}>Notification PDF ↗</a>}
                 </div>
-                <span style={{ fontSize: 13, fontWeight: 800, whiteSpace: "nowrap" }}>
-                  {Number(p.price) > 0 ? `₹${p.price}` : "Free"} →
-                </span>
-              </Link>
-            ))}
-          </div>
-        )}
+              )}
+            </div>
+        {prods.length > 0 && (
+              <div style={{ ...card, border: `1.5px solid ${GOLD}` }}>
+                <h2 style={h2}>🎯 Prepare for this exam on Selection Lab</h2>
+                {prods.map((p: any) => (
+                  <Link key={`${p.kind}-${p.id}`} href={p.link} style={{ display: "flex", gap: 10, alignItems: "center", padding: "8px 0", borderTop: "1px solid var(--line)", textDecoration: "none", color: "var(--text)" }}>
+                    {p.thumbnail_url && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={p.thumbnail_url} alt="" style={{ width: 64, height: 40, objectFit: "cover", borderRadius: 6, flexShrink: 0 }} />
+                    )}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 11, color: GOLD, fontWeight: 800 }}>{p.kind_label}</div>
+                      <div style={{ fontSize: 13.5, fontWeight: 700, lineHeight: 1.4 }}>{p.title}</div>
+                    </div>
+                    <span style={{ fontSize: 13, fontWeight: 800, whiteSpace: "nowrap" }}>
+                      {Number(p.price) > 0 ? `₹${p.price}` : "Free"} →
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            )}
 
+          </aside>
+          <div className="eu-main">
         {(e.dates || []).length > 0 && (
           <div style={card}>
             <h2 style={h2}>📅 Important dates</h2>
@@ -171,6 +195,7 @@ export default async function ExamUpdatePage({ params }: { params: Promise<{ slu
           </div>
         )}
 
+        <div className="eu-pair">
         <div style={card}>
           <h2 style={h2}>📋 Overview</h2>
           <Table rows={[
@@ -223,6 +248,8 @@ export default async function ExamUpdatePage({ params }: { params: Promise<{ slu
           </div>
         )}
 
+        </div>
+
         {stages.length > 0 && (
           <div style={card}>
             <h2 style={h2}>🧭 Selection process</h2>
@@ -258,6 +285,8 @@ export default async function ExamUpdatePage({ params }: { params: Promise<{ slu
         <p style={{ fontSize: 11.5, color: "var(--muted)", lineHeight: 1.6 }}>
           Information is collected from the official notification. Please verify every detail on the official website before applying.
         </p>
+          </div>
+        </div>
       </main>
     </div>
   );

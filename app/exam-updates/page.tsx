@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { pageMeta } from "@/lib/seo";
-import { STATUS_COLOR, fmtDate as fmt } from "@/lib/examUpdates";
+import { STATUS_COLOR, fmtDate as fmt, WIDE_CSS } from "@/lib/examUpdates";
 
 /**
  * /exam-updates — sarkari vacancies (job notifications) ki list.
@@ -59,8 +59,9 @@ export default async function ExamUpdatesPage({ searchParams }: { searchParams: 
         </div>
       </header>
 
-      <main style={{ maxWidth: 760, margin: "0 auto", padding: "20px 16px 60px" }}>
-        <h1 style={{ fontSize: 23, margin: "4px 0 4px" }}>Latest Exam Updates</h1>
+      <style dangerouslySetInnerHTML={{ __html: WIDE_CSS }} />
+      <main className="sl-wide">
+        <h1 className="sl-h1" style={{ fontSize: 23, margin: "4px 0 4px" }}>Latest Exam Updates</h1>
         <p style={{ color: "var(--muted)", fontSize: 13.5, margin: "0 0 14px" }}>
           Government job notifications with important dates, fees, eligibility, admit cards and results.
         </p>
@@ -84,7 +85,7 @@ export default async function ExamUpdatesPage({ searchParams }: { searchParams: 
 
         {exams.length === 0 ? (
           <p style={{ color: "var(--muted)" }}>No updates here yet. Please check back soon.</p>
-        ) : exams.map((e: any) => (
+        ) : <div className="sl-cards">{exams.map((e: any) => (
           <Link key={e.slug} href={`/exam-updates/${e.slug}`} style={{
             display: "block", background: "var(--card)", border: "1px solid var(--line)", borderRadius: 14,
             padding: 15, marginBottom: 12, textDecoration: "none", color: "var(--text)", boxShadow: "var(--shadow)",
@@ -106,7 +107,7 @@ export default async function ExamUpdatesPage({ searchParams }: { searchParams: 
               {e.last_date && <span>Last date: <b>{fmt(e.last_date)}</b></span>}
             </div>
           </Link>
-        ))}
+        ))}</div>}
       </main>
     </div>
   );

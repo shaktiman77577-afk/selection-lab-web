@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { pageMeta } from "@/lib/seo";
 import Link from "next/link";
-import { STATUS_COLOR, fmtDate } from "@/lib/examUpdates";
+import { STATUS_COLOR, fmtDate, WIDE_CSS } from "@/lib/examUpdates";
 
 export const metadata: Metadata = pageMeta({
   title: "Blog — Exam Updates & Study Material",
@@ -47,8 +47,9 @@ export default async function BlogPage() {
         </div>
       </header>
 
-      <main style={{ maxWidth: 720, margin: "0 auto", padding: "20px 16px 60px" }}>
-        <h1 style={{ fontSize: 23, margin: "4px 0 4px" }}>Exam Updates &amp; Study Material</h1>
+      <style dangerouslySetInnerHTML={{ __html: WIDE_CSS }} />
+      <main className="sl-wide">
+        <h1 className="sl-h1" style={{ fontSize: 23, margin: "4px 0 4px" }}>Exam Updates &amp; Study Material</h1>
         <p style={{ color: "var(--muted)", fontSize: 13.5, margin: "0 0 18px" }}>
           Notifications, strategy, vocabulary and preparation guides — updated regularly.
         </p>
@@ -61,6 +62,7 @@ export default async function BlogPage() {
                 <Link href="/exam-updates" style={{ fontSize: 13, color: GOLD, fontWeight: 700, textDecoration: "none" }}>View all →</Link>
               )}
             </div>
+            <div className="sl-cards">
             {topExams.map((e: any) => (
               <Link key={e.slug} href={`/exam-updates/${e.slug}`} style={{
                 display: "block", background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12,
@@ -77,6 +79,7 @@ export default async function BlogPage() {
                 {e.latest_update && <div style={{ fontSize: 12, color: GOLD, fontWeight: 700, marginTop: 4 }}>🔔 {e.latest_update}</div>}
               </Link>
             ))}
+            </div>
           </section>
         )}
 
@@ -84,7 +87,7 @@ export default async function BlogPage() {
         {posts.length === 0 ? (
           <p style={{ color: "var(--muted)" }}>First posts coming soon — join our Telegram for updates!</p>
         ) : (
-          posts.map((p: any) => (
+          <div className="sl-cards">{posts.map((p: any) => (
             <Link
               key={p.slug}
               href={`/blog/${p.slug}`}
@@ -96,7 +99,7 @@ export default async function BlogPage() {
                 {new Date(p.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })} · Read more →
               </div>
             </Link>
-          ))
+          ))}</div>
         )}
       </main>
     </div>
