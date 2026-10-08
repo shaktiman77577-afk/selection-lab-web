@@ -19,6 +19,7 @@ import ComposerAdmin from "./ComposerAdmin";
 import ExtractorAdmin from "./ExtractorAdmin";
 import VolatileAdmin from "./VolatileAdmin";
 import PromoAdmin from "./PromoAdmin";
+import { AiBlogPanel, GscCard } from "./AiBlogAdmin";
 import { downloadZip } from "./downloadZip";
 import FixUploadModal, { type FixTarget } from "./FixUpload";
 
@@ -4574,12 +4575,15 @@ function BlogTab() {
       <button onClick={() => setEditing({ is_published: true })} style={{ ...goldBtn, width: "100%", marginBottom: 14 }}>
         + New blog post
       </button>
+      <AiBlogPanel api={api} onDraft={load} />
       {error && <ErrorBox msg={error} />}
       {posts.length === 0 && <Muted>No posts yet. SEO traffic starts with the first post!</Muted>}
       {posts.map((p) => (
         <div key={p.id} style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, padding: 12, marginBottom: 8 }}>
           <div style={{ fontWeight: 700, fontSize: 13.5 }}>
-            {p.title} {p.is_published === false && <span style={{ color: "#e0a030", fontSize: 11 }}>· DRAFT</span>}
+            {p.title} {p.is_published === false && (p.ai_generated
+              ? <span style={{ color: "#5dd97c", fontSize: 11 }}>· 🤖 AI DRAFT — padh ke publish karo</span>
+              : <span style={{ color: "#e0a030", fontSize: 11 }}>· DRAFT</span>)}
           </div>
           <div style={{ fontSize: 11.5, color: "var(--muted, #9a917f)", margin: "3px 0 8px" }}>/blog/{p.slug}</div>
           <div style={{ display: "flex", gap: 8 }}>
@@ -4587,6 +4591,7 @@ function BlogTab() {
             <a href={`/blog/${p.slug}`} target="_blank" style={{ ...smallBtn, textDecoration: "none", display: "inline-block" }}>View</a>
             <button onClick={() => remove(p.id)} style={{ ...smallBtn, color: "#ff6b6b", borderColor: "rgba(255,107,107,0.4)" }}>Delete</button>
           </div>
+          <GscCard api={api} post={p} onDone={load} />
         </div>
       ))}
     </div>
