@@ -35,7 +35,7 @@ const btn: CSSProperties = {
 };
 const goldBtn: CSSProperties = { ...btn, background: GOLD, color: "#1a1a1a", border: "none" };
 
-const KIND: Record<string, string> = { course: "Course", mock: "Mock", tier2: "Typing", descriptive: "Descriptive" };
+const KIND: Record<string, string> = { course: "Course", mock: "Mock", tier2: "Typing", descriptive: "Descriptive", exam: "Exam update" };
 const REASON: Record<string, string> = {
   no_key: "Railway me GEMINI_API_KEY nahi hai.",
   disabled: "AI drafts band hain.",
@@ -127,7 +127,7 @@ export function AiBlogPanel({ api, onDraft }: { api: ApiFn; onDraft: () => void 
       {open && (
         <div style={{ marginTop: 12 }}>
           <p style={{ fontSize: 12, color: MUTED, lineHeight: 1.6, margin: "0 0 10px" }}>
-            Naya course ya mock/typing/descriptive series banate hi, aur jin purane products ka blog nahi hai
+            Naya course ya mock/typing/descriptive series banate hi, Exam Update publish karte hi, aur jin purane products ka blog nahi hai
             unka, Gemini apne aap SEO blog ka draft banata hai — har 10 minute me ek, din ki limit tak.
             Draft kabhi apne aap live nahi hota. Publish se pehle aankde (taarikh, post, fees) zaroor check kijiye.
           </p>
@@ -159,7 +159,7 @@ export function AiBlogPanel({ api, onDraft }: { api: ApiFn; onDraft: () => void 
             <div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 6 }}>Kisi bhi product ka blog abhi banao</div>
             <select style={{ ...inputStyle, marginBottom: 8 }} value={pick} onChange={(e) => setPick(e.target.value)}>
               <option value="">Product chuniye</option>
-              {["course", "mock", "tier2", "descriptive"].map((k) => {
+              {["exam", "course", "mock", "tier2", "descriptive"].map((k) => {
                 const list = (d.products || []).filter((p: any) => p.kind === k);
                 if (!list.length) return null;
                 return (
