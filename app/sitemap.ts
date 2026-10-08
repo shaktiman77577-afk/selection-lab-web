@@ -66,5 +66,20 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }
   } catch {}
 
-  return [...staticPages, ...productPages, ...blogPages];
+  // Exam Updates (job notifications)
+  let examPages: MetadataRoute.Sitemap = [{ url: `${SITE}/exam-updates`, changeFrequency: "daily" as const, priority: 0.8 }];
+  try {
+    const res = await fetch(`${API}/exam-updates/`, { next: { revalidate: 3600 } });
+    if (res.ok) {
+      const data = await res.json();
+      examPages = examPages.concat((data.exams || []).map((e: any) => ({
+        url: `${SITE}/exam-updates/${e.slug}`,
+        changeFrequency: "daily" as const,
+        priority: 0.7,
+        ...(e.updated_at || e.created_at ? { lastModified: new Date(e.updated_at || e.created_at) } : {}),
+      })));
+    }
+  } catch {}
+
+  return [...staticPages, ...productPages, ...blogPages, ...examPages];
 }

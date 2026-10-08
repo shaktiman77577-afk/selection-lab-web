@@ -21,6 +21,7 @@ import VolatileAdmin from "./VolatileAdmin";
 import PromoAdmin from "./PromoAdmin";
 import { AiBlogPanel, GscCard } from "./AiBlogAdmin";
 import BlogPreview from "./BlogPreview";
+import ExamUpdatesAdmin, { ExamDatesBox } from "./ExamUpdatesAdmin";
 import { downloadZip } from "./downloadZip";
 import FixUploadModal, { type FixTarget } from "./FixUpload";
 
@@ -40,7 +41,7 @@ const TAB_PERM: Record<string, string> = {
   courses: "courses", appcontent: "courses", banners: "courses", promos: "courses",
   mocktests: "mocks", descriptive: "mocks", tier2: "mocks", excel: "mocks", nbemsmock: "mocks",
   questions: "mocks", qbank: "mocks", composer: "mocks", extractor: "mocks", volatile: "mocks", scorechecker: "mocks",
-  blog: "seo", seo: "seo", search: "seo",
+  blog: "seo", seo: "seo", search: "seo", examupdates: "seo",
   users: "users", tickets: "users", approvals: "users", email: "users", notifications: "users", reviews: "users",
   health: "owner", team: "owner",
 };
@@ -57,7 +58,7 @@ function canOpen(me: Me, tab: string): boolean {
   return !!need && need !== "owner" && me.perms.includes(need);
 }
 
-type Tab = "home" | "health" | "seo" | "live" | "tickets" | "dashboard" | "courses" | "questions" | "qbank" | "mocktests" | "blog" | "banners" | "notifications" | "reviews" | "users" | "coupons" | "descriptive" | "appcontent" | "approvals" | "tier2" | "excel" | "nbemsmock" | "search" | "email" | "partners" | "scorechecker" | "composer" | "extractor" | "volatile" | "promos" | "team";
+type Tab = "home" | "health" | "seo" | "live" | "tickets" | "dashboard" | "courses" | "questions" | "qbank" | "mocktests" | "blog" | "banners" | "notifications" | "reviews" | "users" | "coupons" | "descriptive" | "appcontent" | "approvals" | "tier2" | "excel" | "nbemsmock" | "search" | "email" | "partners" | "scorechecker" | "composer" | "extractor" | "volatile" | "promos" | "examupdates" | "team";
 
 // ── API helpers ──────────────────────────────────────────────────────────────
 function token(): string {
@@ -299,6 +300,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     { id: "email",         icon: "📧", title: "Email",         sub: "Send mails, read replies",            color: "#7C6CE0", group: "App aur Website" },
     { id: "partners",      icon: "🤝", title: "Partners",      sub: "Applications, payouts, requests",     color: "#2E9E6B", group: "App aur Website" },
     { id: "blog",          icon: "📰", title: "Blog",          sub: "SEO articles website pe",            color: "#E8734A", group: "App aur Website" },
+    { id: "examupdates",   icon: "🔔", title: "Exam Updates",  sub: "Vacancies, dates, admit card, result", color: "#C9A227", group: "App aur Website" },
 
     { id: "users",         icon: "👥", title: "Users",         sub: "Access do, ban karo, history",       color: "#3AA8C1", group: "Log aur Paisa" },
     { id: "coupons",       icon: "🎟️", title: "Coupons",       sub: "Discount code banao",                color: "#3EA96B", group: "Log aur Paisa" },
@@ -343,6 +345,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
           <h1 style={{ fontSize: 26, fontWeight: 800, margin: "4px 0 18px", lineHeight: 1.25 }}>
             Aaj <span style={{ color: GOLD }}>kya karna</span> hai?
           </h1>
+          {can("examupdates") && <ExamDatesBox api={api} onOpen={() => setTab("examupdates")} />}
 
           {/* Troubleshooter — sab kuch khud check karke report deta hai */}
           {can("health") && (
@@ -568,6 +571,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         {tab === "blog" && <BlogTab />}
         {tab === "banners" && <BannersTab />}
         {tab === "promos" && can("promos") && <PromoAdmin api={api} />}
+        {tab === "examupdates" && can("examupdates") && <ExamUpdatesAdmin api={api} />}
         {tab === "notifications" && <NotificationsTab />}
         {tab === "reviews" && <ReviewsTab />}
         {tab === "users" && <UsersTab />}

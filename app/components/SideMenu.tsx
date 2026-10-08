@@ -12,6 +12,7 @@ const MENU: { icon: string; label: string; path: string; auth?: boolean; highlig
   { icon: "📝", label: "Mock Tests", path: "/mock-tests" },
   { icon: "✍️", label: "Descriptive Tests", path: "/descriptive" },
   { icon: "⌨️", label: "Typing/Skill Test", path: "/tier2" },
+  { icon: "🔔", label: "Exam Updates", path: "/exam-updates" },
   { icon: "🎯", label: "My Learning", path: "/my-learning", auth: true },
   { icon: "📱", label: "Quiz (In App)", path: "/" },
   { icon: "📰", label: "Blog", path: "/blog" },

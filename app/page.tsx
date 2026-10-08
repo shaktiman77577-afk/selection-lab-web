@@ -209,6 +209,7 @@ export default function HomePage() {
         <a onClick={() => router.push("/mock-tests")} style={navLink}>Mock Tests</a>
         <a onClick={() => router.push("/descriptive")} style={navLink}>Descriptive</a>
         <a onClick={() => router.push("/tier2")} style={navLink}>Typing/Skill Test</a>
+        <a onClick={() => router.push("/exam-updates")} style={navLink}>Exam Updates</a>
         <a onClick={() => router.push("/blog")} style={navLink}>Blog</a>
         <a onClick={() => router.push("/about")} style={navLink}>About</a>
         <a onClick={() => router.push("/contact")} style={navLink}>Contact</a>
