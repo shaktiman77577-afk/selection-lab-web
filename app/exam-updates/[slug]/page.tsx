@@ -115,9 +115,9 @@ export default async function ExamUpdatePage({ params }: { params: Promise<{ slu
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--text)" }}>
       <header style={{ position: "sticky", top: 0, display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", background: "var(--header)", borderBottom: "1px solid var(--line)", zIndex: 10 }}>
-        <Link href="/exam-updates" style={{ color: "var(--text)", textDecoration: "none", fontSize: 18 }}>←</Link>
+        <Link href="/blog" style={{ color: "var(--text)", textDecoration: "none", fontSize: 18 }}>←</Link>
         <div style={{ fontWeight: 800, fontSize: 16 }}>
-          Selection <span style={{ color: GOLD }}>Lab</span> · Exam Updates
+          Selection <span style={{ color: GOLD }}>Lab</span> Blog
         </div>
       </header>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(e) }} />

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { pageMeta } from "@/lib/seo";
 import Link from "next/link";
+import { STATUS_COLOR, fmtDate } from "@/lib/examUpdates";
 
 export const metadata: Metadata = pageMeta({
   title: "Blog — Exam Updates & Study Material",
@@ -10,6 +11,18 @@ export const metadata: Metadata = pageMeta({
 
 const GOLD = "#FFAB00";
 const API_URL = "https://api.selectionlab.online/api";
+
+// Exam Updates (job notifications) — blog ke upar hi dikhte hain, alag menu nahi
+async function getExamUpdates() {
+  try {
+    const res = await fetch(`${API_URL}/exam-updates/`, { next: { revalidate: 300 } });
+    if (!res.ok) return [];
+    const d = await res.json();
+    return d.exams || [];
+  } catch {
+    return [];
+  }
+}
 
 async function getPosts() {
   try {
@@ -23,7 +36,8 @@ async function getPosts() {
 }
 
 export default async function BlogPage() {
-  const posts = await getPosts();
+  const [posts, exams] = await Promise.all([getPosts(), getExamUpdates()]);
+  const topExams = exams.slice(0, 6);
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--text)" }}>
       <header style={{ position: "sticky", top: 0, display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", background: "var(--header)", borderBottom: "1px solid var(--line)", zIndex: 10 }}>
@@ -39,6 +53,34 @@ export default async function BlogPage() {
           Notifications, strategy, vocabulary and preparation guides — updated regularly.
         </p>
 
+        {topExams.length > 0 && (
+          <section style={{ marginBottom: 22 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", margin: "0 0 10px" }}>
+              <h2 style={{ fontSize: 17, margin: 0 }}>🔔 Latest Exam Updates</h2>
+              {exams.length > topExams.length && (
+                <Link href="/exam-updates" style={{ fontSize: 13, color: GOLD, fontWeight: 700, textDecoration: "none" }}>View all →</Link>
+              )}
+            </div>
+            {topExams.map((e: any) => (
+              <Link key={e.slug} href={`/exam-updates/${e.slug}`} style={{
+                display: "block", background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12,
+                padding: "11px 13px", marginBottom: 8, textDecoration: "none", color: "var(--text)",
+              }}>
+                <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 4 }}>
+                  <span style={{ fontSize: 10.5, fontWeight: 800, color: "#fff", background: STATUS_COLOR[e.status?.code] || "#8a8f99", borderRadius: 6, padding: "2px 7px" }}>
+                    {e.status?.text}
+                  </span>
+                  {e.total_vacancies ? <span style={{ fontSize: 11.5, color: "var(--muted)" }}>{Number(e.total_vacancies).toLocaleString("en-IN")} posts</span> : null}
+                  {e.last_date && <span style={{ fontSize: 11.5, color: "var(--muted)" }}>· Last date {fmtDate(e.last_date)}</span>}
+                </div>
+                <div style={{ fontWeight: 700, fontSize: 14.5, lineHeight: 1.4 }}>{e.title}</div>
+                {e.latest_update && <div style={{ fontSize: 12, color: GOLD, fontWeight: 700, marginTop: 4 }}>🔔 {e.latest_update}</div>}
+              </Link>
+            ))}
+          </section>
+        )}
+
+        {posts.length > 0 && topExams.length > 0 && <h2 style={{ fontSize: 17, margin: "0 0 10px" }}>📰 Articles</h2>}
         {posts.length === 0 ? (
           <p style={{ color: "var(--muted)" }}>First posts coming soon — join our Telegram for updates!</p>
         ) : (
