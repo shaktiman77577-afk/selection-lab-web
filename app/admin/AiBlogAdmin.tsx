@@ -44,6 +44,7 @@ const REASON: Record<string, string> = {
   rate_limited: "Gemini ki free limit lag gayi — kal apne aap phir shuru hoga.",
   empty: "Line me abhi koi kaam nahi. (Bilkul naye product ka draft 30 minute baad banta hai — chahiye to upar dropdown se abhi banao.)",
   error: "Gemini se draft nahi bana",
+  busy: "Google ke Gemini par abhi bheed hai (hamari galti nahi) — kaam line me wapas, thodi der me apne aap banega.",
 };
 
 export function AiBlogPanel({ api, onDraft }: { api: ApiFn; onDraft: () => void }) {
