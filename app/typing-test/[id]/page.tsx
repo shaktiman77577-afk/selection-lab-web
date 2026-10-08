@@ -43,13 +43,19 @@ const BULK_INSERT_LIMIT = 25;
 //   - Upar passage me laal highlight wala shabd hi abhi type karna hai
 //   - Space dabate hi shabd lock — Backspace sirf Space se PEHLE, usi shabd me
 //   - Sync se bahar ya chhoota shabd = galti; extra space bhi galti
+//   - Chhoota shabd (Oct 2026 formula sheet: "errors + skipped words"):
+//     typed shabd agle SKIP_LOOKAHEAD shabdon me se ek ho to beech ke shabd
+//     chhoote (har ek 1 galti) aur highlight wahan tak kood jaata hai.
+//     Pichhla shabd dobara type kiya to 1 galti, highlight wahi rehta hai.
 // Backend (typing_diff._score_sync) bilkul isi tarah ginta hai — dono ka
-// hisaab ek jaisa rehna chahiye.
+// hisaab ek jaisa rehna chahiye. Submit par sync_skip_client: true jaata hai,
+// taaki backend jaane ki ye attempt naye niyam wala hai.
 //
 // lockedLen: text ka kitna hissa lock hai (aakhri Space tak sab kuch).
 // pos: passage ka kaunsa shabd abhi highlight hai — har Space ke saath aage,
 //      par khaali shabd (faltu Space) par nahi.
 // errs: ab tak ki galtiyan (sirf lock ho chuke shabdon ki).
+const SKIP_LOOKAHEAD = 3;
 function syncState(text: string, words: string[]) {
   const lockedLen = text.lastIndexOf(" ") + 1;
   const tokens = text.slice(0, lockedLen).split(" ");
@@ -58,7 +64,15 @@ function syncState(text: string, words: string[]) {
   let errs = 0;
   for (const tok of tokens) {
     if (tok === "") { errs += 1; continue; }         // faltu Space
-    if (pos >= words.length || tok !== words[pos]) errs += 1;
+    if (pos >= words.length) { errs += 1; continue; } // passage khatam, extra shabd
+    if (tok === words[pos]) { pos += 1; continue; }
+    let jump = 0;
+    for (let k = 1; k <= SKIP_LOOKAHEAD; k++) {
+      if (pos + k < words.length && words[pos + k] === tok) { jump = k; break; }
+    }
+    if (jump) { errs += jump; pos += jump + 1; continue; }   // chhoote shabd
+    if (pos > 0 && tok === words[pos - 1]) { errs += 1; continue; } // dobara
+    errs += 1;
     pos += 1;
   }
   return { lockedLen, pos, errs };
@@ -226,6 +240,7 @@ export default function TypingTestPage() {
           left_window: leftWindowRef.current,
           // Backend ko batate hain ki is screen par word-lock laga tha
           sync_client: sync,
+          sync_skip_client: sync,
         }),
       });
       const d = await res.json();
@@ -502,9 +517,10 @@ export default function TypingTestPage() {
             <Rule n="1" head="Type in sync with the red word" warn>
               The passage is in the top half of the screen and you type in the bottom half. The
               word you must type next is <b style={{ color: RED }}>highlighted in red</b>, and the
-              highlight moves one word ahead each time you press Space. Anything typed out of sync
-              with the red word is a mistake, and a skipped word is a mistake. If you lose your
-              place, type the red word to get back in sync.
+              highlight moves one word ahead each time you press Space. A wrong word is a mistake. If
+              you skip a word, each skipped word is one mistake and the highlight moves on to the
+              word you typed. If you type the previous word again, that is one mistake and the
+              highlight stays where it is.
             </Rule>
 
             <Rule n="2" head="Backspace works only before you press Space" warn>
@@ -521,10 +537,10 @@ export default function TypingTestPage() {
             </Rule>
 
             <Rule n="4" head="How your speed is calculated">
-              Your keystrokes are divided by 5 to give <b>gross words</b>. One word is taken off for
-              each mistake, and the rest is divided by the full {mins} minutes, even if you submit
-              early. That figure is your <b>net speed (NWPM)</b>. You need at least{" "}
-              <b>{meta.target_wpm} NWPM</b> to qualify.
+              Every key you type, including spaces, is one stroke, and 5 strokes make one word.
+              Each error and each skipped word takes off <b>5 strokes</b>. Your net strokes are then
+              divided by 5 × {mins} minutes, even if you submit early. That figure is your{" "}
+              <b>net speed (NWPM)</b>. You need at least <b>{meta.target_wpm} NWPM</b> to qualify.
             </Rule>
 
             {hasMarks ? <MarksRule n="5" base={base} per={per} max={max} fullAt={fullAt} /> : null}
@@ -549,10 +565,9 @@ export default function TypingTestPage() {
               fontSize: 12, color: "var(--muted)", lineHeight: 1.7, margin: "0 0 18px",
             }}>
               The synchronized typing, Backspace and prohibited-key rules are taken from the
-              university&apos;s official typing test instructions.
+              university&apos;s official typing test instructions. The net speed formula is from the
+              university&apos;s official &quot;Typing Test – Calculation Formula&quot;.
               {hasMarks ? ` The marks rule (${per} marks for each NWPM above ${base}, up to ${max}) is from the official notification.` : ""}
-              {" "}The official notice does not say exactly how net speed is worked out, so we use
-              the standard method: gross words from keystrokes, minus one word for each mistake.
             </div>
 
             <button
@@ -1309,6 +1324,7 @@ export default function TypingTestPage() {
             </div>
             {r.sync_typing && (
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 10, marginBottom: 16 }}>
+                <Box label="Skipped words" value={Number(r.skipped_words || 0)} />
                 <Box label="Extra spaces" value={Number(r.extra_spaces || 0)} />
                 <Box label="Left test window" value={`${Number(r.left_window || 0)} times`} />
               </div>
@@ -1386,14 +1402,27 @@ export default function TypingTestPage() {
         {std && (
           <div style={{ border: "1px solid var(--border)", borderRadius: 14, padding: 14, marginBottom: 16 }}>
             <div style={{ fontWeight: 800, fontSize: 14.5, marginBottom: 10 }}>Evaluation</div>
-            {([
-              ["Total keystrokes", Number(r.keystrokes || 0).toLocaleString("en-IN")],
-              ["Gross words (keystrokes ÷ 5)", r.gross_words],
-              ["Mistakes (one word each)", Number(r.total_mistakes || 0)],
-              ["Net words (gross words − mistakes)", r.net_words],
-              ["Test time", `${r.minutes_used} minutes`],
-              ["Net speed (net words ÷ test time)", `${r.net_wpm} NWPM`],
-            ] as [string, any][]).map(([k, v]) => (
+            {(() => {
+              // Official SKAU "Typing Test – Calculation Formula" ki tarah strokes
+              // me: deduction = (errors + skipped) × 5, net = gross − deduction,
+              // speed = net ÷ (5 × minutes). Words wale hisaab ke barabar hai.
+              const gross = Number(r.keystrokes || 0);
+              const skippedN = Number(r.skipped_words || 0);
+              const mistakesN = Number(r.total_mistakes || 0);
+              const errorsN = Math.max(0, mistakesN - skippedN);
+              const deduction = mistakesN * 5;
+              const net = Math.max(0, gross - deduction);
+              const fmt = (n: number) => n.toLocaleString("en-IN");
+              return ([
+                ["Gross strokes (total typed)", fmt(gross)],
+                ["Errors", errorsN],
+                ["Skipped words", skippedN],
+                ["Deduction ((errors + skipped) × 5)", `${fmt(deduction)} strokes`],
+                ["Net strokes (gross − deduction)", fmt(net)],
+                ["Test time", `${r.minutes_used} minutes`],
+                [`Net speed (net strokes ÷ (5 × ${r.minutes_used}))`, `${r.net_wpm} NWPM`],
+              ] as [string, any][]);
+            })().map(([k, v]) => (
               <div key={k} style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: 12.5, padding: "5px 0", borderBottom: "1px solid var(--border)" }}>
                 <span style={{ color: "var(--muted)" }}>{k}</span>
                 <b style={{ flexShrink: 0 }}>{v}</b>
@@ -1416,7 +1445,7 @@ export default function TypingTestPage() {
                 ? "No mistakes, so every keystroke counted."
                 : Number(r.net_words) <= 0
                 ? `You made ${Number(r.total_mistakes)} mistakes, which is more than the ${r.gross_words} gross words you typed, so the net count stops at zero.`
-                : `Your ${Number(r.total_mistakes)} mistakes took ${Number(r.total_mistakes)} words off your total.`}
+                : `Your ${Number(r.total_mistakes)} mistakes took ${Number(r.total_mistakes) * 5} strokes (${Number(r.total_mistakes)} words) off your total.`}
               {Number(r.line_errors || 0) > 0 ? ` ${r.line_errors} of them were line breaks.` : ""}
               {" "}Speed is always worked out over the full {r.minutes_used} minutes, as in the exam.
             </div>
@@ -1481,7 +1510,7 @@ export default function TypingTestPage() {
               </span>
             );
             if (s.op === "extra") return (
-              <span key={i} {...tap} title={s.why === "extra_space" ? "extra space" : "not in the passage"}
+              <span key={i} {...tap} title={s.why === "extra_space" ? "extra space" : s.why === "repeated" ? "typed again" : "not in the passage"}
                     style={{ ...tap.style, ...ring, background: "#ffe0e0", color: RED, textDecoration: "line-through" }}>
                 {sp}{s.typed}
               </span>
@@ -1654,6 +1683,8 @@ const WHY_TEXT: Record<string, string> = {
   line_extra: "in the passage this word continues on the same line, so no Enter here",
   out_of_sync: "out of sync — this was not the red word at that moment (usually a skipped or repeated word)",
   extra_space: "an extra space — Space was pressed twice or at the start",
+  skipped: "a skipped word — counts as one mistake (5 strokes)",
+  repeated: "the previous word was typed again — counts as one mistake",
 };
 
 function MistakeCard({ s, onClose }: { s: any; onClose: () => void }) {
@@ -1670,6 +1701,11 @@ function MistakeCard({ s, onClose }: { s: any; onClose: () => void }) {
             <div style={{ fontSize: 13.5, lineHeight: 1.7 }}>
               <b style={{ fontFamily: "var(--font-typing)", color: RED }}>{s.text}</b>
               {" "}— you did not type this word
+            </div>
+          ) : s.op === "extra" && s.why === "repeated" ? (
+            <div style={{ fontSize: 13.5, lineHeight: 1.7 }}>
+              You typed <b style={{ fontFamily: "var(--font-typing)", color: RED }}>{s.typed}</b>
+              {" "}again
             </div>
           ) : s.op === "extra" && s.why === "extra_space" ? (
             <div style={{ fontSize: 13.5, lineHeight: 1.7 }}>
