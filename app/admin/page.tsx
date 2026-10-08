@@ -20,6 +20,7 @@ import ExtractorAdmin from "./ExtractorAdmin";
 import VolatileAdmin from "./VolatileAdmin";
 import PromoAdmin from "./PromoAdmin";
 import { AiBlogPanel, GscCard } from "./AiBlogAdmin";
+import BlogPreview from "./BlogPreview";
 import { downloadZip } from "./downloadZip";
 import FixUploadModal, { type FixTarget } from "./FixUpload";
 
@@ -4534,6 +4535,7 @@ function MockTestsTab() {
 function BlogTab() {
   const [posts, setPosts] = useState<any[]>([]);
   const [editing, setEditing] = useState<any | null>(null);
+  const [previewId, setPreviewId] = useState<number | null>(null);
   const [error, setError] = useState("");
 
   function load() {
@@ -4572,6 +4574,10 @@ function BlogTab() {
 
   return (
     <div>
+      {previewId && (
+        <BlogPreview api={api} postId={previewId} onClose={() => setPreviewId(null)}
+          onEdit={() => { const id = previewId; setPreviewId(null); openEdit(id); }} />
+      )}
       <button onClick={() => setEditing({ is_published: true })} style={{ ...goldBtn, width: "100%", marginBottom: 14 }}>
         + New blog post
       </button>
@@ -4588,7 +4594,9 @@ function BlogTab() {
           <div style={{ fontSize: 11.5, color: "var(--muted, #9a917f)", margin: "3px 0 8px" }}>/blog/{p.slug}</div>
           <div style={{ display: "flex", gap: 8 }}>
             <button onClick={() => openEdit(p.id)} style={smallBtn}>Edit</button>
-            <a href={`/blog/${p.slug}`} target="_blank" style={{ ...smallBtn, textDecoration: "none", display: "inline-block" }}>View</a>
+            {p.is_published === false
+              ? <button onClick={() => setPreviewId(p.id)} style={smallBtn}>Preview</button>
+              : <a href={`/blog/${p.slug}`} target="_blank" style={{ ...smallBtn, textDecoration: "none", display: "inline-block" }}>View</a>}
             <button onClick={() => remove(p.id)} style={{ ...smallBtn, color: "#ff6b6b", borderColor: "rgba(255,107,107,0.4)" }}>Delete</button>
           </div>
           <GscCard api={api} post={p} onDone={load} />
