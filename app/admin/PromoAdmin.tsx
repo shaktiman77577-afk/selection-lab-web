@@ -6,11 +6,14 @@
  * page.tsx me:  <PromoAdmin api={api} />
  * Backend: routers/promos.py (wahan saare niyam likhe hain).
  *
- * Ek campaign = "jisne X kiya + Y nahi kharida -> Y ka popup".
+ * Ek campaign = "jisne in series me test diya YA ye cheezein khareedi (ya sab
+ * login wale) + Y nahi kharida -> popup". Y (product) optional — vacancy jaisi
+ * khabar me kuch bechna nahi hota.
  * Upar niyam (din me kitne, gap), neeche campaign list stats ke saath.
  */
 
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import ImageField from "./ImageField";
 
 type ApiFn = (path: string, method?: string, body?: any) => Promise<any>;
 
@@ -62,10 +65,74 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
 const KIND_LABEL: Record<string, string> = {
   course: "Course", mock: "Mock series", tier2: "Typing / Skill Test series", descriptive: "Descriptive series",
 };
-const TRIGGER_LABEL: Record<string, string> = {
-  any: "Koi bhi test diya ho", tier2: "Typing / Skill Test series me test diya",
-  mock: "Mock series me test diya", descriptive: "Descriptive series me test diya",
-};
+const TEST_KINDS = ["mock", "tier2", "descriptive"];
+const BUY_KINDS = ["course", "mock", "tier2", "descriptive"];
+
+type Item = { type: string; id: number | null };
+const keyOf = (t: string, id: any) => `${t}:${id ?? ""}`;
+function parseKey(k: string): Item {
+  const [t, i] = k.split(":");
+  return { type: t, id: i ? Number(i) : null };
+}
+function itemsToKeys(raw: any): string[] {
+  let a = raw;
+  if (typeof a === "string") { try { a = JSON.parse(a); } catch { a = []; } }
+  return (Array.isArray(a) ? a : []).filter((x: any) => x && x.type).map((x: any) => keyOf(x.type, x.id));
+}
+
+// Checkbox list — kind ke hisaab se group, upar search
+function MultiPick({ kinds, products, selected, onChange, anyLabel }: {
+  kinds: string[];
+  products: Record<string, { id: number; title: string }[]>;
+  selected: string[];
+  onChange: (v: string[]) => void;
+  anyLabel?: string;
+}) {
+  const [q, setQ] = useState("");
+  const sel = new Set(selected);
+  const toggle = (k: string) => {
+    const n = new Set(sel);
+    if (n.has(k)) n.delete(k); else n.add(k);
+    onChange(Array.from(n));
+  };
+  const needle = q.trim().toLowerCase();
+  const row = (k: string, text: string, bold = false) => (
+    <label key={k} style={{ display: "flex", gap: 8, alignItems: "flex-start", padding: "6px 2px", fontSize: 13, cursor: "pointer", fontWeight: bold ? 700 : 400 }}>
+      <input type="checkbox" checked={sel.has(k)} onChange={() => toggle(k)} style={{ marginTop: 3 }} />
+      <span>{text}</span>
+    </label>
+  );
+  return (
+    <div>
+      <input style={{ ...inputStyle, marginBottom: 8 }} placeholder="Search (jaise Punjab, SKAU)..." value={q}
+        onChange={(e) => setQ(e.target.value)} />
+      <div style={{ maxHeight: 260, overflowY: "auto", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 9, padding: "4px 10px" }}>
+        {anyLabel && !needle && row(keyOf("any", null), anyLabel, true)}
+        {kinds.map((kind) => {
+          const list = (products[kind] || []).filter((p) => !needle || p.title.toLowerCase().includes(needle));
+          if (!list.length) return null;
+          return (
+            <div key={kind} style={{ marginTop: 6 }}>
+              <div style={{ fontSize: 11, color: GOLD, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.4, padding: "4px 0" }}>
+                {KIND_LABEL[kind]}
+              </div>
+              {list.map((p) => row(keyOf(kind, p.id), p.title))}
+            </div>
+          );
+        })}
+      </div>
+      <div style={{ fontSize: 11.5, color: MUTED, marginTop: 5 }}>
+        {selected.length ? `${selected.length} chune — inme se koi ek bhi ho to popup dikhega` : "Kuch nahi chuna"}
+        {selected.length > 0 && (
+          <button type="button" onClick={() => onChange([])}
+            style={{ marginLeft: 10, background: "none", border: "none", color: GOLD, cursor: "pointer", fontSize: 11.5 }}>
+            Sab hatao
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function defaultLink(kind: string, id: string): string {
   if (!id) return "";
@@ -92,7 +159,8 @@ function fromLocal(v: string): string | null {
 
 const EMPTY = {
   id: 0, title: "", message: "", image_url: "", button_text: "View", button_link: "",
-  audience: "logged_in", trigger_kind: "any", trigger_id: "", product_kind: "mock", product_id: "",
+  audience: "logged_in", target_mode: "rules", attempted: [] as string[], bought: [] as string[],
+  product_kind: "", product_id: "",
   priority: "0", is_active: true, starts_at: "", ends_at: "",
 };
 
@@ -161,8 +229,9 @@ export default function PromoAdmin({ api }: { api: ApiFn }) {
       title: form.title, message: form.message || null, image_url: form.image_url || null,
       button_text: form.button_text || "View", button_link: form.button_link || null,
       audience: form.audience,
-      trigger_kind: guest ? null : form.trigger_kind,
-      trigger_id: guest || form.trigger_kind === "any" || !form.trigger_id ? null : Number(form.trigger_id),
+      target_mode: guest ? "all" : form.target_mode,
+      attempted_items: guest || form.target_mode === "all" ? [] : (form.attempted as string[]).map(parseKey),
+      bought_items: guest || form.target_mode === "all" ? [] : (form.bought as string[]).map(parseKey),
       product_kind: form.product_kind || null,
       product_id: form.product_id ? Number(form.product_id) : null,
       priority: Number(form.priority) || 0, is_active: !!form.is_active,
@@ -182,8 +251,10 @@ export default function PromoAdmin({ api }: { api: ApiFn }) {
     setForm({
       id: c.id, title: c.title || "", message: c.message || "", image_url: c.image_url || "",
       button_text: c.button_text || "View", button_link: c.button_link || "",
-      audience: c.audience || "logged_in", trigger_kind: c.trigger_kind || "any",
-      trigger_id: c.trigger_id ? String(c.trigger_id) : "", product_kind: c.product_kind || "",
+      audience: c.audience || "logged_in", target_mode: c.target_mode || "rules",
+      attempted: itemsToKeys(c.attempted_items).length || itemsToKeys(c.bought_items).length || !c.trigger_kind
+        ? itemsToKeys(c.attempted_items) : [keyOf(c.trigger_kind, c.trigger_id)],
+      bought: itemsToKeys(c.bought_items), product_kind: c.product_kind || "",
       product_id: c.product_id ? String(c.product_id) : "", priority: String(c.priority ?? 0),
       is_active: c.is_active !== false, starts_at: toLocal(c.starts_at), ends_at: toLocal(c.ends_at),
     });
@@ -204,7 +275,23 @@ export default function PromoAdmin({ api }: { api: ApiFn }) {
   }
 
   const guest = form.audience === "guest";
-  const triggerList = form.trigger_kind && form.trigger_kind !== "any" ? products[form.trigger_kind] || [] : [];
+  const summary = (c: any): string => {
+    if (c.audience === "guest") return "Bina login wale · har visit";
+    if ((c.target_mode || "rules") === "all") return "Sab login wale students";
+    const name = (k: string) => {
+      const it = parseKey(k);
+      if (it.type === "any") return "koi bhi test";
+      return nameOf(it.type, it.id) || KIND_LABEL[it.type];
+    };
+    const a = itemsToKeys(c.attempted_items).length ? itemsToKeys(c.attempted_items)
+      : (c.trigger_kind && !itemsToKeys(c.bought_items).length ? [keyOf(c.trigger_kind, c.trigger_id)] : []);
+    const b = itemsToKeys(c.bought_items);
+    const parts: string[] = [];
+    const short = (ks: string[]) => ks.slice(0, 3).map(name).join(", ") + (ks.length > 3 ? ` +${ks.length - 3}` : "");
+    if (a.length) parts.push(`Test diya: ${short(a)}`);
+    if (b.length) parts.push(`Khareeda: ${short(b)}`);
+    return parts.join(" · ya · ");
+  };
 
   return (
     <div>
@@ -253,27 +340,30 @@ export default function PromoAdmin({ api }: { api: ApiFn }) {
 
         {!guest && (
           <div style={{ background: "rgba(255,255,255,0.035)", borderRadius: 10, padding: 12, marginBottom: 10 }}>
-            <div style={{ fontSize: 12.5, fontWeight: 800, color: GOLD, marginBottom: 8 }}>Kisne kya kiya ho</div>
-            <Field label="Niyam">
-              <select style={inputStyle} value={form.trigger_kind}
-                onChange={(e) => setForm({ ...form, trigger_kind: e.target.value, trigger_id: "" })}>
-                {Object.entries(TRIGGER_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            <div style={{ fontSize: 12.5, fontWeight: 800, color: GOLD, marginBottom: 8 }}>Kaun se login wale</div>
+            <Field label="">
+              <select style={inputStyle} value={form.target_mode} onChange={(e) => set("target_mode", e.target.value)}>
+                <option value="rules">Jinhone neeche chuni cheezon me test diya ya khareeda</option>
+                <option value="all">Sab login wale students (naye bhi) — vacancy jaisi khabar</option>
               </select>
             </Field>
-            {form.trigger_kind !== "any" && (
-              <Field label="Kaunsi series" hint="Khaali = us tarah ki koi bhi series">
-                <select style={inputStyle} value={form.trigger_id} onChange={(e) => set("trigger_id", e.target.value)}>
-                  <option value="">Koi bhi</option>
-                  {triggerList.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}
-                </select>
-              </Field>
+            {form.target_mode === "rules" && (
+              <>
+                <div style={{ fontSize: 12.5, fontWeight: 700, margin: "6px 0" }}>Jisne in me se kisi me test diya ho</div>
+                <MultiPick kinds={TEST_KINDS} products={products} selected={form.attempted}
+                  anyLabel="Koi bhi test diya ho (kisi bhi series me)"
+                  onChange={(v) => set("attempted", v)} />
+                <div style={{ fontSize: 12.5, fontWeight: 700, margin: "14px 0 6px" }}>Ya jisne in me se kuch khareeda ho</div>
+                <MultiPick kinds={BUY_KINDS} products={products} selected={form.bought}
+                  onChange={(v) => set("bought", v)} />
+              </>
             )}
           </div>
         )}
 
         <div style={{ background: "rgba(255,255,255,0.035)", borderRadius: 10, padding: 12, marginBottom: 10 }}>
           <div style={{ fontSize: 12.5, fontWeight: 800, color: GOLD, marginBottom: 8 }}>
-            Kya bechna hai {guest && <span style={{ color: MUTED, fontWeight: 500 }}>(optional)</span>}
+            Kya bechna hai <span style={{ color: MUTED, fontWeight: 500 }}>(optional — vacancy jaisi khabar me khaali chhodo)</span>
           </div>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             <div style={{ flex: "1 1 160px" }}>
@@ -281,13 +371,13 @@ export default function PromoAdmin({ api }: { api: ApiFn }) {
                 <select style={inputStyle} value={form.product_kind}
                   onChange={(e) => { const v = e.target.value; const n = { ...form, product_kind: v, product_id: "" };
                     if (!linkTouched) n.button_link = ""; setForm(n); }}>
-                  {guest && <option value="">Kuch nahi</option>}
+                  <option value="">Kuch nahi</option>
                   {Object.entries(KIND_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                 </select>
               </Field>
             </div>
             <div style={{ flex: "2 1 220px" }}>
-              <Field label="Product" hint={guest ? undefined : "Student ne ye khareed liya to ye popup use nahi dikhega"}>
+              <Field label="Product" hint={form.product_kind ? "Student ne ye khareed liya to ye popup use nahi dikhega" : "Khaali = popup end date tak chalta rahega"}>
                 <select style={inputStyle} value={form.product_id} disabled={!form.product_kind}
                   onChange={(e) => set("product_id", e.target.value)}>
                   <option value="">Chuniye</option>
@@ -307,14 +397,15 @@ export default function PromoAdmin({ api }: { api: ApiFn }) {
             placeholder="Practise with 10 full SKAU mock tests in the real exam pattern."
             onChange={(e) => set("message", e.target.value)} />
         </Field>
-        <Field label="Image link (optional)" hint="ImgBB ka direct link. 1080 × 1080 ya 1080 × 720, JPEG, 300 KB se kam.">
-          <input style={inputStyle} value={form.image_url} placeholder="https://i.ibb.co/..."
-            onChange={(e) => set("image_url", e.target.value)} />
-        </Field>
-        {form.image_url && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={form.image_url} alt="" style={{ maxWidth: 200, borderRadius: 10, marginBottom: 10, display: "block" }} />
-        )}
+        <ImageField
+          label="Image (optional)"
+          value={form.image_url || ""}
+          onChange={(v) => set("image_url", v)}
+          reqW={1080}
+          reqH={1080}
+          where="Popup ke upar — website par (phone aur computer dono)"
+          hint="Square image sabse achhi dikhti hai. Upload karo ya link paste karo."
+        />
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           <div style={{ flex: "1 1 140px" }}>
             <Field label="Button text">
@@ -371,10 +462,8 @@ export default function PromoAdmin({ api }: { api: ApiFn }) {
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontWeight: 800, fontSize: 14.5 }}>{c.title}</div>
                 <div style={{ fontSize: 11.5, color: MUTED, marginTop: 3, lineHeight: 1.6 }}>
-                  {c.audience === "guest"
-                    ? "Bina login wale · har visit"
-                    : `${TRIGGER_LABEL[c.trigger_kind || "any"]}${c.trigger_id ? `: ${nameOf(c.trigger_kind, c.trigger_id)}` : ""}`}
-                  {c.product_kind && c.product_id ? ` → ${KIND_LABEL[c.product_kind]}: ${nameOf(c.product_kind, c.product_id)}` : ""}
+                  {summary(c)}
+                  {c.product_kind && c.product_id ? ` → bechna: ${nameOf(c.product_kind, c.product_id)}` : ""}
                   <br />
                   {ended ? "Khatam ho gaya" : c.ends_at ? `${new Date(c.ends_at).toLocaleDateString("en-IN")} tak` : ""}
                   {` · priority ${c.priority ?? 0}`}
@@ -385,9 +474,9 @@ export default function PromoAdmin({ api }: { api: ApiFn }) {
               </span>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, margin: "10px 0" }}>
-              {[["Dikha", s.shown], ["Students", s.students], ["Click", s.clicked], ["Khareeda", s.bought]].map(([k, v]) => (
+              {[["Dikha", s.shown], ["Students", s.students], ["Click", s.clicked], ["Khareeda", c.product_id ? s.bought : "—"]].map(([k, v]) => (
                 <div key={k as string} style={{ background: "rgba(255,255,255,0.04)", borderRadius: 9, padding: "7px 4px", textAlign: "center" }}>
-                  <div style={{ fontWeight: 800, fontSize: 15 }}>{Number(v || 0).toLocaleString("en-IN")}</div>
+                  <div style={{ fontWeight: 800, fontSize: 15 }}>{v === "—" ? "—" : Number(v || 0).toLocaleString("en-IN")}</div>
                   <div style={{ fontSize: 10.5, color: MUTED }}>{k}</div>
                 </div>
               ))}
