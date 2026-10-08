@@ -1,18 +1,20 @@
 "use client";
 
-// Raise a ticket — sidebar se khulta hai.
+// Raise a ticket — website redesign (Oct 2026).
 //
 // Pehle common sawaalon ke jawab dikhte hain (payment, access, PDF) — kaafi
 // students ka kaam wahin ban jata hai aur ticket banane ki zaroorat hi nahi
 // padti. Jinka nahi banta, wo form bhar dete hain.
+// Sirf LOOK badla hai (naya header, laptop par do column); ticket bhejne aur
+// purane tickets lane ka logic waisa hi.
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { API_URL } from "@/lib/config";
 import { getUser } from "@/lib/api";
-
-const GOLD = "#FFAB00";
-const GREEN = "#2e8b4a";
+import V2Shell from "@/app/components/v2/V2Shell";
+import SiteHeader from "@/app/components/v2/SiteHeader";
+import SiteFooter from "@/app/components/v2/SiteFooter";
 
 const CATEGORIES = [
   { id: "payment", icon: "💳", label: "Payment problem", hint: "Paid but not confirmed, refund, failed payment" },
@@ -64,7 +66,6 @@ const QUICK: Record<string, { q: string; a: string }[]> = {
 };
 
 export default function SupportPage() {
-  const router = useRouter();
   const [user, setUser] = useState<any>(null);
   const [cat, setCat] = useState("");
   const [form, setForm] = useState({ name: "", phone: "", email: "", subject: "", message: "", screenshot: "" });
@@ -116,210 +117,202 @@ export default function SupportPage() {
     setSending(false);
   }
 
-  if (done) {
-    return (
-      <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--text)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-        <div style={{ textAlign: "center", maxWidth: 420 }}>
-          <div style={{ fontSize: 48 }}>✅</div>
-          <h1 style={{ fontSize: 21, fontWeight: 800, margin: "12px 0 8px" }}>Ticket received</h1>
-          {done.ticket_id && (
-            <div style={{ fontSize: 13, color: "var(--muted)" }}>
-              Your ticket number is <b style={{ color: GOLD }}>#{done.ticket_id}</b>
-            </div>
-          )}
-          <p style={{ fontSize: 14, color: "var(--text2)", lineHeight: 1.65, marginTop: 12 }}>
-            {done.message || "We usually reply within 24 hours."}
-          </p>
-          <button onClick={() => router.push("/")} style={gold}>Back to home</button>
-        </div>
-      </div>
-    );
-  }
-
   const quick = QUICK[cat] || [];
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--text)" }}>
-      <div style={{ maxWidth: 620, margin: "0 auto", padding: 16 }}>
-        <button onClick={() => router.back()} style={{ ...ghost, marginBottom: 14 }}>← Back</button>
+    <V2Shell>
+      <SiteHeader />
+      <main className="v2-wrap v2-main">
+        <nav className="v2-crumb" aria-label="Breadcrumb">
+          <Link href="/">Home</Link> / <span style={{ color: "var(--text)", fontWeight: 700 }}>Help &amp; Support</span>
+        </nav>
 
-        <h1 style={{ fontSize: 22, fontWeight: 800, margin: "0 0 6px" }}>
-          Need <span style={{ color: GOLD }}>help?</span>
-        </h1>
-        <p style={{ fontSize: 13.5, color: "var(--muted)", margin: "0 0 14px", lineHeight: 1.6 }}>
-          Tell us what went wrong and we will sort it out. Most tickets are answered within 24 hours.
-        </p>
-
-        {/* WhatsApp support — sirf is page par */}
-        <a
-          href="https://wa.me/918448493637"
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{
-            display: "flex", alignItems: "center", gap: 10, textDecoration: "none",
-            background: "rgba(37,211,102,0.09)", border: "1px solid #25D36655", borderRadius: 12,
-            padding: 12, marginBottom: 20,
-          }}
-        >
-          <span style={{ fontSize: 22 }}>💬</span>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 700, fontSize: 13.5, color: "var(--text)" }}>Chat with us on WhatsApp</div>
-            <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 1 }}>+91 84484 93637</div>
+        {done ? (
+          <div className="v2-empty" style={{ maxWidth: 460, margin: "0 auto" }}>
+            <div style={{ fontSize: 48 }}>✅</div>
+            <h1 className="v2-h1" style={{ fontSize: 24, margin: "12px 0 8px", color: "var(--text)" }}>
+              Ticket received
+            </h1>
+            {done.ticket_id && (
+              <p style={{ margin: 0 }}>
+                Your ticket number is <b style={{ color: "var(--v2-gold-ink)" }}>#{done.ticket_id}</b>
+              </p>
+            )}
+            <p className="v2-prose" style={{ marginTop: 12 }}>
+              {done.message || "We usually reply within 24 hours."}
+            </p>
+            <Link href="/" className="v2-btn v2-btn-gold" style={{ marginTop: 18 }}>
+              Back to home
+            </Link>
           </div>
-        </a>
+        ) : (
+          <>
+            <div style={{ paddingTop: 10 }}>
+              <h1 className="v2-h1">Need help?</h1>
+              <p className="v2-sub" style={{ fontSize: 15 }}>
+                Tell us what went wrong and we will sort it out. Most tickets are answered within 24 hours.
+              </p>
+            </div>
 
-        {/* Purane tickets */}
-        {mine.length > 0 && (
-          <div style={{ marginBottom: 22 }}>
-            <div style={{ fontSize: 12.5, fontWeight: 800, color: "var(--muted)", marginBottom: 8 }}>YOUR TICKETS</div>
-            {mine.map((t) => (
-              <div key={t.id} style={{ background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12, padding: 12, marginBottom: 8 }}>
-                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  <span style={{ fontSize: 12.5, fontWeight: 700, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    #{t.id} · {t.subject}
-                  </span>
-                  <span
-                    style={{
-                      fontSize: 10, fontWeight: 800, padding: "3px 8px", borderRadius: 6,
-                      color: t.status === "open" ? GOLD : GREEN,
-                      background: t.status === "open" ? "rgba(255,171,0,0.14)" : "rgba(46,139,74,0.14)",
-                    }}
-                  >
-                    {t.status === "open" ? "WAITING" : "ANSWERED"}
-                  </span>
+            <div className="v2-detail">
+              <div>
+                <h2 className="v2-section-title" style={{ marginTop: 6 }}>
+                  What is this about?
+                </h2>
+                <div className="v2-grid v2-grid-1" style={{ gap: 10 }} role="radiogroup" aria-label="Problem type">
+                  {CATEGORIES.map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={cat === c.id}
+                      onClick={() => setCat(c.id)}
+                      className="v2-row"
+                      style={{
+                        marginTop: 0,
+                        textAlign: "left",
+                        cursor: "pointer",
+                        alignItems: "flex-start",
+                        border: `1.5px solid ${cat === c.id ? "var(--v2-gold)" : "var(--v2-line)"}`,
+                        background: cat === c.id ? "var(--v2-gold-wash)" : "var(--card)",
+                        color: "var(--text)",
+                      }}
+                    >
+                      <span style={{ fontSize: 20, flexShrink: 0 }} aria-hidden="true">
+                        {c.icon}
+                      </span>
+                      <span style={{ flex: 1, minWidth: 0 }}>
+                        <span style={{ display: "block", fontWeight: 700, fontSize: 14 }}>{c.label}</span>
+                        <span style={{ display: "block", fontSize: 12.5, color: "var(--v2-muted)", marginTop: 2 }}>{c.hint}</span>
+                      </span>
+                    </button>
+                  ))}
                 </div>
-                {t.admin_reply && (
-                  <div style={{ fontSize: 13, color: "var(--text2)", marginTop: 8, lineHeight: 1.6, background: "var(--chip)", borderRadius: 9, padding: 10 }}>
-                    <b style={{ color: GREEN, fontSize: 11 }}>OUR REPLY</b>
-                    <div style={{ marginTop: 4, whiteSpace: "pre-wrap" }}>{t.admin_reply}</div>
+
+                {/* Turant jawab — shayad ticket ki zaroorat hi na pade */}
+                {quick.length > 0 && (
+                  <div className="v2-bundle" style={{ marginTop: 16 }}>
+                    <div style={{ fontSize: 13, fontWeight: 800, color: "var(--v2-gold-ink)", marginBottom: 8 }}>This might already answer it</div>
+                    {quick.map((q, i) => (
+                      <details key={i} style={{ marginBottom: 6 }}>
+                        <summary style={{ cursor: "pointer", fontSize: 14, fontWeight: 700, padding: "6px 0" }}>{q.q}</summary>
+                        <div style={{ fontSize: 14, color: "var(--text2)", lineHeight: 1.7, padding: "4px 0 8px" }}>{q.a}</div>
+                      </details>
+                    ))}
+                  </div>
+                )}
+
+                {/* Form */}
+                {cat && (
+                  <div className="v2-box" style={{ marginTop: 18 }}>
+                    <h2 style={{ margin: "0 0 14px", fontSize: 17, fontWeight: 800 }}>Still need help? Tell us more</h2>
+                    <Input label="Your name" value={form.name} onChange={(v) => setForm({ ...form, name: v })} />
+                    <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                      <Input label="Phone" value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} flex />
+                      <Input label="Email" value={form.email} onChange={(v) => setForm({ ...form, email: v })} flex />
+                    </div>
+                    <Input label="Subject" value={form.subject} onChange={(v) => setForm({ ...form, subject: v })} placeholder="Paid ₹149 but descriptive series is locked" />
+
+                    <label style={{ display: "block", marginBottom: 12 }}>
+                      <span style={labelCss}>What happened?</span>
+                      <textarea
+                        className="v2-input"
+                        value={form.message}
+                        onChange={(e) => setForm({ ...form, message: e.target.value })}
+                        rows={5}
+                        placeholder="Include your payment ID or the name of the course/test if you can — it helps us fix it faster."
+                        style={{ minHeight: 110 }}
+                      />
+                    </label>
+
+                    <Input
+                      label="Screenshot link (optional)"
+                      value={form.screenshot}
+                      onChange={(v) => setForm({ ...form, screenshot: v })}
+                      placeholder="Upload on i.ibb.co and paste the link"
+                    />
+
+                    {error && <div className="v2-msg err">{error}</div>}
+
+                    <button onClick={submit} disabled={sending} className="v2-btn v2-btn-gold" style={{ width: "100%", marginTop: 4 }}>
+                      {sending ? "Sending…" : "Send ticket"}
+                    </button>
+                    <p className="v2-sub" style={{ textAlign: "center", fontSize: 12.5 }}>
+                      We reply on the phone number or email you gave above.
+                    </p>
                   </div>
                 )}
               </div>
-            ))}
-          </div>
+
+              <aside>
+                <div className="v2-buycard" style={{ display: "grid", gap: 14 }}>
+                  {/* WhatsApp support */}
+                  <a href="https://wa.me/918448493637" target="_blank" rel="noopener noreferrer" className="v2-row" style={{ marginTop: 0, background: "rgba(37,211,102,0.08)", border: "1px solid rgba(37,211,102,0.35)" }}>
+                    <span style={{ fontSize: 22 }} aria-hidden="true">
+                      💬
+                    </span>
+                    <span style={{ flex: 1 }}>
+                      <span style={{ display: "block", fontWeight: 800, fontSize: 14 }}>Chat with us on WhatsApp</span>
+                      <span style={{ display: "block", fontSize: 12.5, color: "var(--v2-muted)", marginTop: 1 }}>+91 84484 93637</span>
+                    </span>
+                  </a>
+
+                  {/* Purane tickets */}
+                  {mine.length > 0 ? (
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: "0.06em", color: "var(--v2-muted)", marginBottom: 8 }}>YOUR TICKETS</div>
+                      {mine.map((t) => (
+                        <div key={t.id} className="v2-review" style={{ padding: 12 }}>
+                          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                            <span style={{ fontSize: 13, fontWeight: 700, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              #{t.id} · {t.subject}
+                            </span>
+                            <span className={`v2-tag${t.status === "open" ? " gold" : ""}`}>{t.status === "open" ? "WAITING" : "ANSWERED"}</span>
+                          </div>
+                          {t.admin_reply && (
+                            <div style={{ fontSize: 13.5, color: "var(--text2)", marginTop: 8, lineHeight: 1.6, background: "var(--v2-chip)", borderRadius: 10, padding: 10 }}>
+                              <b style={{ color: "var(--v2-green)", fontSize: 11 }}>OUR REPLY</b>
+                              <div style={{ marginTop: 4, whiteSpace: "pre-wrap" }}>{t.admin_reply}</div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="v2-sub" style={{ margin: 0 }}>
+                      Your tickets and our replies will show up here.
+                    </p>
+                  )}
+                </div>
+              </aside>
+            </div>
+          </>
         )}
-
-        {/* Category */}
-        <div style={{ fontSize: 12.5, fontWeight: 800, color: "var(--muted)", marginBottom: 8 }}>
-          WHAT IS THIS ABOUT?
-        </div>
-        {CATEGORIES.map((c) => (
-          <div
-            key={c.id}
-            onClick={() => setCat(c.id)}
-            style={{
-              display: "flex", gap: 12, alignItems: "flex-start", cursor: "pointer",
-              background: "var(--card)", borderRadius: 12, padding: 13, marginBottom: 9,
-              border: `1.5px solid ${cat === c.id ? GOLD : "var(--line)"}`,
-            }}
-          >
-            <span style={{ fontSize: 20, flexShrink: 0 }}>{c.icon}</span>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontWeight: 700, fontSize: 14 }}>{c.label}</div>
-              <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 2 }}>{c.hint}</div>
-            </div>
-          </div>
-        ))}
-
-        {/* Turant jawab — shayad ticket ki zaroorat hi na pade */}
-        {quick.length > 0 && (
-          <div style={{ background: "rgba(255,171,0,0.07)", border: `1px solid ${GOLD}44`, borderRadius: 14, padding: 15, marginTop: 14 }}>
-            <div style={{ fontSize: 12.5, fontWeight: 800, color: GOLD, marginBottom: 10 }}>
-              💡 THIS MIGHT ALREADY ANSWER IT
-            </div>
-            {quick.map((q, i) => (
-              <details key={i} style={{ marginBottom: 8 }}>
-                <summary style={{ cursor: "pointer", fontSize: 13.5, fontWeight: 700, padding: "6px 0" }}>{q.q}</summary>
-                <div style={{ fontSize: 13, color: "var(--text2)", lineHeight: 1.7, padding: "4px 0 8px" }}>{q.a}</div>
-              </details>
-            ))}
-          </div>
-        )}
-
-        {/* Form */}
-        {cat && (
-          <div style={{ marginTop: 20 }}>
-            <div style={{ fontSize: 12.5, fontWeight: 800, color: "var(--muted)", marginBottom: 10 }}>
-              STILL NEED HELP? TELL US MORE
-            </div>
-
-            <Input label="Your name" value={form.name} onChange={(v) => setForm({ ...form, name: v })} />
-            <div style={{ display: "flex", gap: 10 }}>
-              <Input label="Phone" value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} flex />
-              <Input label="Email" value={form.email} onChange={(v) => setForm({ ...form, email: v })} flex />
-            </div>
-            <Input
-              label="Subject"
-              value={form.subject}
-              onChange={(v) => setForm({ ...form, subject: v })}
-              placeholder="Paid ₹149 but descriptive series is locked"
-            />
-
-            <label style={{ fontSize: 12.5, color: "var(--muted)", display: "block", marginBottom: 5 }}>
-              What happened?
-            </label>
-            <textarea
-              value={form.message}
-              onChange={(e) => setForm({ ...form, message: e.target.value })}
-              rows={5}
-              placeholder="Include your payment ID or the name of the course/test if you can — it helps us fix it faster."
-              style={{ ...inputCss, minHeight: 110, resize: "vertical", marginBottom: 12 }}
-            />
-
-            <Input
-              label="Screenshot link (optional)"
-              value={form.screenshot}
-              onChange={(v) => setForm({ ...form, screenshot: v })}
-              placeholder="Upload on i.ibb.co and paste the link"
-            />
-
-            {error && (
-              <div style={{ fontSize: 13, color: "#d64545", marginBottom: 10, fontWeight: 600 }}>{error}</div>
-            )}
-
-            <button onClick={submit} disabled={sending} style={{ ...gold, width: "100%", opacity: sending ? 0.6 : 1 }}>
-              {sending ? "Sending…" : "Send ticket"}
-            </button>
-
-            <p style={{ fontSize: 11.5, color: "var(--muted)", textAlign: "center", marginTop: 10, lineHeight: 1.6 }}>
-              We reply on the phone number or email you gave above.
-            </p>
-          </div>
-        )}
-      </div>
-    </div>
+      </main>
+      <SiteFooter />
+    </V2Shell>
   );
 }
+
+const labelCss: React.CSSProperties = { fontSize: 12.5, color: "var(--v2-muted)", display: "block", marginBottom: 5, fontWeight: 600 };
 
 function Input({
-  label, value, onChange, placeholder, flex,
-}: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; flex?: boolean }) {
+  label,
+  value,
+  onChange,
+  placeholder,
+  flex,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  flex?: boolean;
+}) {
   return (
-    <div style={{ marginBottom: 12, flex: flex ? 1 : undefined, minWidth: 0 }}>
-      <label style={{ fontSize: 12.5, color: "var(--muted)", display: "block", marginBottom: 5 }}>{label}</label>
-      <input
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        style={inputCss}
-      />
-    </div>
+    <label style={{ display: "block", marginBottom: 12, flex: flex ? "1 1 180px" : undefined, minWidth: 0 }}>
+      <span style={labelCss}>{label}</span>
+      <input className="v2-input" value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} />
+    </label>
   );
 }
-
-const inputCss: React.CSSProperties = {
-  width: "100%", boxSizing: "border-box", background: "var(--card)", color: "var(--text)",
-  border: "1px solid var(--line)", borderRadius: 10, padding: "12px 14px", fontSize: 14.5,
-  outline: "none", fontFamily: "inherit",
-};
-
-const gold: React.CSSProperties = {
-  background: GOLD, color: "#1a1a1a", border: "none", borderRadius: 12,
-  padding: "13px 22px", fontWeight: 800, fontSize: 15, cursor: "pointer", marginTop: 14,
-};
-
-const ghost: React.CSSProperties = {
-  background: "var(--card)", color: "var(--text)", border: "1px solid var(--line)",
-  borderRadius: 10, padding: "8px 14px", fontWeight: 700, fontSize: 13.5, cursor: "pointer",
-};
-      

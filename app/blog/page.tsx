@@ -1,6 +1,12 @@
+// Blog list - website redesign (Oct 2026). Data aur SEO wahi; naya header/footer
+// aur laptop par 3 column ke article cards.
 import type { Metadata } from "next";
-import { pageMeta } from "@/lib/seo";
 import Link from "next/link";
+import { pageMeta } from "@/lib/seo";
+import V2Shell from "@/app/components/v2/V2Shell";
+import SiteHeader from "@/app/components/v2/SiteHeader";
+import SiteFooter from "@/app/components/v2/SiteFooter";
+import { IconNews } from "@/app/components/v2/Icons";
 
 export const metadata: Metadata = pageMeta({
   title: "Blog — Exam Updates & Study Material",
@@ -8,7 +14,6 @@ export const metadata: Metadata = pageMeta({
   path: "/blog",
 });
 
-const GOLD = "#FFAB00";
 const API_URL = "https://api.selectionlab.online/api";
 
 async function getPosts() {
@@ -22,41 +27,64 @@ async function getPosts() {
   }
 }
 
+function fmt(d?: string) {
+  if (!d) return "";
+  try {
+    return new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });
+  } catch {
+    return "";
+  }
+}
+
 export default async function BlogPage() {
   const posts = await getPosts();
   return (
-    <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--text)" }}>
-      <header style={{ position: "sticky", top: 0, display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", background: "var(--header)", borderBottom: "1px solid var(--line)", zIndex: 10 }}>
-        <Link href="/" style={{ color: "var(--text)", textDecoration: "none", fontSize: 18 }}>←</Link>
-        <div style={{ fontWeight: 800, fontSize: 16 }}>
-          Selection <span style={{ color: GOLD }}>Lab</span> Blog
+    <V2Shell>
+      <SiteHeader />
+      <main className="v2-wrap v2-main">
+        <nav className="v2-crumb" aria-label="Breadcrumb">
+          <Link href="/">Home</Link> / <span style={{ color: "var(--text)", fontWeight: 700 }}>Blog</span>
+        </nav>
+        <div style={{ paddingTop: 10 }}>
+          <h1 className="v2-h1">Exam Updates &amp; Study Material</h1>
+          <p className="v2-sub" style={{ fontSize: 15 }}>
+            Notifications, strategy, vocabulary and preparation guides — updated regularly.
+          </p>
         </div>
-      </header>
-
-      <main style={{ maxWidth: 720, margin: "0 auto", padding: "20px 16px 60px" }}>
-        <h1 style={{ fontSize: 23, margin: "4px 0 4px" }}>Exam Updates &amp; Study Material</h1>
-        <p style={{ color: "var(--muted)", fontSize: 13.5, margin: "0 0 18px" }}>
-          Notifications, strategy, vocabulary and preparation guides — updated regularly.
-        </p>
 
         {posts.length === 0 ? (
-          <p style={{ color: "var(--muted)" }}>First posts coming soon — join our Telegram for updates!</p>
+          <div className="v2-empty">
+            <IconNews size={40} />
+            <p style={{ margin: "10px 0 0" }}>First posts coming soon — join our Telegram for updates!</p>
+          </div>
         ) : (
-          posts.map((p: any) => (
-            <Link
-              key={p.slug}
-              href={`/blog/${p.slug}`}
-              style={{ display: "block", background: "var(--card)", border: "1px solid var(--line)", borderRadius: 14, padding: 16, marginBottom: 12, textDecoration: "none", color: "var(--text)", boxShadow: "var(--shadow)" }}
-            >
-              <div style={{ fontWeight: 800, fontSize: 15.5, lineHeight: 1.45 }}>{p.title}</div>
-              {p.excerpt && <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 6, lineHeight: 1.6 }}>{p.excerpt}</div>}
-              <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 8 }}>
-                {new Date(p.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })} · Read more →
-              </div>
-            </Link>
-          ))
+          <div className="v2-grid v2-grid-1" style={{ marginTop: 22 }}>
+            {posts.map((p: any) => (
+              <article key={p.slug} className="v2-card">
+                <div className="v2-body" style={{ padding: 18, gap: 8 }}>
+                  <span className="v2-tag gold" style={{ alignSelf: "flex-start" }}>
+                    {fmt(p.created_at)}
+                  </span>
+                  <h2 style={{ margin: "4px 0 0", fontSize: 16.5, fontWeight: 800, lineHeight: 1.45 }}>
+                    <Link href={`/blog/${p.slug}`} className="v2-link">
+                      {p.title}
+                    </Link>
+                  </h2>
+                  {p.excerpt && (
+                    <p className="v2-desc" style={{ WebkitLineClamp: 3, fontSize: 14 }}>
+                      {p.excerpt}
+                    </p>
+                  )}
+                  <span className="v2-more" style={{ marginTop: "auto", paddingTop: 6 }}>
+                    Read more →
+                  </span>
+                </div>
+              </article>
+            ))}
+          </div>
         )}
       </main>
-    </div>
+      <SiteFooter />
+    </V2Shell>
   );
 }
