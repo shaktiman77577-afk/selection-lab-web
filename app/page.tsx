@@ -13,6 +13,7 @@ import ExamCountdown from "@/app/components/ExamCountdown";
 import Testimonials from "@/app/components/Testimonials";
 import CommunitySection, { CommunityFloat } from "@/app/components/CommunityHub";
 import { getCourses, getBanners, Course, Banner, courseTitle, courseImage, bannerImage } from "@/lib/supabase";
+import { API_URL } from "@/lib/config";
 
 const GOLD = "#FFAB00";
 const NAVY = "#1a2f55";
@@ -40,6 +41,8 @@ export default function HomePage() {
   // uske hisaab se badalta hai — warna wide patti phone par patli dikhti hai.
   const [narrow, setNarrow] = useState(false);
   const [banners, setBanners] = useState<Banner[]>([]);
+  // Mock / Typing / Descriptive series jinpe admin ne "Featured" tick lagaya
+  const [featuredSeries, setFeaturedSeries] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
   const [slide, setSlide] = useState(0);
@@ -58,6 +61,10 @@ export default function HomePage() {
 
   useEffect(() => {
     setUser(getUser());
+    fetch(`${API_URL}/banners/featured-series?platform=web`, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setFeaturedSeries(d?.series || []))
+      .catch(() => {});
     Promise.all([getCourses(), getBanners()]).then(([c, b]) => {
       setCourses(c);
       setBanners(b);
@@ -94,6 +101,14 @@ export default function HomePage() {
     const img = (narrow && cm) ? cm : courseImage(c);
     if (!img) continue;
     slides.push({ kind: "image", img, action: `/course/${c.id}`, title: "" });
+  }
+
+  // Featured series (mock, typing, descriptive) — band/delete hote hi backend
+  // inhe bhejna band kar deta hai
+  for (const s of featuredSeries) {
+    const img = (narrow && s.thumbnail_url_mobile) ? s.thumbnail_url_mobile : s.thumbnail_url;
+    if (!img || !s.link) continue;
+    slides.push({ kind: "image", img, action: String(s.link), title: "" });
   }
 
   // Slide actions: URLs open in a new tab, app-style routes push in-site.

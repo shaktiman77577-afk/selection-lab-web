@@ -208,7 +208,7 @@ function SeriesLevel(props: {
   const [form, setForm] = useState<any>(blank());
 
   function blank() {
-    return { title: "", description: "", thumbnail_url: "", thumbnail_url_mobile: "", price: 0, original_price: 0, validity_days: 180, is_active: true, display_order: 0, bundle_ids: "", visible_on: "both", telegram_group: "" };
+    return { title: "", description: "", thumbnail_url: "", thumbnail_url_mobile: "", price: 0, original_price: 0, validity_days: 180, is_active: true, display_order: 0, bundle_ids: "", visible_on: "both", telegram_group: "", is_featured: false };
   }
   function startEdit(s: any) {
     setEditId(s.id);
@@ -219,6 +219,7 @@ function SeriesLevel(props: {
       bundle_ids: (s.bundle_series_ids || []).join(", "),
       visible_on: s.visible_on || "both",
       telegram_group: s.telegram_group || "",
+      is_featured: !!s.is_featured,
     });
     setShowForm(true);
   }
@@ -235,6 +236,7 @@ function SeriesLevel(props: {
         display_order: Number(form.display_order) || 0,
         visible_on: form.visible_on || "both",
         telegram_group: String(form.telegram_group || "").trim() || null,
+        is_featured: !!form.is_featured,
         bundle_series_ids: String(form.bundle_ids || "")
           .split(",").map((x: string) => parseInt(x.trim(), 10)).filter((n: number) => !isNaN(n)),
       };
@@ -296,6 +298,11 @@ function SeriesLevel(props: {
                 <option value="hidden">🚫 Hidden — kahin nahi dikhega (draft)</option>
               </select>
             </Field>
+            <label style={{ display: "flex", alignItems: "center", gap: 8, margin: "6px 0 12px", fontSize: 14 }}>
+              <input type="checkbox" checked={!!form.is_featured}
+                onChange={(e) => setForm({ ...form, is_featured: e.target.checked })} />
+              Featured — homepage slider me dikhao (thumbnail se)
+            </label>
             <Field label="Display order"><input type="number" style={inputStyle} value={form.display_order} onChange={(e) => setForm({ ...form, display_order: e.target.value })} /></Field>
           </div>
           <Field label="Description"><textarea rows={2} style={inputStyle} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></Field>

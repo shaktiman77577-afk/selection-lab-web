@@ -3728,7 +3728,7 @@ function MockTestsTab() {
   const [msg, setMsg] = useState("");
 
   // Series form
-  const [sForm, setSForm] = useState<any>({ title: "", description: "", price: "0", original_price: "0", visible_on: "both", thumbnail_url: "", thumbnail_url_mobile: "", bundle_items: [], telegram_group: "" });
+  const [sForm, setSForm] = useState<any>({ title: "", description: "", price: "0", original_price: "0", visible_on: "both", thumbnail_url: "", thumbnail_url_mobile: "", bundle_items: [], telegram_group: "", is_featured: false });
   const [bCourses, setBCourses] = useState<any[]>([]);
   const [bDesc, setBDesc] = useState<any[]>([]);
   // Live test config — kaunsa test khula hai aur uska form
@@ -3806,13 +3806,14 @@ function MockTestsTab() {
       thumbnail_url_mobile: s.thumbnail_url_mobile || "",
       bundle_items: s.bundle_items || [],
       telegram_group: s.telegram_group || "",
+      is_featured: !!s.is_featured,
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function cancelEditSeries() {
     setSEditId(null);
-    setSForm({ title: "", description: "", price: "0", original_price: "0", visible_on: "both", thumbnail_url: "", thumbnail_url_mobile: "", bundle_items: [], telegram_group: "" });
+    setSForm({ title: "", description: "", price: "0", original_price: "0", visible_on: "both", thumbnail_url: "", thumbnail_url_mobile: "", bundle_items: [], telegram_group: "", is_featured: false });
   }
 
   async function createSeries() {
@@ -3833,6 +3834,7 @@ function MockTestsTab() {
         thumbnail_url_mobile: (sForm.thumbnail_url_mobile || "").trim() || null,
         bundle_items: sForm.bundle_items || [],
         telegram_group: (sForm.telegram_group || "").trim() || null,
+        is_featured: !!sForm.is_featured,
       };
       if (sEditId) {
         await api(`/admin-extra/series/${sEditId}`, "PUT", body);
@@ -4145,6 +4147,11 @@ function MockTestsTab() {
             <option value="hidden">🚫 Hidden — kahin nahi dikhega (draft)</option>
           </select>
         </Field>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, margin: "6px 0 12px", fontSize: 14 }}>
+            <input type="checkbox" checked={!!sForm.is_featured}
+              onChange={(e) => setSForm({ ...sForm, is_featured: e.target.checked })} />
+            Featured — homepage slider me dikhao (thumbnail se)
+          </label>
         <div style={{ margin: "10px 0 12px" }}>
           <BundlePicker
             value={sForm.bundle_items || []}
@@ -4173,7 +4180,7 @@ function MockTestsTab() {
         {seriesList.filter((s) => s.is_active !== false).map((s) => (
           <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 10, borderTop: "1px solid rgba(255,255,255,0.07)", paddingTop: 10, marginTop: 10 }}>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontWeight: 700, fontSize: 13.5 }}>{s.title}<HiddenTag on={s.visible_on} /></div>
+              <div style={{ fontWeight: 700, fontSize: 13.5 }}>{s.title} {s.is_featured && <span style={{ color: GOLD }}>★</span>}<HiddenTag on={s.visible_on} /></div>
               <div style={{ fontSize: 11.5, color: "#9a917f" }}>
                 ID {s.id} · ₹{s.price} · {tests.filter((t) => t.series_id === s.id && t.is_active !== false).length} tests
               </div>

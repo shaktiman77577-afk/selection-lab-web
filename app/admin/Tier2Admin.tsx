@@ -324,7 +324,7 @@ function SeriesLevel(props: {
     return {
       title: "", description: "", thumbnail_url: "", thumbnail_url_mobile: "",
       price: 0, original_price: 0, validity_days: 180, display_order: 0,
-      visible_on: "both", telegram_group: "", bundle_ids: "",
+      visible_on: "both", telegram_group: "", bundle_ids: "", is_featured: false,
     };
   }
 
@@ -337,6 +337,7 @@ function SeriesLevel(props: {
       validity_days: s.validity_days ?? 180, display_order: s.display_order ?? 0,
       visible_on: s.visible_on || "both", telegram_group: s.telegram_group || "",
       bundle_ids: (s.bundle_items || []).map((b: any) => `${b.type}:${b.id}`).join(", "),
+      is_featured: !!s.is_featured,
     });
     setShowForm(true);
   }
@@ -365,6 +366,7 @@ function SeriesLevel(props: {
         visible_on: form.visible_on || "both",
         telegram_group: String(form.telegram_group || "").trim() || null,
         bundle_items,
+        is_featured: !!form.is_featured,
       };
       if (editId) await api(`/tier2/admin/series/${editId}`, "PUT", body);
       else await api("/tier2/admin/series", "POST", body);
@@ -435,6 +437,11 @@ function SeriesLevel(props: {
               <option value="hidden">🚫 Hidden — shows nowhere</option>
             </select>
           </Field>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, margin: "6px 0 12px", fontSize: 14 }}>
+            <input type="checkbox" checked={!!form.is_featured}
+              onChange={(e) => setForm({ ...form, is_featured: e.target.checked })} />
+            Featured — homepage slider me dikhao (thumbnail se)
+          </label>
 
           <Field label="Telegram group link (optional)">
             <input style={inputStyle} placeholder="https://t.me/..." value={form.telegram_group} onChange={(e) => setForm({ ...form, telegram_group: e.target.value })} />
