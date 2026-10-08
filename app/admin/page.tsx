@@ -4707,6 +4707,11 @@ function BannersTab() {
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontWeight: 700, fontSize: 13 }}>{b.title || "(no title)"}</div>
             <div style={{ fontSize: 11, color: "#9a917f", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>#{b.display_order} · {b.link_url || "no link"}</div>
+            {b.product_gone && (
+              <div style={{ fontSize: 11, color: "#ff6b6b", marginTop: 3, lineHeight: 1.45 }}>
+                Iska course/series band ya delete hai — site par apne aap chhupa hai. Zaroorat nahi to delete kar dijiye.
+              </div>
+            )}
           </div>
           <button onClick={() => remove(b.id)} style={{ ...smallBtn, color: "#ff6b6b", borderColor: "rgba(255,107,107,0.4)" }}>Delete</button>
         </div>
