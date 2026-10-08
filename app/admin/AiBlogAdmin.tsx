@@ -42,7 +42,7 @@ const REASON: Record<string, string> = {
   paused: "Gemini ki aaj ki free limit poori — kal apne aap phir shuru hoga.",
   limit: "Aaj ki limit poori ho gayi.",
   rate_limited: "Gemini ki free limit lag gayi — kal apne aap phir shuru hoga.",
-  empty: "Line me abhi koi kaam nahi (naya kaam 30 minute baad shuru hota hai).",
+  empty: "Line me abhi koi kaam nahi. (Bilkul naye product ka draft 30 minute baad banta hai — chahiye to upar dropdown se abhi banao.)",
   error: "Gemini se draft nahi bana",
 };
 
@@ -52,6 +52,7 @@ export function AiBlogPanel({ api, onDraft }: { api: ApiFn; onDraft: () => void 
   const [limit, setLimit] = useState("20");
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
+  const [pick, setPick] = useState("");
 
   function load() {
     api("/ai-blog/admin/status").then((x) => {
@@ -83,6 +84,19 @@ export function AiBlogPanel({ api, onDraft }: { api: ApiFn; onDraft: () => void 
     setBusy(false);
   }
 
+  async function generate() {
+    if (!pick) return;
+    const [kind, id] = pick.split(":");
+    setBusy(true); setMsg("Gemini is product ka draft likh raha hai — 1 minute tak lag sakta hai...");
+    try {
+      const r = (await api("/ai-blog/admin/generate", "POST", { kind, product_id: Number(id) })).result || {};
+      if (r.ok) { setMsg("Draft ban gaya — neeche list me \"AI DRAFT\" dekhiye."); setPick(""); onDraft(); }
+      else setMsg(`${REASON[r.reason] || r.reason}${r.detail ? ` — ${r.detail}` : ""}`);
+      load();
+    } catch (e: any) { setMsg(e.message); }
+    setBusy(false);
+  }
+
   async function retry(id: number) {
     try { await api(`/ai-blog/admin/jobs/${id}/retry`, "POST"); load(); } catch (e: any) { setMsg(e.message); }
   }
@@ -106,7 +120,7 @@ export function AiBlogPanel({ api, onDraft }: { api: ApiFn; onDraft: () => void 
               : `Aaj ${d.done_today}/${s.daily_limit} · line me ${c.pending || 0}`}
           </div>
         </div>
-        <button style={btn} onClick={() => setOpen(!open)}>{open ? "Band karo" : "Kholo"}</button>
+        <button style={btn} onClick={() => setOpen(!open)}>{open ? "Chhupao" : "Kholo"}</button>
       </div>
 
       {open && (
@@ -122,17 +136,43 @@ export function AiBlogPanel({ api, onDraft }: { api: ApiFn; onDraft: () => void 
               <input type="number" min={0} style={inputStyle} value={limit} onChange={(e) => setLimit(e.target.value)} />
             </label>
             <button style={btn} onClick={() => saveSettings({})}>Save</button>
-            <button style={btn} onClick={() => saveSettings({ enabled: s.enabled === false })}>
-              {s.enabled === false ? "Chalu karo" : "Band karo"}
-            </button>
-            <button style={btn} onClick={() => saveSettings({ backfill: s.backfill === false })}>
-              Purane products: {s.backfill === false ? "band" : "chalu"}
-            </button>
+          </div>
+          {[
+            ["AI drafts", s.enabled !== false, () => saveSettings({ enabled: s.enabled === false })],
+            ["Purane products ke drafts bhi", s.backfill !== false, () => saveSettings({ backfill: s.backfill === false })],
+          ].map(([label, on, fn]: any) => (
+            <div key={label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "6px 0" }}>
+              <span style={{ fontSize: 13 }}>
+                {label}: <b style={{ color: on ? GREEN : RED }}>{on ? "Chalu ✓" : "Band"}</b>
+              </span>
+              <button style={btn} onClick={fn}>{on ? "Band karo" : "Chalu karo"}</button>
+            </div>
+          ))}
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", margin: "4px 0 10px" }}>
             {paused && <button style={btn} onClick={() => saveSettings({ clear_pause: true })}>Rok hatao</button>}
           </div>
           <button style={{ ...goldBtn, width: "100%", marginBottom: 10 }} disabled={busy || !d.key_set} onClick={runNow}>
-            {busy ? "Ban raha hai..." : "Abhi ek draft banao"}
+            {busy ? "Ban raha hai..." : "Line ka agla draft abhi banao"}
           </button>
+          <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 10, padding: 10, marginBottom: 10 }}>
+            <div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 6 }}>Kisi bhi product ka blog abhi banao</div>
+            <select style={{ ...inputStyle, marginBottom: 8 }} value={pick} onChange={(e) => setPick(e.target.value)}>
+              <option value="">Product chuniye</option>
+              {["course", "mock", "tier2", "descriptive"].map((k) => {
+                const list = (d.products || []).filter((p: any) => p.kind === k);
+                if (!list.length) return null;
+                return (
+                  <optgroup key={k} label={KIND[k]}>
+                    {list.map((p: any) => <option key={`${k}:${p.id}`} value={`${k}:${p.id}`}>{p.title}</option>)}
+                  </optgroup>
+                );
+              })}
+            </select>
+            <button style={{ ...goldBtn, width: "100%" }} disabled={busy || !pick || !d.key_set} onClick={generate}>
+              {busy ? "Ban raha hai..." : "Iska blog abhi banao"}
+            </button>
+            <div style={{ fontSize: 11, color: MUTED, marginTop: 6 }}>Blog pehle se ho tab bhi naya draft banega.</div>
+          </div>
           {msg && <div style={{ fontSize: 12.5, color: GOLD, marginBottom: 10, lineHeight: 1.5 }}>{msg}</div>}
 
           <div style={{ fontSize: 11.5, color: MUTED, marginBottom: 6 }}>
