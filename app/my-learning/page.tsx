@@ -11,7 +11,8 @@ import { getUser, User } from "@/lib/api";
 import V2Shell from "@/app/components/v2/V2Shell";
 import SiteHeader from "@/app/components/v2/SiteHeader";
 import SiteFooter from "@/app/components/v2/SiteFooter";
-import { IconBook, IconChart, IconMock, IconPen, IconRight } from "@/app/components/v2/Icons";
+import { IconBook, IconChart, IconKeyboard, IconMock, IconPen, IconRight, IconUser } from "@/app/components/v2/Icons";
+import { openLinkAccount } from "@/app/components/AccountPopup";
 
 export default function MyLearningPage() {
   const router = useRouter();
@@ -20,6 +21,7 @@ export default function MyLearningPage() {
   const [liveResults, setLiveResults] = useState<any[]>([]);
   const [mockSeries, setMockSeries] = useState<any[]>([]);
   const [descSeries, setDescSeries] = useState<any[]>([]);
+  const [typingSeries, setTypingSeries] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -47,6 +49,13 @@ export default function MyLearningPage() {
       .then((d) => setDescSeries((d?.series || []).filter((s: any) => s.is_purchased)))
       .catch(() => {});
 
+    // Typing / Skill Test series jo kharidi hui hain (Oct 2026: pehle ye
+    // yahan aati hi nahi thi — sirf typing kharidne wale ko "Nothing here yet")
+    fetch(`${API_URL}/tier2/series?platform=web&user_id=${u.id}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setTypingSeries((d?.series || []).filter((s: any) => s.is_purchased)))
+      .catch(() => {});
+
     // Purane live tests — result kabhi bhi yahan se dekh sakte hain
     fetch(`${API_URL}/mock-tests/my-live-results?user_id=${u.id}`)
       .then((r) => (r.ok ? r.json() : null))
@@ -63,7 +72,7 @@ export default function MyLearningPage() {
     }
   }
 
-  const nothing = !loading && courses.length === 0 && liveResults.length === 0 && mockSeries.length === 0 && descSeries.length === 0;
+  const nothing = !loading && courses.length === 0 && liveResults.length === 0 && mockSeries.length === 0 && descSeries.length === 0 && typingSeries.length === 0;
   const first = String(user?.name || "").trim().split(" ")[0];
 
   return (
@@ -171,6 +180,56 @@ export default function MyLearningPage() {
               ))}
             </div>
           </section>
+        )}
+
+        {typingSeries.length > 0 && (
+          <section className="v2-sec">
+            <div className="v2-head">
+              <h2 className="v2-h2">Typing / Skill Test</h2>
+            </div>
+            <div className="v2-grid v2-grid-1">
+              {typingSeries.map((s) => {
+                const parts = [
+                  s.typing_test_count ? `${s.typing_test_count} typing tests` : "",
+                  s.practice_count ? `${s.practice_count} practice` : "",
+                  s.excel_test_count ? `${s.excel_test_count} Excel tests` : "",
+                ].filter(Boolean);
+                return (
+                  <Link key={s.id} href={`/tier2?s=${s.id}`} className="v2-row" style={{ marginTop: 0 }}>
+                    <span className="v2-tile-ic" style={{ flex: "none" }}>
+                      <IconKeyboard />
+                    </span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div className="t">{s.title}</div>
+                      <div style={{ fontSize: 12.5, color: "var(--v2-green)", marginTop: 3, fontWeight: 700 }}>
+                        ✓ Purchased{parts.length ? ` · ${parts.join(" · ")}` : ""}
+                      </div>
+                    </div>
+                    <IconRight size={18} />
+                  </Link>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+        {/* Doosre login se kharida? (Google vs mobile) — wahi merge flow */}
+        {!loading && (
+          <div className="v2-row" style={{ marginTop: nothing ? 4 : 26, alignItems: "flex-start" }}>
+            <span className="v2-tile-ic" style={{ flex: "none" }}>
+              <IconUser />
+            </span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div className="t">Purchase missing?</div>
+              <div style={{ fontSize: 12.5, color: "var(--v2-muted)", marginTop: 3, lineHeight: 1.5 }}>
+                If you bought it with a different login (for example Google instead of your mobile number), link that
+                account here. Everything moves into one account.
+              </div>
+              <button type="button" onClick={openLinkAccount} className="v2-mini gold" style={{ marginTop: 10, cursor: "pointer" }}>
+                Link my other account
+              </button>
+            </div>
+          </div>
         )}
 
         {/* Live test results — publish hone ke baad kabhi bhi dekh sakte hain */}
