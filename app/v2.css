@@ -101,14 +101,11 @@ html[data-theme="dark"] .v2-brand b { color: var(--v2-gold); }
   .v2-mob { display: none !important; }
   .v2-subnav { display: none; }
 }
-/* Laptop par jagah kam ho to: pehle search patti ki jagah sirf icon,
-   phir About/Help menu se hat kar footer me (sab ek line me rahe) */
+/* Laptop par jagah kam ho to About/Help menu se hat kar footer aur
+   ☰ sidebar me (sab ek line me rahe). Search hamesha 🔍 icon hai. */
 .v2-navlink.xl { display: none; }
+@media (min-width: 960px) and (max-width: 1079px) { .v2-nav { margin-left: 6px; } .v2-navlink { padding: 10px 7px; } }
 @media (min-width: 1180px) { .v2-navlink.xl { display: block; } }
-@media (min-width: 1320px) {
-  .v2-searchpill { display: flex; }
-  .v2-search-ic { display: none !important; }
-}
 /* Chhote phone par header ek line me: kam gap, chhote icon; "My Learning"
    ☰ menu me milta hai isliye yahan chhupta hai */
 @media (max-width: 479px) {

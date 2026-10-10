@@ -1,6 +1,6 @@
 "use client";
 
-// Naya header: laptop par upar poora menu, phone par logo + ☰ + chhote chips.
+// Naya header: laptop par upar poora menu + ☰ sidebar, phone par logo + ☰ + chhote chips.
 // App ke andar (WebView) sirf ☰ dikhta hai - wahan "Back to app" milta hai.
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -63,10 +63,6 @@ export default function SiteHeader() {
 
           {!inApp && (
             <>
-              <Link href="/search" className="v2-searchpill">
-                <IconSearch size={17} />
-                <span>Search courses, tests…</span>
-              </Link>
               <Link href="/search" className="v2-iconbtn v2-search-ic" aria-label="Search">
                 <IconSearch size={20} />
               </Link>
@@ -86,7 +82,8 @@ export default function SiteHeader() {
               </Link>
             ))}
 
-          <button className={`v2-iconbtn${inApp ? "" : " v2-mob"}`} aria-label="Open menu" onClick={() => setMenu(true)}>
+          {/* ☰ sidebar har screen par (laptop par bhi) - poora menu wahi hai */}
+          <button className="v2-iconbtn" aria-label="Open menu" onClick={() => setMenu(true)}>
             <IconMenu />
           </button>
         </div>

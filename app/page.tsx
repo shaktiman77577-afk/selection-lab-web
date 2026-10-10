@@ -117,7 +117,11 @@ export default async function HomePage() {
 
         <div style={{ marginTop: 14 }}>
           {slides.length > 0 ? (
-            <HeroCarousel slides={slides} />
+            <>
+              {/* Google ke liye page ka mukhya heading (dikhta nahi, slider uski jagah hai) */}
+              <h1 className="sr">Selection Lab — Courses, Mock Tests &amp; Typing Tests for SSC, Court, IB &amp; Railway Exams</h1>
+              <HeroCarousel slides={slides} />
+            </>
           ) : (
             <section className="v2-hero-default">
               <h1 className="v2-h1" style={{ color: "#fff", maxWidth: 620 }}>
