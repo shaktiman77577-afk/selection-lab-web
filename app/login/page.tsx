@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { signInWithGoogle, getGoogleRedirectResult, sendOtp, verifyOtp, resetRecaptcha } from "@/lib/firebase";
-import { syncGoogleUser, loginEmail, saveUser, loginPhone } from "@/lib/api";
+import { syncGoogleUser, saveUser, loginPhone, loginPassword } from "@/lib/api";
 
 const GOLD = "#FFAB00";
 const NAVY = "#1a2f55";
@@ -13,14 +13,15 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
-  const [showEmail, setShowEmail] = useState(false);
+  // Oct 2026: login password se (har SMS ~₹5). OTP sirf naye account ke liye.
   const [showPhone, setShowPhone] = useState(false);
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
   const [otpSent, setOtpSent] = useState(false);
   const [resendIn, setResendIn] = useState(0);
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
+  const [showPass, setShowPass] = useState(false);
 
   function routeAfterAuth(user: any) {
     saveUser(user);
@@ -145,14 +146,15 @@ export default function LoginPage() {
     }
   }
 
-  async function handleEmailLogin() {
+  async function handlePasswordLogin() {
     setError("");
-    if (!email || !password) {
-      setError("Please enter both email and password");
+    setStatus("");
+    if (!identifier.trim() || !password) {
+      setError("Please enter your mobile number (or email) and password");
       return;
     }
     setLoading(true);
-    const res = await loginEmail(email, password);
+    const res = await loginPassword(identifier, password);
     if (!res.success || !res.user) {
       setError(res.detail || "Login failed");
       setLoading(false);
@@ -233,46 +235,76 @@ export default function LoginPage() {
             <div style={{ flex: 1, height: 1, background: "#e6e8ec" }} />
           </div>
 
-          {!showEmail && !showPhone ? (
+          {!showPhone ? (
             <>
-            <button
-              onClick={() => { setShowPhone(true); setError(""); }}
-              style={{
-                width: "100%",
-                background: "transparent",
-                color: NAVY,
-                border: "1.5px solid #d6dae2",
-                borderRadius: 12,
-                padding: "13px 16px",
-                fontSize: 14.5,
-                fontWeight: 700,
-                cursor: "pointer",
-                marginBottom: 10,
-              }}
-            >
-              📱 Sign in with Mobile OTP
-            </button>
-            <button
-              onClick={() => setShowEmail(true)}
-              style={{
-                width: "100%",
-                background: "transparent",
-                color: NAVY,
-                border: "1.5px solid #d6dae2",
-                borderRadius: 12,
-                padding: "13px 16px",
-                fontSize: 14.5,
-                fontWeight: 700,
-                cursor: "pointer",
-              }}
-            >
-              Sign in with Email
-            </button>
+              <input
+                type="text"
+                inputMode="email"
+                autoComplete="username"
+                placeholder="Mobile number or email"
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
+                style={inputStyle}
+              />
+              <div style={{ position: "relative" }}>
+                <input
+                  type={showPass ? "text" : "password"}
+                  autoComplete="current-password"
+                  placeholder="Password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") handlePasswordLogin(); }}
+                  style={{ ...inputStyle, paddingRight: 64 }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPass((v) => !v)}
+                  style={{ position: "absolute", right: 8, top: 8, background: "none", border: "none", color: "#8a919d", fontSize: 12.5, fontWeight: 700, cursor: "pointer", padding: "6px 8px" }}
+                >
+                  {showPass ? "Hide" : "Show"}
+                </button>
+              </div>
+              <button
+                onClick={handlePasswordLogin}
+                disabled={loading}
+                style={{ width: "100%", background: GOLD, color: "#1a1a1a", border: "none", borderRadius: 12, padding: "14px 16px", fontSize: 15, fontWeight: 800, cursor: loading ? "default" : "pointer", opacity: loading ? 0.65 : 1, marginTop: 4 }}
+              >
+                {loading ? "Signing in..." : "Sign In"}
+              </button>
+              <div style={{ textAlign: "right", marginTop: 10 }}>
+                <a href="/forgot-password" style={{ color: NAVY, fontSize: 13, fontWeight: 700, textDecoration: "none" }}>
+                  Forgot password?
+                </a>
+              </div>
+
+              <div style={{ height: 1, background: "#eef0f3", margin: "16px 0" }} />
+              <p style={{ margin: "0 0 10px", textAlign: "center", fontSize: 13, color: "#5c6472" }}>
+                New to Selection Lab?
+              </p>
+              <button
+                onClick={() => { setShowPhone(true); setError(""); setStatus(""); }}
+                style={{
+                  width: "100%",
+                  background: "transparent",
+                  color: NAVY,
+                  border: "1.5px solid #d6dae2",
+                  borderRadius: 12,
+                  padding: "13px 16px",
+                  fontSize: 14.5,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                📱 Create account with mobile OTP
+              </button>
             </>
-          ) : showPhone ? (
+          ) : (
             <div>
               {!otpSent ? (
                 <>
+                  <p style={{ margin: "0 0 12px", fontSize: 12.5, color: "#5c6472", lineHeight: 1.5 }}>
+                    Already registered but never set a password? Use this once — you&apos;ll be asked to set a password, and next time you can sign in without OTP.
+                  </p>
                   <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                     <span style={{ ...inputStyle, width: 58, marginBottom: 12, display: "flex", alignItems: "center", justifyContent: "center", color: "#8a919d", fontWeight: 700 }}>+91</span>
                     <input
@@ -309,7 +341,7 @@ export default function LoginPage() {
                     disabled={loading}
                     style={{ width: "100%", background: GOLD, color: "#1a1a1a", border: "none", borderRadius: 12, padding: "14px 16px", fontSize: 15, fontWeight: 800, cursor: loading ? "default" : "pointer", opacity: loading ? 0.65 : 1, marginTop: 4 }}
                   >
-                    {loading ? "Verifying..." : "Verify & Sign In"}
+                    {loading ? "Verifying..." : "Verify & Continue"}
                   </button>
                   <button
                     onClick={() => { resetRecaptcha(); setOtpSent(false); setOtp(""); setStatus(""); }}
@@ -322,48 +354,6 @@ export default function LoginPage() {
               )}
               <button
                 onClick={() => { resetRecaptcha(); setShowPhone(false); setOtpSent(false); setOtp(""); setPhone(""); setError(""); setStatus(""); }}
-                style={{ width: "100%", background: "none", border: "none", color: "#8a919d", fontSize: 13, marginTop: 12, cursor: "pointer" }}
-              >
-                ← Back to other options
-              </button>
-            </div>
-          ) : (
-            <div>
-              <input
-                type="email"
-                placeholder="Email address"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                style={inputStyle}
-              />
-              <input
-                type="password"
-                placeholder="Password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                style={inputStyle}
-              />
-              <button
-                onClick={handleEmailLogin}
-                disabled={loading}
-                style={{
-                  width: "100%",
-                  background: GOLD,
-                  color: "#1a1a1a",
-                  border: "none",
-                  borderRadius: 12,
-                  padding: "14px 16px",
-                  fontSize: 15,
-                  fontWeight: 800,
-                  cursor: loading ? "default" : "pointer",
-                  opacity: loading ? 0.65 : 1,
-                  marginTop: 4,
-                }}
-              >
-                {loading ? "Signing in..." : "Sign In"}
-              </button>
-              <button
-                onClick={() => setShowEmail(false)}
                 style={{ width: "100%", background: "none", border: "none", color: "#8a919d", fontSize: 13, marginTop: 12, cursor: "pointer" }}
               >
                 ← Back to other options
