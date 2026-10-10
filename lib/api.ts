@@ -107,6 +107,42 @@ export async function syncGoogleUser(
   }
 }
 
+// ── Desktop app: Google login (dekho lib/desktop.ts) ──
+
+/** Browser (/desktop-login): login ho chuka hai -> app ke liye 2 minute ka code. */
+export async function desktopLoginCode(challenge: string): Promise<{ code?: string; detail?: string }> {
+  try {
+    const token = getToken();
+    if (!token) return { detail: "Sign-in did not finish. Please try again." };
+    const res = await fetch(`${API_URL}/desktop/login-code`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ challenge }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.code) return { detail: data.detail || `Server error ${res.status}` };
+    return { code: data.code };
+  } catch (e: any) {
+    return { detail: `Cannot reach server (${e?.message || "network"})` };
+  }
+}
+
+/** App ke andar: code + verifier -> login (token yahin save hota hai). */
+export async function desktopExchange(code: string, verifier: string): Promise<AuthResponse> {
+  try {
+    const res = await fetch(`${API_URL}/desktop/login-exchange`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code, verifier }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { success: false, detail: data.detail || `Server error ${res.status}` };
+    return normalize(data, true);
+  } catch (e: any) {
+    return { success: false, detail: `Cannot reach server (${e?.message || "network"})` };
+  }
+}
+
 export async function loginEmail(email: string, password: string): Promise<AuthResponse> {
   try {
     const res = await fetch(`${API_URL}/users/login-email`, {

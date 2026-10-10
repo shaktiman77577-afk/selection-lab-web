@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { signInWithGoogle, getGoogleRedirectResult, sendOtp, verifyOtp, resetRecaptcha } from "@/lib/firebase";
-import { syncGoogleUser, saveUser, loginPhone, loginPassword } from "@/lib/api";
+import { syncGoogleUser, saveUser, loginPhone, loginPassword, desktopExchange } from "@/lib/api";
+import { desktopBridge } from "@/lib/desktop";
 
 const GOLD = "#FFAB00";
 const NAVY = "#1a2f55";
@@ -13,6 +14,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
+  const [desktopWaiting, setDesktopWaiting] = useState(false);
   // Oct 2026: login password se (har SMS ~₹5). OTP sirf naye account ke liye.
   const [showPhone, setShowPhone] = useState(false);
   const [phone, setPhone] = useState("");
@@ -60,7 +62,45 @@ export default function LoginPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Desktop app: Google login system browser me hota hai (lib/desktop.ts)
+  async function handleDesktopGoogle() {
+    const bridge = desktopBridge();
+    if (!bridge) return;
+    setError("");
+    setStatus("Finish signing in with Google in your browser, then come back here.");
+    setLoading(true);
+    setDesktopWaiting(true);
+    try {
+      const { code, verifier } = await bridge.googleLogin();
+      setDesktopWaiting(false);
+      setStatus("Signing you in...");
+      const res = await desktopExchange(code, verifier);
+      if (!res.success || !res.user) {
+        setStatus("");
+        setError(res.detail || "Google sign-in failed");
+        setLoading(false);
+        return;
+      }
+      routeAfterAuth(res.user);
+    } catch (e: any) {
+      setDesktopWaiting(false);
+      setStatus("");
+      const msg = String(e?.message || "");
+      // "Login cancelled" / "restarted" — bachche ne khud roka, error nahi dikhana
+      if (!/cancelled|restarted/i.test(msg)) setError(msg.replace(/^Error invoking remote method '[^']+': (Error: )?/, "") || "Google sign-in failed");
+      setLoading(false);
+    }
+  }
+
+  function cancelDesktopGoogle() {
+    desktopBridge()?.cancelGoogleLogin();
+  }
+
   async function handleGoogle() {
+    if (desktopBridge()) {
+      await handleDesktopGoogle();
+      return;
+    }
     setError("");
     setStatus("");
     setLoading(true);
@@ -367,6 +407,17 @@ export default function LoginPage() {
           {status && (
             <div style={{ marginTop: 14, background: "#eef4ff", border: "1px solid #c3d5f5", color: "#1a2f55", borderRadius: 10, padding: "10px 12px", fontSize: 13, textAlign: "center" }}>
               {status}
+              {desktopWaiting && (
+                <div style={{ marginTop: 8 }}>
+                  <button
+                    type="button"
+                    onClick={cancelDesktopGoogle}
+                    style={{ background: "none", border: "none", color: NAVY, fontSize: 13, fontWeight: 700, textDecoration: "underline", cursor: "pointer", padding: 0 }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
