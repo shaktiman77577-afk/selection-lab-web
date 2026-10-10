@@ -1,7 +1,11 @@
+// Website redesign: naya header/footer (Blog ke andar); content waisa hi.
 import type { Metadata } from "next";
 import Link from "next/link";
 import { pageMeta } from "@/lib/seo";
 import { STATUS_COLOR, fmtDate as fmt, WIDE_CSS } from "@/lib/examUpdates";
+import V2Shell from "@/app/components/v2/V2Shell";
+import SiteHeader from "@/app/components/v2/SiteHeader";
+import SiteFooter from "@/app/components/v2/SiteFooter";
 
 /**
  * /exam-updates — sarkari vacancies (job notifications) ki list.
@@ -51,16 +55,14 @@ export default async function ExamUpdatesPage({ searchParams }: { searchParams: 
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--text)" }}>
-      <header style={{ position: "sticky", top: 0, display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", background: "var(--header)", borderBottom: "1px solid var(--line)", zIndex: 10 }}>
-        <Link href="/blog" style={{ color: "var(--text)", textDecoration: "none", fontSize: 18 }}>←</Link>
-        <div style={{ fontWeight: 800, fontSize: 16 }}>
-          Selection <span style={{ color: GOLD }}>Lab</span> Blog
-        </div>
-      </header>
+    <V2Shell>
+      <SiteHeader />
 
       <style dangerouslySetInnerHTML={{ __html: WIDE_CSS }} />
       <main className="sl-wide">
+        <nav className="v2-crumb" aria-label="Breadcrumb" style={{ marginBottom: 10 }}>
+          <Link href="/">Home</Link> / <Link href="/blog">Blog</Link> / <span style={{ color: "var(--text)", fontWeight: 700 }}>Exam Updates</span>
+        </nav>
         <h1 className="sl-h1" style={{ fontSize: 23, margin: "4px 0 4px" }}>Latest Exam Updates</h1>
         <p style={{ color: "var(--muted)", fontSize: 13.5, margin: "0 0 14px" }}>
           Government job notifications with important dates, fees, eligibility, admit cards and results.
@@ -113,6 +115,7 @@ export default async function ExamUpdatesPage({ searchParams }: { searchParams: 
           </Link>
         ))}</div>}
       </main>
-    </div>
+      <SiteFooter />
+    </V2Shell>
   );
 }

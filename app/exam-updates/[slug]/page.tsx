@@ -1,8 +1,12 @@
+// Website redesign: naya header/footer (Blog ke andar); content waisa hi.
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { CSSProperties, ReactNode } from "react";
 import { STATUS_COLOR, fmtDate, WIDE_CSS } from "@/lib/examUpdates";
+import V2Shell from "@/app/components/v2/V2Shell";
+import SiteHeader from "@/app/components/v2/SiteHeader";
+import SiteFooter from "@/app/components/v2/SiteFooter";
 
 /**
  * /exam-updates/[slug] — ek vacancy ki poori jaankari.
@@ -120,17 +124,15 @@ export default async function ExamUpdatePage({ params }: { params: Promise<{ slu
   const pdfLink = linkOf(/notification/i);
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--text)" }}>
-      <header style={{ position: "sticky", top: 0, display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", background: "var(--header)", borderBottom: "1px solid var(--line)", zIndex: 10 }}>
-        <Link href="/blog" style={{ color: "var(--text)", textDecoration: "none", fontSize: 18 }}>←</Link>
-        <div style={{ fontWeight: 800, fontSize: 16 }}>
-          Selection <span style={{ color: GOLD }}>Lab</span> Blog
-        </div>
-      </header>
+    <V2Shell>
+      <SiteHeader />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(e) }} />
 
       <style dangerouslySetInnerHTML={{ __html: WIDE_CSS }} />
       <main className="sl-wide" style={{ lineHeight: 1.65 }}>
+        <nav className="v2-crumb" aria-label="Breadcrumb" style={{ marginBottom: 10, lineHeight: 1.5 }}>
+          <Link href="/">Home</Link> / <Link href="/blog">Blog</Link> / <Link href="/exam-updates">Exam Updates</Link>
+        </nav>
         <span style={{ fontSize: 11.5, fontWeight: 800, color: "#fff", background: STATUS_COLOR[e.status?.code] || "#8a8f99", borderRadius: 6, padding: "3px 9px" }}>
           {e.status?.text}
         </span>
@@ -295,6 +297,7 @@ export default async function ExamUpdatePage({ params }: { params: Promise<{ slu
           </div>
         </div>
       </main>
-    </div>
+      <SiteFooter />
+    </V2Shell>
   );
 }
