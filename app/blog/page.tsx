@@ -1,7 +1,14 @@
+// Blog list - website redesign (Oct 2026). Data aur SEO wahi; naya header/footer
+// aur laptop par 3 column ke cards. Upar "Latest Exam Updates" (job
+// notifications) - alag menu nahi, blog ke andar hi.
 import type { Metadata } from "next";
-import { pageMeta } from "@/lib/seo";
 import Link from "next/link";
-import { STATUS_COLOR, fmtDate, WIDE_CSS } from "@/lib/examUpdates";
+import { pageMeta } from "@/lib/seo";
+import V2Shell from "@/app/components/v2/V2Shell";
+import SiteHeader from "@/app/components/v2/SiteHeader";
+import SiteFooter from "@/app/components/v2/SiteFooter";
+import { IconNews } from "@/app/components/v2/Icons";
+import { STATUS_COLOR, fmtDate } from "@/lib/examUpdates";
 
 export const metadata: Metadata = pageMeta({
   title: "Blog — Exam Updates & Study Material",
@@ -9,7 +16,6 @@ export const metadata: Metadata = pageMeta({
   path: "/blog",
 });
 
-const GOLD = "#FFAB00";
 const API_URL = "https://api.selectionlab.online/api";
 
 // Exam Updates (job notifications) — blog ke upar hi dikhte hain, alag menu nahi
@@ -35,77 +41,113 @@ async function getPosts() {
   }
 }
 
+function fmt(d?: string) {
+  if (!d) return "";
+  try {
+    return new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });
+  } catch {
+    return "";
+  }
+}
+
 export default async function BlogPage() {
   const [posts, exams] = await Promise.all([getPosts(), getExamUpdates()]);
   const topExams = exams.slice(0, 6);
   return (
-    <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--text)" }}>
-      <header style={{ position: "sticky", top: 0, display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", background: "var(--header)", borderBottom: "1px solid var(--line)", zIndex: 10 }}>
-        <Link href="/" style={{ color: "var(--text)", textDecoration: "none", fontSize: 18 }}>←</Link>
-        <div style={{ fontWeight: 800, fontSize: 16 }}>
-          Selection <span style={{ color: GOLD }}>Lab</span> Blog
+    <V2Shell>
+      <SiteHeader />
+      <main className="v2-wrap v2-main">
+        <nav className="v2-crumb" aria-label="Breadcrumb">
+          <Link href="/">Home</Link> / <span style={{ color: "var(--text)", fontWeight: 700 }}>Blog</span>
+        </nav>
+        <div style={{ paddingTop: 10 }}>
+          <h1 className="v2-h1">Exam Updates &amp; Study Material</h1>
+          <p className="v2-sub" style={{ fontSize: 15 }}>
+            Notifications, strategy, vocabulary and preparation guides — updated regularly.
+          </p>
         </div>
-      </header>
-
-      <style dangerouslySetInnerHTML={{ __html: WIDE_CSS }} />
-      <main className="sl-wide">
-        <h1 className="sl-h1" style={{ fontSize: 23, margin: "4px 0 4px" }}>Exam Updates &amp; Study Material</h1>
-        <p style={{ color: "var(--muted)", fontSize: 13.5, margin: "0 0 18px" }}>
-          Notifications, strategy, vocabulary and preparation guides — updated regularly.
-        </p>
 
         {topExams.length > 0 && (
-          <section style={{ marginBottom: 22 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", margin: "0 0 10px" }}>
-              <h2 style={{ fontSize: 17, margin: 0 }}>🔔 Latest Exam Updates</h2>
+          <section className="v2-sec" style={{ marginTop: 22 }}>
+            <div className="v2-head">
+              <h2 className="v2-h2">🔔 Latest Exam Updates</h2>
               {exams.length > topExams.length && (
-                <Link href="/exam-updates" style={{ fontSize: 13, color: GOLD, fontWeight: 700, textDecoration: "none" }}>View all →</Link>
+                <Link href="/exam-updates" className="v2-more">
+                  View all →
+                </Link>
               )}
             </div>
-            <div className="sl-cards">
-            {topExams.map((e: any) => (
-              <Link key={e.slug} href={`/exam-updates/${e.slug}`} style={{
-                display: "block", background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12,
-                padding: "11px 13px", marginBottom: 8, textDecoration: "none", color: "var(--text)",
-              }}>
-                <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 4 }}>
-                  <span style={{ fontSize: 10.5, fontWeight: 800, color: "#fff", background: STATUS_COLOR[e.status?.code] || "#8a8f99", borderRadius: 6, padding: "2px 7px" }}>
-                    {e.status?.text}
-                  </span>
-                  {e.total_vacancies ? <span style={{ fontSize: 11.5, color: "var(--muted)" }}>{Number(e.total_vacancies).toLocaleString("en-IN")} posts</span> : null}
-                  {e.last_date && <span style={{ fontSize: 11.5, color: "var(--muted)" }}>· Last date {fmtDate(e.last_date)}</span>}
-                </div>
-                {e.cover_url && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={e.cover_url} alt={e.cover_alt || e.title} loading="lazy" style={{ display: "block", width: "100%", aspectRatio: "16 / 9", objectFit: "cover", borderRadius: 9, margin: "4px 0 8px" }} />
-                )}
-                <div style={{ fontWeight: 700, fontSize: 14.5, lineHeight: 1.4 }}>{e.title}</div>
-                {e.latest_update && <div style={{ fontSize: 12, color: GOLD, fontWeight: 700, marginTop: 4 }}>🔔 {e.latest_update}</div>}
-              </Link>
-            ))}
+            <div className="v2-grid v2-grid-1">
+              {topExams.map((e: any) => (
+                <article key={e.slug} className="v2-card">
+                  {e.cover_url && (
+                    <div className="v2-media">
+                      <div className="v2-media-bg" style={{ backgroundImage: `url(${JSON.stringify(e.cover_url)})` }} aria-hidden="true" />
+                      <picture>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={e.cover_url} alt={e.cover_alt || e.title} loading="lazy" decoding="async" />
+                      </picture>
+                    </div>
+                  )}
+                  <div className="v2-body" style={{ gap: 8 }}>
+                    <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                      <span className="v2-status" style={{ background: STATUS_COLOR[e.status?.code] || "#8a8f99" }}>
+                        {e.status?.text}
+                      </span>
+                      {e.total_vacancies ? <span className="v2-meta">{Number(e.total_vacancies).toLocaleString("en-IN")} posts</span> : null}
+                      {e.last_date && <span className="v2-meta">Last date {fmtDate(e.last_date)}</span>}
+                    </div>
+                    <h3 className="v2-title">
+                      <Link href={`/exam-updates/${e.slug}`} className="v2-link">
+                        {e.title}
+                      </Link>
+                    </h3>
+                    {e.latest_update && <div style={{ fontSize: 13, color: "var(--v2-gold-ink)", fontWeight: 700 }}>🔔 {e.latest_update}</div>}
+                  </div>
+                </article>
+              ))}
             </div>
           </section>
         )}
 
-        {posts.length > 0 && topExams.length > 0 && <h2 style={{ fontSize: 17, margin: "0 0 10px" }}>📰 Articles</h2>}
+        {posts.length > 0 && topExams.length > 0 && (
+          <h2 className="v2-h2" style={{ margin: "36px 0 0" }}>
+            📰 Articles
+          </h2>
+        )}
         {posts.length === 0 ? (
-          <p style={{ color: "var(--muted)" }}>First posts coming soon — join our Telegram for updates!</p>
+          <div className="v2-empty">
+            <IconNews size={40} />
+            <p style={{ margin: "10px 0 0" }}>First posts coming soon — join our Telegram for updates!</p>
+          </div>
         ) : (
-          <div className="sl-cards">{posts.map((p: any) => (
-            <Link
-              key={p.slug}
-              href={`/blog/${p.slug}`}
-              style={{ display: "block", background: "var(--card)", border: "1px solid var(--line)", borderRadius: 14, padding: 16, marginBottom: 12, textDecoration: "none", color: "var(--text)", boxShadow: "var(--shadow)" }}
-            >
-              <div style={{ fontWeight: 800, fontSize: 15.5, lineHeight: 1.45 }}>{p.title}</div>
-              {p.excerpt && <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 6, lineHeight: 1.6 }}>{p.excerpt}</div>}
-              <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 8 }}>
-                {new Date(p.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })} · Read more →
-              </div>
-            </Link>
-          ))}</div>
+          <div className="v2-grid v2-grid-1" style={{ marginTop: 22 }}>
+            {posts.map((p: any) => (
+              <article key={p.slug} className="v2-card">
+                <div className="v2-body" style={{ padding: 18, gap: 8 }}>
+                  <span className="v2-tag gold" style={{ alignSelf: "flex-start" }}>
+                    {fmt(p.created_at)}
+                  </span>
+                  <h2 style={{ margin: "4px 0 0", fontSize: 16.5, fontWeight: 800, lineHeight: 1.45 }}>
+                    <Link href={`/blog/${p.slug}`} className="v2-link">
+                      {p.title}
+                    </Link>
+                  </h2>
+                  {p.excerpt && (
+                    <p className="v2-desc" style={{ WebkitLineClamp: 3, fontSize: 14 }}>
+                      {p.excerpt}
+                    </p>
+                  )}
+                  <span className="v2-more" style={{ marginTop: "auto", paddingTop: 6 }}>
+                    Read more →
+                  </span>
+                </div>
+              </article>
+            ))}
+          </div>
         )}
       </main>
-    </div>
+      <SiteFooter />
+    </V2Shell>
   );
 }
