@@ -2,7 +2,7 @@
 
 // Home ka banner carousel (website redesign).
 // - Admin ke banners + Featured courses ke poster, poore dikhte hain (contain)
-// - Phone par mobile poster (square box), laptop par chauda box
+// - Dabba 16:9 (poster jaisa); phone par sab slides ke mobile poster hon to chaukor
 // - 4.5 second me apne aap aage; mouse upar ho, tab chhupa ho ya
 //   "reduce motion" on ho to rukta hai
 // - Phone par swipe; laptop par < > buttons aur dots
@@ -60,7 +60,7 @@ export default function HeroCarousel({ slides }: { slides: Slide[] }) {
 
   return (
     <section
-      className="v2-hero"
+      className={`v2-hero${slides.every((x) => x.imgMobile) ? " sq" : ""}`}
       aria-roledescription="carousel"
       aria-label="Offers"
       onMouseEnter={() => setPaused(true)}

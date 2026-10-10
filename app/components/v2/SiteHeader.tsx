@@ -15,10 +15,10 @@ const NAV = [
   { href: "/courses", label: "Courses" },
   { href: "/mock-tests", label: "Mock Tests" },
   { href: "/descriptive", label: "Descriptive" },
-  { href: "/tier2", label: "Typing / Skill Test" },
+  { href: "/tier2", label: "Typing & Skill" },
   { href: "/blog", label: "Blog" },
-  { href: "/about", label: "About" },
-  { href: "/support", label: "Help" },
+  { href: "/about", label: "About", xl: true },
+  { href: "/support", label: "Help", xl: true },
 ];
 
 const CHIPS = NAV.slice(0, 5);
@@ -52,7 +52,7 @@ export default function SiteHeader() {
           {!inApp && (
             <nav className="v2-nav" aria-label="Main">
               {NAV.map((n) => (
-                <Link key={n.href} href={n.href} className="v2-navlink" aria-current={on(n.href) ? "page" : undefined}>
+                <Link key={n.href} href={n.href} className={`v2-navlink${n.xl ? " xl" : ""}`} aria-current={on(n.href) ? "page" : undefined}>
                   {n.label}
                 </Link>
               ))}
@@ -67,7 +67,7 @@ export default function SiteHeader() {
                 <IconSearch size={17} />
                 <span>Search courses, tests…</span>
               </Link>
-              <Link href="/search" className="v2-iconbtn v2-mob" aria-label="Search">
+              <Link href="/search" className="v2-iconbtn v2-search-ic" aria-label="Search">
                 <IconSearch size={20} />
               </Link>
             </>
@@ -77,7 +77,7 @@ export default function SiteHeader() {
 
           {!inApp && loggedIn !== null &&
             (loggedIn ? (
-              <Link href="/my-learning" className="v2-btn v2-btn-ink v2-btn-sm">
+              <Link href="/my-learning" className="v2-btn v2-btn-ink v2-btn-sm v2-hide-xs">
                 My Learning
               </Link>
             ) : (
