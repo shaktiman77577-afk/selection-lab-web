@@ -4,6 +4,8 @@
    bas saaf: patli border, halki shadow, ek jaisa spacing. */
 
 .v2 {
+  --font-jakarta: "Plus Jakarta Sans";
+  --font-deva: "Noto Sans Devanagari";
   --v2-muted: #6b634f;
   --v2-gold: #ffab00;
   --v2-gold-d: #e69a00;
