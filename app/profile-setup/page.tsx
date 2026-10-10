@@ -168,7 +168,7 @@ export default function ProfileSetupPage() {
     }
   }
 
-  // ── Merge ────────────────────────────────────────────────────────────────────────
+  // ── Merge ──
   async function startMerge() {
     if (!merge) return;
     setError("");
