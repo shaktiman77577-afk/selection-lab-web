@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Tinos } from "next/font/google";
 import ActivityBeacon from "@/app/components/ActivityBeacon";
 import PromoPopup from "@/app/components/PromoPopup";
+import AccountPopup from "@/app/components/AccountPopup";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -151,6 +152,8 @@ export default function RootLayout({
         {children}
         {/* Targeted popup (admin → Popups). Test ke beech nahi khulta. */}
         <PromoPopup />
+        {/* Login bina OTP: roz naya token + password set / email jodo / account merge */}
+        <AccountPopup />
       </body>
     </html>
   );
