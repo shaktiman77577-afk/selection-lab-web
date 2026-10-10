@@ -2,8 +2,15 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BLOG_CSS } from "@/lib/blogHtml";
+import V2Shell from "@/app/components/v2/V2Shell";
+import SiteHeader from "@/app/components/v2/SiteHeader";
+import SiteFooter from "@/app/components/v2/SiteFooter";
 
-const GOLD = "#FFAB00";
+// Website redesign (Oct 2026): sirf bahar ka frame badla (naya header/footer,
+// breadcrumb, CTA band). Post render karne, SEO metadata aur structured data
+// ka saara logic waisa hi hai.
+
+const LINK = "var(--v2-gold-ink)";
 const API_URL = "https://api.selectionlab.online/api";
 
 async function getPost(slug: string) {
@@ -110,7 +117,7 @@ function parseInline(text: string, keyPrefix: string) {
         href={href}
         target={internal ? undefined : "_blank"}
         rel={internal ? undefined : "noopener"}
-        style={{ color: GOLD, fontWeight: 700, textDecoration: "underline" }}
+        style={{ color: LINK, fontWeight: 700, textDecoration: "underline" }}
       >
         {m[1]}
       </a>
@@ -130,7 +137,7 @@ function renderContent(content: string) {
     // Heading
     if (t.startsWith("## ")) {
       return (
-        <h2 key={i} style={{ fontSize: 18, margin: "26px 0 8px" }}>
+        <h2 key={i} style={{ fontSize: 20, fontWeight: 800, margin: "28px 0 8px" }}>
           {parseInline(t.slice(3), `h${i}`)}
         </h2>
       );
@@ -147,16 +154,7 @@ function renderContent(content: string) {
             href={href}
             target={internal ? undefined : "_blank"}
             rel={internal ? undefined : "noopener"}
-            style={{
-              display: "inline-block",
-              background: GOLD,
-              color: "#1a1a1a",
-              borderRadius: 10,
-              padding: "13px 26px",
-              fontWeight: 800,
-              fontSize: 14.5,
-              textDecoration: "none",
-            }}
+            className="v2-btn v2-btn-gold"
           >
             {onlyLink[1]}
           </a>
@@ -168,7 +166,7 @@ function renderContent(content: string) {
     const lines = t.split("\n");
     if (lines.every((l) => l.trim().startsWith("- "))) {
       return (
-        <ul key={i} style={{ margin: "0 0 14px", paddingLeft: 22 }}>
+        <ul key={i} style={{ margin: "0 0 14px", paddingLeft: 22, listStyle: "disc" }}>
           {lines.map((l, j) => (
             <li key={j} style={{ marginBottom: 6 }}>
               {parseInline(l.trim().slice(2), `li${i}-${j}`)}
@@ -193,60 +191,63 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
   if (!post) notFound();
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--text)" }}>
-      <header style={{ position: "sticky", top: 0, display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", background: "var(--header)", borderBottom: "1px solid var(--line)", zIndex: 10 }}>
-        <Link href="/blog" style={{ color: "var(--text)", textDecoration: "none", fontSize: 18 }}>←</Link>
-        <div style={{ fontWeight: 800, fontSize: 16 }}>
-          Selection <span style={{ color: GOLD }}>Lab</span> Blog
-        </div>
-      </header>
-
-      <main style={{ maxWidth: 720, margin: "0 auto", padding: "22px 18px 60px", fontSize: 14.5, lineHeight: 1.8 }}>
-        <h1 style={{ fontSize: 24, lineHeight: 1.35, margin: "0 0 6px" }}>{post.title}</h1>
-        <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 18 }}>
-          {new Date(post.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })} · Selection Lab
-          {post.updated_at && String(post.updated_at).slice(0, 10) !== String(post.created_at).slice(0, 10) && (
-            <> · Updated {new Date(post.updated_at).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}</>
+    <V2Shell>
+      <SiteHeader />
+      <main className="v2-wrap v2-main">
+        <article style={{ maxWidth: 760, margin: "0 auto", fontSize: 16, lineHeight: 1.8 }}>
+          <nav className="v2-crumb" aria-label="Breadcrumb" style={{ lineHeight: 1.5 }}>
+            <Link href="/">Home</Link> / <Link href="/blog">Blog</Link>
+          </nav>
+          <h1 className="v2-h1" style={{ margin: "12px 0 8px", lineHeight: 1.3 }}>
+            {post.title}
+          </h1>
+          <div style={{ fontSize: 13, color: "var(--v2-muted)", marginBottom: 20 }}>
+            {new Date(post.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })} · Selection Lab
+            {post.updated_at && String(post.updated_at).slice(0, 10) !== String(post.created_at).slice(0, 10) && (
+              <> · Updated {new Date(post.updated_at).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}</>
+            )}
+          </div>
+          {post.cover_url && (
+            <img src={post.cover_url} alt={post.cover_alt || post.title} style={{ width: "100%", borderRadius: 16, marginBottom: 22, border: "1px solid var(--v2-line)" }} />
           )}
-        </div>
-        {post.cover_url && (
-          <img src={post.cover_url} alt={post.cover_alt || post.title} style={{ width: "100%", borderRadius: 12, marginBottom: 18, border: "1px solid var(--line)" }} />
-        )}
-        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(post) }} />
-        <style>{BLOG_CSS}</style>
-        {post.content_format === "html" ? (
-          // Naye editor ki post — HTML backend par save se pehle saaf hota hai
-          // (core/html_clean.py). Kaagaz jaisi safed patti par, taaki editor me
-          // chuna hua har rang (kaala text bhi) dark theme me bhi dikhe.
-          <>
-            <div className="sl-blog" style={{ background: "#fffdf8", color: "#1b1b1b", borderRadius: 14, padding: "18px 16px" }}
-              dangerouslySetInnerHTML={{ __html: post.content }} />
-          </>
-        ) : (
-          renderContent(post.content)
-        )}
+          <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(post) }} />
+          <style>{BLOG_CSS}</style>
+          {post.content_format === "html" ? (
+            // Naye editor ki post — HTML backend par save se pehle saaf hota hai
+            // (core/html_clean.py). Kaagaz jaisi safed patti par, taaki editor me
+            // chuna hua har rang (kaala text bhi) dark theme me bhi dikhe.
+            <>
+              <div className="sl-blog" style={{ background: "#fffdf8", color: "#1b1b1b", borderRadius: 16, padding: "20px 18px", border: "1px solid var(--v2-line)" }}
+                dangerouslySetInnerHTML={{ __html: post.content }} />
+            </>
+          ) : (
+            renderContent(post.content)
+          )}
 
-        {Array.isArray(post.faqs) && post.faqs.some((f: any) => f?.q && f?.a) && (
-          <section className="sl-faq" style={{ marginTop: 26 }}>
-            <h2 style={{ fontSize: 19, margin: "0 0 12px" }}>Frequently Asked Questions</h2>
-            {post.faqs.filter((f: any) => f?.q && f?.a).map((f: any, i: number) => (
-              <details key={i} open={i === 0}>
-                <summary>{f.q}</summary>
-                <div style={{ marginTop: 8, whiteSpace: "pre-wrap", color: "var(--text)" }}>{f.a}</div>
-              </details>
-            ))}
-          </section>
-        )}
+          {Array.isArray(post.faqs) && post.faqs.some((f: any) => f?.q && f?.a) && (
+            <section className="sl-faq" style={{ marginTop: 28 }}>
+              <h2 style={{ fontSize: 20, fontWeight: 800, margin: "0 0 12px" }}>Frequently Asked Questions</h2>
+              {post.faqs.filter((f: any) => f?.q && f?.a).map((f: any, i: number) => (
+                <details key={i} open={i === 0}>
+                  <summary>{f.q}</summary>
+                  <div style={{ marginTop: 8, whiteSpace: "pre-wrap", color: "var(--text)" }}>{f.a}</div>
+                </details>
+              ))}
+            </section>
+          )}
 
-        <div style={{ marginTop: 34, background: "var(--card)", border: `1.5px dashed ${GOLD}`, borderRadius: 14, padding: 16, textAlign: "center" }}>
-          <div style={{ fontWeight: 800, fontSize: 15 }}>Preparing for government exams?</div>
-          <div style={{ fontSize: 13, color: "var(--muted)", margin: "4px 0 12px" }}>Try our free mock tests on the real exam interface.</div>
-          <Link href="/mock-tests" style={{ background: GOLD, color: "#1a1a1a", textDecoration: "none", borderRadius: 10, padding: "11px 22px", fontWeight: 800, fontSize: 14, display: "inline-block" }}>
-            Start Free Mock Test
-          </Link>
-        </div>
+          <div className="v2-band gold" style={{ marginTop: 36 }}>
+            <div>
+              <b style={{ fontSize: 18 }}>Preparing for government exams?</b>
+              <p>Try our free mock tests on the real exam interface.</p>
+            </div>
+            <Link href="/mock-tests" className="v2-btn v2-btn-gold">
+              Start a free mock test
+            </Link>
+          </div>
+        </article>
       </main>
-    </div>
+      <SiteFooter />
+    </V2Shell>
   );
-              }
-          
+}

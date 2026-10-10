@@ -1,10 +1,19 @@
 "use client";
 
+// Mock test series detail - website redesign (Oct 2026).
+// Sirf LOOK badla hai: laptop par baayen tests ki list, daayen chipka hua
+// "Buy Series" card; phone par neeche Buy patti. Test kholna, Solution,
+// Reattempt, khareedna, 100% coupon aur verify - sab purane page jaisa hi.
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { API_URL } from "@/lib/config";
 import CheckoutSheet from "@/app/components/CheckoutSheet";
 import { getUser, User } from "@/lib/api";
+import V2Shell from "@/app/components/v2/V2Shell";
+import SiteHeader from "@/app/components/v2/SiteHeader";
+import SiteFooter from "@/app/components/v2/SiteFooter";
+import { IconLock, IconRight, IconSend } from "@/app/components/v2/Icons";
 
 declare global {
   interface Window {
@@ -13,9 +22,6 @@ declare global {
 }
 
 const GOLD = "#FFAB00";
-const BG = "var(--bg)";
-const CARD = "var(--card)";
-const BORDER = "var(--border)";
 
 export default function SeriesDetailPage() {
   const params = useParams();
@@ -141,214 +147,207 @@ export default function SeriesDetailPage() {
   const price = Number(series?.price) || 0;
   const original = Number(series?.original_price) || 0;
   const owned = series?.is_purchased || price === 0;
+  const freeCount = tests.filter((t) => t.is_free).length;
+  const off = original > price && original > 0 ? Math.round(((original - price) / original) * 100) : 0;
+  const img = String(series?.thumbnail_url || "");
+  const imgMob = String(series?.thumbnail_url_mobile || "");
+
+  const startBuy = () => {
+    if (!getUser()) {
+      router.push("/login");
+      return;
+    }
+    setShowCheckout(true);
+  };
 
   return (
-    <div style={{ minHeight: "100vh", background: BG, color: "var(--text)", paddingBottom: owned ? 20 : 90 }}>
-      <header
-        style={{
-          position: "sticky",
-          top: 0,
-          zIndex: 10,
-          display: "flex",
-          alignItems: "center",
-          gap: 10,
-          padding: "12px 16px",
-          background: "var(--header)",
-          borderBottom: `1px solid ${BORDER}`,
-        }}
-      >
-        <button onClick={() => router.push("/mock-tests")} style={backBtn}>
-          ←
-        </button>
-        <div style={{ fontWeight: 800, fontSize: 16, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {series?.title || "Test Series"}
-        </div>
-      </header>
+    <V2Shell>
+      <SiteHeader />
+      <main className="v2-wrap v2-main">
+        <nav className="v2-crumb" aria-label="Breadcrumb">
+          <Link href="/">Home</Link> / <Link href="/mock-tests">Mock Tests</Link>
+          {series?.title ? (
+            <>
+              {" "}/ <span style={{ color: "var(--text)", fontWeight: 700 }}>{series.title}</span>
+            </>
+          ) : null}
+        </nav>
 
-      <main style={{ maxWidth: 640, margin: "0 auto", padding: 16 }}>
-        {loading && <p style={{ color: "var(--muted)" }}>Loading...</p>}
-        {error && <p style={{ color: "#ff8a8a", fontSize: 14 }}>{error}</p>}
+        {loading && (
+          <div className="v2-detail" aria-hidden="true">
+            <div>
+              <div className="v2-skel" style={{ height: 30, width: "60%" }} />
+              <div className="v2-skel" style={{ height: 14, width: "80%", marginTop: 12 }} />
+              {[0, 1, 2, 3].map((k) => (
+                <div key={k} className="v2-skel" style={{ height: 66, marginTop: 12, borderRadius: 14 }} />
+              ))}
+            </div>
+            <div className="v2-desk">
+              <div className="v2-skel" style={{ height: 200, borderRadius: 18 }} />
+            </div>
+          </div>
+        )}
+        {error && <div className="v2-msg err" style={{ marginTop: 16 }}>{error}</div>}
 
         {series && (
-          <>
-            <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 16, padding: 16, marginBottom: 16 }}>
-              <h1 style={{ margin: 0, fontSize: 19, fontWeight: 800 }}>{series.title}</h1>
-              {series.description && (
-                <p style={{ margin: "8px 0 0", fontSize: 13.5, color: "var(--muted)", lineHeight: 1.6 }}>{series.description}</p>
-              )}
-              <div style={{ display: "flex", gap: 14, marginTop: 12, fontSize: 13, color: "var(--text2)" }}>
-                <span>📝 {tests.length} tests</span>
-                <span style={{ color: "#5dd97c" }}>🎁 {tests.filter((t) => t.is_free).length} free</span>
-                {owned && <span style={{ color: "#5dd97c", fontWeight: 700 }}>✓ Full access</span>}
-              </div>
-            </div>
-
-            {/* Dedicated Telegram group — sabko dikhta hai */}
-            {series.telegram_group && (
-              <a
-                href={series.telegram_group}
-                target="_blank"
-                rel="noreferrer"
-                style={{
-                  display: "flex", alignItems: "center", gap: 11, marginBottom: 14,
-                  padding: "12px 14px", borderRadius: 13, textDecoration: "none",
-                  background: "linear-gradient(135deg, #229ED9, #1c8bbf)", color: "#fff",
-                }}
-              >
-                <span style={{ fontSize: 23 }}>✈️</span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 800, fontSize: 14 }}>Join dedicated Telegram channel</div>
-                  <div style={{ fontSize: 11.5, opacity: 0.9 }}>Is exam ke updates, doubts aur free material</div>
+          <div className="v2-detail">
+            <div>
+              {(img || imgMob) && (
+                <div className="v2-cover" style={{ marginBottom: 18 }}>
+                  <div className="v2-media-bg" style={{ backgroundImage: `url(${JSON.stringify(img || imgMob)})` }} aria-hidden="true" />
+                  <picture>
+                    {imgMob && img ? <source media="(max-width: 819px)" srcSet={imgMob} /> : null}
+                    <img src={img || imgMob} alt={series.title || ""} fetchPriority="high" />
+                  </picture>
                 </div>
-                <span style={{ fontWeight: 800 }}>→</span>
-              </a>
-            )}
+              )}
 
-            {payMsg && (
-              <div
-                style={{
-                  padding: "12px 14px",
-                  borderRadius: 12,
-                  marginBottom: 14,
-                  fontSize: 14,
-                  border: `1px solid ${payMsg.ok ? "rgba(93,217,124,0.5)" : "rgba(255,107,107,0.5)"}`,
-                  background: payMsg.ok ? "rgba(93,217,124,0.08)" : "rgba(255,107,107,0.08)",
-                  color: payMsg.ok ? "#5dd97c" : "#ff8a8a",
-                }}
-              >
-                {payMsg.text}
+              <h1 className="v2-h1">{series.title}</h1>
+              {series.description && <p className="v2-sub" style={{ fontSize: 15 }}>{series.description}</p>}
+              <div className="v2-stat">
+                <span>{tests.length} tests</span>
+                {freeCount > 0 && <span className="ok">{freeCount} free</span>}
+                {owned && <span className="ok">✓ Full access</span>}
               </div>
-            )}
 
-            {tests.map((t, i) => (
-              <div
-                key={t.id}
-                onClick={() => openTest(t)}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 12,
-                  background: CARD,
-                  border: `1px solid ${t.is_unlocked ? BORDER : "var(--line)"}`,
-                  borderRadius: 14,
-                  padding: 14,
-                  marginBottom: 10,
-                  cursor: t.is_unlocked ? "pointer" : "default",
-                  opacity: t.is_unlocked ? 1 : 0.65,
-                }}
-              >
-                <span
-                  style={{
-                    width: 34,
-                    height: 34,
-                    borderRadius: 10,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontWeight: 800,
-                    fontSize: 14,
-                    flexShrink: 0,
-                    background: t.is_unlocked ? "rgba(255,171,0,0.15)" : "var(--chip)",
-                    color: t.is_unlocked ? GOLD : "var(--muted)",
+              {/* Phone par price yahin, Buy neeche ki patti me */}
+              {!owned && (
+                <div className="v2-mob v2-bigprice" style={{ marginTop: 14 }}>
+                  <span className="p">₹{price}</span>
+                  {original > price && <span className="s">₹{original}</span>}
+                  {off > 0 && <span className="v2-tag">{off}% OFF</span>}
+                </div>
+              )}
+
+              {/* Dedicated Telegram group — sabko dikhta hai */}
+              {series.telegram_group && (
+                <a href={series.telegram_group} target="_blank" rel="noreferrer" className="v2-tgcard">
+                  <IconSend />
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ display: "block", fontWeight: 800, fontSize: 14.5 }}>Join dedicated Telegram channel</span>
+                    <span style={{ display: "block", fontSize: 12.5, opacity: 0.9 }}>Is exam ke updates, doubts aur free material</span>
+                  </span>
+                  <IconRight size={18} />
+                </a>
+              )}
+
+              {payMsg && (
+                <div className={`v2-msg ${payMsg.ok ? "ok" : "err"}`} style={{ marginTop: 16 }} role="status">
+                  {payMsg.text}
+                </div>
+              )}
+
+              <h2 className="v2-section-title">Tests</h2>
+              {tests.map((t, i) => (
+                <div
+                  key={t.id}
+                  className={`v2-test ${t.is_unlocked ? "open" : "locked"}`}
+                  onClick={() => openTest(t)}
+                  role={t.is_unlocked ? "button" : undefined}
+                  tabIndex={t.is_unlocked ? 0 : undefined}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") openTest(t);
                   }}
                 >
-                  {t.my_attempt ? "✓" : t.is_unlocked ? i + 1 : "🔒"}
-                </span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 700, fontSize: 14.5 }}>{t.title}</div>
-                  <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 3 }}>
-                    {t.total_questions} Qs · {t.duration_minutes} min · {t.total_marks} marks
-                    {Number(t.negative_marking) > 0 && ` · −${t.negative_marking}`}
+                  <span className="n">{t.my_attempt ? "✓" : t.is_unlocked ? i + 1 : <IconLock size={16} />}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className="t">{t.title}</div>
+                    <div className="m">
+                      {t.total_questions} Qs · {t.duration_minutes} min · {t.total_marks} marks
+                      {Number(t.negative_marking) > 0 && ` · −${t.negative_marking}`}
+                    </div>
+                    {/* Pehle de chuke hain to score dikhao */}
+                    {t.my_attempt && (
+                      <div className="a">
+                        Attempted · {t.my_attempt.score}/{t.my_attempt.total_marks || t.total_marks} marks
+                        <span style={{ color: "var(--v2-muted)", fontWeight: 600 }}>
+                          {" · "}✓{t.my_attempt.correct} ✗{t.my_attempt.wrong}
+                        </span>
+                      </div>
+                    )}
                   </div>
 
-                  {/* Pehle de chuke hain to score dikhao — Testbook jaisa */}
-                  {t.my_attempt && (
-                    <div style={{ fontSize: 12, color: "#2e8b4a", fontWeight: 700, marginTop: 4 }}>
-                      Attempted · {t.my_attempt.score}/{t.my_attempt.total_marks || t.total_marks} marks
-                      <span style={{ color: "var(--muted)", fontWeight: 600 }}>
-                        {" · "}✓{t.my_attempt.correct} ✗{t.my_attempt.wrong}
-                      </span>
+                  {t.is_free && !owned && !t.my_attempt && <span className="v2-tag">FREE</span>}
+
+                  {t.my_attempt ? (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6, flexShrink: 0 }}>
+                      <button
+                        className="v2-mini gold"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          router.push(`/mock-test/${t.id}?review=1`);
+                        }}
+                      >
+                        Solution
+                      </button>
+                      <button
+                        className="v2-mini"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          router.push(`/mock-test/${t.id}?retry=1`);
+                        }}
+                      >
+                        Reattempt
+                      </button>
                     </div>
+                  ) : (
+                    t.is_unlocked && <IconRight size={18} />
                   )}
                 </div>
+              ))}
 
-                {t.is_free && !owned && !t.my_attempt && (
-                  <span style={{ fontSize: 11, fontWeight: 800, color: "#5dd97c", border: "1px solid rgba(93,217,124,0.4)", borderRadius: 6, padding: "3px 8px" }}>
-                    FREE
-                  </span>
-                )}
+              {tests.length === 0 && !loading && <p className="v2-sub" style={{ textAlign: "center", padding: 20 }}>Tests will be added soon.</p>}
+            </div>
 
-                {/* Attempted test: Solution aur Reattempt — jaise Testbook me hota hai */}
-                {t.my_attempt ? (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 6, flexShrink: 0 }}>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); router.push(`/mock-test/${t.id}?review=1`); }}
-                      style={{ background: "transparent", color: GOLD, border: `1px solid ${GOLD}`, borderRadius: 8, padding: "6px 12px", fontSize: 11.5, fontWeight: 800, cursor: "pointer", whiteSpace: "nowrap" }}
-                    >
-                      Solution
-                    </button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); router.push(`/mock-test/${t.id}?retry=1`); }}
-                      style={{ background: "transparent", color: "var(--text2)", border: "1px solid var(--line)", borderRadius: 8, padding: "6px 12px", fontSize: 11.5, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}
-                    >
-                      Reattempt
-                    </button>
-                  </div>
+            {/* Laptop: chipka hua card */}
+            <aside className="v2-desk">
+              <div className="v2-buycard">
+                {owned ? (
+                  <>
+                    <div style={{ fontSize: 20, fontWeight: 800, color: "var(--v2-green)" }}>✓ Full access</div>
+                    <p className="v2-sub">All {tests.length} tests are unlocked for you. Pick any test from the list to start.</p>
+                  </>
                 ) : (
-                  t.is_unlocked && <span style={{ color: GOLD, fontWeight: 800 }}>→</span>
+                  <>
+                    <div className="v2-bigprice">
+                      <span className="p">₹{price}</span>
+                      {original > price && <span className="s">₹{original}</span>}
+                      {off > 0 && <span className="v2-tag">{off}% OFF</span>}
+                    </div>
+                    <button onClick={startBuy} disabled={paying} className="v2-btn v2-btn-gold" style={{ width: "100%", marginTop: 16 }}>
+                      {paying ? "Processing..." : "Buy Series"}
+                    </button>
+                    <ul className="v2-points">
+                      <li>Unlock all {tests.length} tests</li>
+                      {freeCount > 0 && <li>Try {freeCount} free test{freeCount > 1 ? "s" : ""} first</li>}
+                      <li>Have a coupon? Apply it at checkout</li>
+                    </ul>
+                  </>
                 )}
               </div>
-            ))}
-
-            {tests.length === 0 && !loading && (
-              <p style={{ color: "var(--muted)", textAlign: "center", padding: 20 }}>Tests will be added soon.</p>
-            )}
-          </>
-        )}
-      </main>
-
-      {/* Sticky buy bar */}
-      {series && !owned && (
-        <div
-          style={{
-            position: "fixed",
-            bottom: 0,
-            left: 0,
-            right: 0,
-            display: "flex",
-            alignItems: "center",
-            gap: 12,
-            padding: "12px 16px",
-            background: "var(--card)",
-            borderTop: `1px solid ${BORDER}`,
-            zIndex: 15,
-          }}
-        >
-          <div style={{ flex: 1 }}>
-            <span style={{ color: GOLD, fontWeight: 800, fontSize: 18 }}>₹{price}</span>
-            {original > price && (
-              <span style={{ color: "var(--muted)", textDecoration: "line-through", fontSize: 13, marginLeft: 6 }}>₹{original}</span>
-            )}
-            <div style={{ fontSize: 11, color: "var(--muted)" }}>Unlock all {tests.length} tests</div>
+            </aside>
           </div>
-          <button
-            onClick={() => {
-              if (!getUser()) { router.push("/login"); return; }
-              setShowCheckout(true);
-            }}
-            disabled={paying}
-            style={{
-              background: GOLD,
-              color: "#1a1a1a",
-              border: "none",
-              borderRadius: 12,
-              padding: "13px 26px",
-              fontWeight: 800,
-              fontSize: 15,
-              cursor: "pointer",
-              opacity: paying ? 0.6 : 1,
-            }}
-          >
+        )}
+
+        {series && !owned && <div className="v2-mobpad" />}
+      </main>
+      <SiteFooter />
+
+      {/* Phone: neeche chipki Buy patti */}
+      {series && !owned && (
+        <div className="v2-mobbar">
+          <div style={{ flex: 1 }}>
+            <span className="v2-price" style={{ fontSize: 18 }}>
+              ₹{price}
+            </span>
+            {original > price && (
+              <span className="v2-strike" style={{ marginLeft: 6 }}>
+                ₹{original}
+              </span>
+            )}
+            <div style={{ fontSize: 11.5, color: "var(--v2-muted)" }}>Unlock all {tests.length} tests</div>
+          </div>
+          <button onClick={startBuy} disabled={paying} className="v2-btn v2-btn-gold">
             {paying ? "Processing..." : "Buy Series"}
           </button>
         </div>
@@ -369,17 +368,6 @@ export default function SeriesDetailPage() {
           onPay={(code) => buySeries(code)}
         />
       )}
-    </div>
+    </V2Shell>
   );
 }
-
-const backBtn: React.CSSProperties = {
-  background: "transparent",
-  color: "var(--text)",
-  border: `1px solid ${BORDER}`,
-  borderRadius: 10,
-  padding: "6px 12px",
-  fontSize: 15,
-  cursor: "pointer",
-};
-      
