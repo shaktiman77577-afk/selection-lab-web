@@ -47,10 +47,18 @@ const BLOCKED: RegExp[] = [
   /^\/nbems-mock\/\d+/, /^\/typing-test\//,
 ];
 
-type Kind = "profile" | "password" | "email" | "phone";
+type Kind = "profile" | "password" | "email" | "phone" | "link";
+
+// My Learning (ya kahin se bhi) ye event bhejo to "Link your other account"
+// khulta hai: bachcha doosre account ka mobile/email daale -> wahi merge flow.
+// Purchase doosre login (Google vs phone) par hui ho to yahi se wapas milti hai.
+export const LINK_ACCOUNT_EVENT = "sl:link-account";
+export function openLinkAccount() {
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(LINK_ACCOUNT_EVENT));
+}
 
 const REFRESH_KEY = "sl_session_refreshed_at";
-const SNOOZE_DAYS: Record<Kind, number> = { profile: 1, password: 0, email: 3, phone: 3 };
+const SNOOZE_DAYS: Record<Kind, number> = { profile: 1, password: 0, email: 3, phone: 3, link: 0 };
 
 function ls(k: string): string | null {
   try { return localStorage.getItem(k); } catch { return null; }
@@ -122,6 +130,23 @@ export default function AccountPopup() {
     })();
   }, [blocked, router]);
 
+  // Kisi page ne "Link your other account" maanga
+  useEffect(() => {
+    function onLink() {
+      if (!getUser()?.id || !getToken()) {
+        router.push("/login");
+        return;
+      }
+      setMerge(null);
+      setValue("");
+      setCode("");
+      setError("");
+      setKind("link");
+    }
+    window.addEventListener(LINK_ACCOUNT_EVENT, onLink);
+    return () => window.removeEventListener(LINK_ACCOUNT_EVENT, onLink);
+  }, [router]);
+
   // Test page par pahunch gaye — band (password wala bhi; agle page par phir)
   useEffect(() => {
     if (kind && blocked) {
@@ -170,7 +195,8 @@ export default function AccountPopup() {
     setError("");
     const u = getUser();
     if (!u?.id) return;
-    const isPhone = kind === "phone";
+    const isLink = kind === "link";
+    const isPhone = isLink ? !value.includes("@") : kind === "phone";
     const v = isPhone ? value.replace(/\D/g, "").slice(-10) : value.trim().toLowerCase();
     if (isPhone && !/^[6-9]\d{9}$/.test(v)) return setError("Please enter a valid 10-digit mobile number");
     if (!isPhone && !/^\S+@\S+\.\S+$/.test(v)) return setError("Please enter a valid email address");
@@ -183,6 +209,14 @@ export default function AccountPopup() {
         setMerge({ via: isPhone ? "phone" : "email", value: v, name: c.data.other?.name || "", contact: c.data.other?.contact || "", step: "ask" });
         setBusy(false);
         return;
+      }
+      if (isLink) {
+        // Link me sirf merge — naya number/email is account par nahi jodte
+        throw new Error(
+          c.data.status === "mine"
+            ? "This is already your current account. Enter the mobile number or email you used when you made the purchase."
+            : `No Selection Lab account found with this ${isPhone ? "mobile number" : "email"}. Please check and try again.`
+        );
       }
       if (c.data.status === "free") {
         const res = await fetch(`${API_URL}/users/complete-profile`, {
@@ -245,6 +279,7 @@ export default function AccountPopup() {
   const u: User | null = getUser();
   const title =
     merge ? "Merge your accounts"
+    : kind === "link" ? "Link your other account"
     : kind === "password" ? "Set your password"
     : kind === "profile" ? "Complete your profile"
     : kind === "email" ? "Add your email"
@@ -296,6 +331,26 @@ export default function AccountPopup() {
               {busy ? "Saving..." : "Save password"}
             </button>
             {canSkip && <button onClick={() => snooze(kind)} style={laterBtn}>Skip for now</button>}
+          </>
+        ) : kind === "link" ? (
+          <>
+            <p style={p}>
+              Bought something with a different login (for example Google instead of mobile number)? Enter the mobile
+              number or email of that account. We will verify it with a code and move everything into one account.
+            </p>
+            <input
+              style={input}
+              type="text"
+              autoComplete="off"
+              placeholder="Mobile number or email"
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") saveContact(); }}
+            />
+            <button onClick={saveContact} disabled={busy} style={{ ...goldBtn, opacity: busy ? 0.6 : 1 }}>
+              {busy ? "Checking..." : "Continue"}
+            </button>
+            <button onClick={() => snooze(kind)} style={laterBtn}>Cancel</button>
           </>
         ) : kind === "profile" ? (
           <>
