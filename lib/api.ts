@@ -197,3 +197,141 @@ export function logout() {
     setToken(null);
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  Login bina OTP + account merge (Oct 2026) — backend: routers/account.py
+//  Har SMS ~₹5 ka hai. Ab login password (ya Google) se; OTP sirf naye phone
+//  signup, forgot password (jab email na ho) aur merge ke saboot ke liye.
+//  Token har API call me layout.tsx wala fetch wrapper khud jodta hai.
+// ═══════════════════════════════════════════════════════════════════════════
+
+export interface ApiResult<T = any> {
+  ok: boolean;
+  status: number;
+  data: T & { detail?: string };
+}
+
+async function call<T = any>(path: string, method: "GET" | "POST", body?: unknown): Promise<ApiResult<T>> {
+  try {
+    const res = await fetch(`${API_URL}${path}`, {
+      method,
+      headers: body !== undefined ? { "Content-Type": "application/json" } : undefined,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+      cache: "no-store",
+    });
+    let data: any = {};
+    try {
+      const raw = await res.text();
+      data = raw ? JSON.parse(raw) : {};
+    } catch {
+      data = {};
+    }
+    if (!res.ok && typeof data.detail !== "string") {
+      data.detail = `Something went wrong (${res.status}). Please try again.`;
+    }
+    return { ok: res.ok, status: res.status, data };
+  } catch (e: any) {
+    return { ok: false, status: 0, data: { detail: "Cannot reach server. Please check your internet." } as any };
+  }
+}
+
+/** Login wala jawab: token + user dono save karo. */
+function loginResult(r: ApiResult): AuthResponse {
+  if (!r.ok) return { success: false, detail: r.data.detail };
+  const out = normalize(r.data, true);
+  if (out.success && out.user) saveUser(out.user);
+  return out;
+}
+
+/** Mobile ya email + password se login. */
+export async function loginPassword(identifier: string, password: string): Promise<AuthResponse> {
+  return loginResult(await call("/users/login-password", "POST", { identifier: identifier.trim(), password }));
+}
+
+export interface AccountStatus {
+  has_password: boolean;
+  has_phone: boolean;
+  has_email: boolean;
+  has_google: boolean;
+  profile_completed: boolean;
+  needs_password: boolean;
+  phone_masked: string;
+  email_masked: string;
+}
+
+export async function getAccountStatus(): Promise<ApiResult<AccountStatus>> {
+  return call<AccountStatus>("/users/account-status", "GET");
+}
+
+export async function setPassword(password: string): Promise<ApiResult> {
+  return call("/users/set-password", "POST", { password });
+}
+
+export type Contact = { phone?: string; email?: string };
+
+export interface AccountCheck {
+  status: "free" | "mine" | "other";
+  via: "phone" | "email";
+  other?: { name: string; contact: string; banned: boolean };
+}
+
+/** Ye number/email kisi doosre account par to nahi? */
+export async function accountCheck(c: Contact): Promise<ApiResult<AccountCheck>> {
+  return call<AccountCheck>("/users/account-check", "POST", c);
+}
+
+/** Merge ka saboot shuru. email -> server code bhejta hai; sms -> hum Firebase se. */
+export async function mergeStart(c: Contact): Promise<ApiResult<{ method: "email" | "sms"; sent_to: string }>> {
+  return call("/users/merge/start", "POST", c);
+}
+
+/** Saboot ke saath merge. Jo account bacha, uska token + user save ho jata hai. */
+export async function mergeConfirm(
+  c: Contact & { id_token?: string; code?: string }
+): Promise<AuthResponse & { kept?: "this" | "other" }> {
+  const r = await call("/users/merge/confirm", "POST", c);
+  return { ...loginResult(r), kept: r.data?.kept };
+}
+
+export interface ForgotStart {
+  method: "email" | "sms";
+  sent_to: string;
+  phone?: string;
+  sms_available?: boolean;
+  email_available?: boolean;
+}
+
+export async function forgotStart(identifier: string, via?: "email" | "sms"): Promise<ApiResult<ForgotStart>> {
+  return call<ForgotStart>("/users/forgot/start", "POST", { identifier: identifier.trim(), via: via || null });
+}
+
+export async function forgotReset(args: {
+  identifier: string;
+  new_password: string;
+  code?: string;
+  id_token?: string;
+}): Promise<AuthResponse> {
+  return loginResult(await call("/users/forgot/reset", "POST", { ...args, identifier: args.identifier.trim() }));
+}
+
+/**
+ * Sliding session: din me ek baar naya token. Roz aane wala bachcha kabhi
+ * logout nahi hota (aur use dobara login / OTP nahi lagta).
+ * "merged" = ye account doosre me merge ho chuka — logout karke login karwao.
+ */
+export async function refreshSession(): Promise<"ok" | "merged" | "expired" | "skip"> {
+  if (!getToken() || !getUser()) return "skip";
+  const r = await call("/users/refresh-token", "POST");
+  if (r.ok) {
+    if (typeof r.data?.token === "string") setToken(r.data.token);
+    if (r.data?.user) {
+      const old = getUser();
+      saveUser({ ...(old || {}), ...r.data.user });
+    }
+    return "ok";
+  }
+  if (r.status === 401) {
+    return /merged/i.test(r.data?.detail || "") ? "merged" : "expired";
+  }
+  return "skip";   // network / server ki gadbad — kuch mat chhedo
+}
