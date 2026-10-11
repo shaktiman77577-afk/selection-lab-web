@@ -25,6 +25,8 @@ import {
   STAGES, ROWS, FINGER_COLOR, FINGER_NAME, keyInfo, makeLine, partAt, PART_LABEL,
   type Part,
 } from "@/lib/drill";
+import SoundControls from "@/app/components/SoundControls";
+import { playKey, setTypingScreenOpen } from "@/lib/typingSound";
 
 const GOLD = "#FFAB00";
 const GREEN = "#2e8b4a";
@@ -220,10 +222,17 @@ export default function TypingDrillPage() {
     return () => clearInterval(t);
   }, [phase, total, finish]);
 
+  // Key/room sound — sirf session chalte waqt (Sound button se on/off)
+  useEffect(() => {
+    setTypingScreenOpen(phase === "run");
+  }, [phase]);
+  useEffect(() => () => setTypingScreenOpen(false), []);
+
   function press(ch: string) {
     const t = textRef.current;
     const p = posRef.current;
     if (phase !== "run" || !t) return;
+    playKey(ch === " " ? "space" : "key");
     if (!startedAt.current) startedAt.current = Date.now();
     if (ch === t[p]) {
       good.current += 1;
@@ -422,6 +431,7 @@ export default function TypingDrillPage() {
         <span>{liveWpm} WPM</span>
         <span style={{ color: liveAcc >= RULES.accuracy ? GREEN : RED }}>{liveAcc}%</span>
         <b style={{ fontVariantNumeric: "tabular-nums" }}>{Math.floor(left / 60)}:{String(left % 60).padStart(2, "0")}</b>
+        <SoundControls onClose={() => boxRef.current?.focus()} />
       </div>
 
       <div style={{
