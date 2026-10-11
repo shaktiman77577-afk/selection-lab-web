@@ -28,8 +28,10 @@ export type SoundSettings = {
 const STORE_KEY = "sl_typing_sound_v1";
 const DEFAULTS: SoundSettings = { keys: false, keysVol: 0.7, room: false, roomVol: 0.5 };
 
-// Files badlo to ye number badha do — browser purani cached file chhod dega
-const VERSION = "1";
+// Files badlo to ye number badha do — browser purani cached file chhod dega.
+// v1 par files upload hone se pehle 404 aaya tha aur browsers ne wahi 404
+// 1 saal ke liye cache kar liya — isliye v2.
+const VERSION = "2";
 const BASE_URL = "/sounds/typing/";
 
 // Loop files ki asli lambai (mp3 encoder aage-peeche thoda khaali jod deta hai,
@@ -109,6 +111,7 @@ let keyBus: GainNode | null = null;
 let roomBus: GainNode | null = null;
 const buffers = new Map<string, AudioBuffer>();
 const pending = new Map<string, Promise<AudioBuffer | null>>();
+const failedAt = new Map<string, number>();   // fail hui file ko har key par dobara na maangein
 let keyVoices = 0;
 
 function ensureCtx(): AudioContext | null {
@@ -159,11 +162,17 @@ function load(name: string): Promise<AudioBuffer | null> {
   if (!c) return Promise.resolve(null);
   let p = pending.get(name);
   if (!p) {
-    p = fetch(`${BASE_URL}${name}.mp3?v=${VERSION}`)
+    const last = failedAt.get(name);
+    if (last && Date.now() - last < 15000) return Promise.resolve(null);
+    const url = `${BASE_URL}${name}.mp3?v=${VERSION}`;
+    p = fetch(url)
+      // Galat jawab (jaise pehle ka cached 404) mila to cache chhod kar seedha
+      // server se ek baar aur maango
+      .then((r) => (r.ok ? r : fetch(url, { cache: "reload" })))
       .then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.arrayBuffer(); })
       .then((data) => decode(c, data))
-      .then((buf) => { buffers.set(name, buf); return buf; })
-      .catch(() => { pending.delete(name); return null; });   // agli baar phir koshish
+      .then((buf) => { buffers.set(name, buf); failedAt.delete(name); return buf; })
+      .catch(() => { pending.delete(name); failedAt.set(name, Date.now()); return null; });
     pending.set(name, p);
   }
   return p;
