@@ -34,6 +34,8 @@ import MailMergeSim, { MergeBrief } from "@/app/components/MailMergeSim";
 import WordSimTiptap from "@/app/components/WordSimTiptap";
 import PptSim from "@/app/components/PptSim";
 import PdfViewer from "@/app/components/PdfViewer";
+import SoundControls from "@/app/components/SoundControls";
+import { playKeyForChange, setTypingScreenOpen } from "@/lib/typingSound";
 import { SheetEditor, toGridData, type SheetValue } from "@/app/components/SheetEditor";
 
 const GOLD = "#FFAB00";
@@ -116,6 +118,13 @@ export default function NbemsMockRunner() {
   const typingLimit = (data?.typing.minutes || 10) * 60;
   const typingPhase = v2 && !typingClosed && typingLeft > 0;
   const typingLocked = v2 ? !typingPhase || remaining <= 0 : typingSecs >= typingLimit || remaining <= 0;
+
+  // Typing ki awaaz (key + room) — sirf Typing tab khula ho aur typing chal sakti ho tab.
+  // Doosre section par jaate hi room sound band. Scoring se koi lena-dena nahi.
+  useEffect(() => {
+    setTypingScreenOpen(stage === "work" && tab === "typing" && !typingLocked);
+  }, [stage, tab, typingLocked]);
+  useEffect(() => () => setTypingScreenOpen(false), []);
   const typingShown = v2 ? typingLeft : typingLimit - typingSecs;
   const minuteOpts: number[] = (meta?.typing_minute_options || data?.mock.typing_minute_options || [10, 15, 25]) as number[];
   const restMins = Number(meta?.duration_min || data?.mock.duration_min || 60);
@@ -546,6 +555,7 @@ export default function NbemsMockRunner() {
         <Card>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
             <b style={{ flex: 1, fontSize: 14 }}>{data.typing.title}</b>
+            <SoundControls />
             <span style={{ fontSize: 13, fontWeight: 800, fontVariantNumeric: "tabular-nums", color: typingLocked ? RED : "var(--text)" }}>
               Typing time {mmss(typingShown)}
             </span>
@@ -571,6 +581,7 @@ export default function NbemsMockRunner() {
           onChange={(e) => {
             if (typingLocked) return;
             if (!typingStarted && e.target.value.length > 0) setTypingStarted(true);
+            playKeyForChange(typed, e.target.value);
             setTyped(e.target.value); dirty.current = true;
           }}
           onKeyDown={(e) => {
