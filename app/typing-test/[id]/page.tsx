@@ -26,6 +26,8 @@ import { useParams, useRouter } from "next/navigation";
 import { getUser } from "@/lib/api";
 import { API_URL } from "@/lib/config";
 import Disclaimer from "@/app/components/Disclaimer";
+import SoundControls from "@/app/components/SoundControls";
+import { playKeyForChange, setTypingScreenOpen } from "@/lib/typingSound";
 
 const GOLD = "#FFAB00";
 const RED = "#c0392b";
@@ -276,6 +278,14 @@ export default function TypingTestPage() {
     return () => clearInterval(t);
   }, [stage, started, submit]);
 
+  // ── Sound (key + room) ──
+  // Room sound sirf typing screen par; result/instructions par band.
+  // Scoring ya timer se iska koi lena-dena nahi.
+  useEffect(() => {
+    setTypingScreenOpen(stage === "typing");
+  }, [stage]);
+  useEffect(() => () => setTypingScreenOpen(false), []);
+
   // ── Live stats strip refresh ──
   // Har keystroke par re-render karna phone par slow ho sakta hai, isliye
   // keystrokeRef/backspaceRef ko sirf har ~300ms me screen par utaarte hain.
@@ -412,6 +422,7 @@ export default function TypingTestPage() {
       setStarted(true);
       startedAt.current = Date.now();
     }
+    playKeyForChange(text, v);
     setText(v);
   }
 
@@ -1010,6 +1021,7 @@ export default function TypingTestPage() {
               style={{ width: 24, height: 24, borderRadius: 5, border: "1px solid #c7ccd6", background: "#fff", cursor: "pointer", fontWeight: 800, fontSize: 12, color: "#333" }}
             >A+</button>
           </div>
+          <SoundControls light align="left" onClose={() => boxRef.current?.focus()} />
           <span style={{ color: "#c7ccd6" }}>|</span>
           <span style={{ fontWeight: 800, color: "#333", fontVariantNumeric: "tabular-nums" }}>
             {liveKeys.toLocaleString("en-IN")} <span style={{ fontWeight: 500, color: "#8a8f99" }}>keystrokes</span>
@@ -1506,7 +1518,6 @@ export default function TypingTestPage() {
                           style: { cursor: "pointer" } as React.CSSProperties };
             const on = pickedWord?.i === i;
             const ring = on ? { outline: `2px solid ${GOLD}`, outlineOffset: 1, borderRadius: 3 } : {};
-
             if (s.op === "missing") return (
               <span key={i} {...tap} title="not typed"
                     style={{ ...tap.style, ...ring, background: "#ffe0e0", color: RED, textDecoration: "underline" }}>
