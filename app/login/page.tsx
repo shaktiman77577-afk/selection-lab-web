@@ -27,8 +27,16 @@ export default function LoginPage() {
 
   function routeAfterAuth(user: any) {
     saveUser(user);
-    if (user?.profile_completed === false) router.push("/profile-setup");
-    else router.push("/");
+    if (user?.profile_completed === false) { router.push("/profile-setup"); return; }
+    // Kisi page ne login ke liye bheja ho (jaise /current-affairs) to wapas wahin.
+    // sessionStorage isliye ki mobile Google login poora page redirect karta hai.
+    let next = "/";
+    try {
+      const n = sessionStorage.getItem("sl_after_login") || "";
+      sessionStorage.removeItem("sl_after_login");
+      if (n.startsWith("/") && !n.startsWith("//") && !n.startsWith("/login")) next = n;
+    } catch {}
+    router.push(next);
   }
 
   // On mobile, Google login uses a full-page redirect. When the user comes
