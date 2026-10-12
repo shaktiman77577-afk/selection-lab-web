@@ -14,6 +14,8 @@ export default function robots(): MetadataRoute.Robots {
         "/mock-test/", "/descriptive-test/", "/excel-test/", "/excel-practice/", "/learn/",
         "/typing-test/", "/worksheet-test/", "/nbems-mock/result/", "/score-checker/result/",
         "/verify", "/search",
+        // Current Affairs abhi sirf seedhe link se (launch par ye line hatao)
+        "/current-affairs",
       ],
     },
     sitemap: `${SITE}/sitemap.xml`,
