@@ -9,13 +9,16 @@
 //
 // Backend: routers/current_affairs.py (/api/ca/...). Har view/quiz/PDF wahan
 // analytics me gina jaata hai (visitor = login user ya is browser ka random id).
+//
+// Student ko dikhne wala har shabd English me (Hinglish nahi). Free period ke
+// baad plan (CAPlans.tsx) — lock box aur "plans" sheet me.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
 import { API_URL } from "@/lib/config";
 import { getUser } from "@/lib/api";
 import { isAppMode } from "@/lib/appMode";
 import CAQuiz from "./CAQuiz";
+import CAPlans, { PLANS_CSS, fmtDay } from "./CAPlans";
 
 type Card = {
   ref_no: string; ca_month: string; block: number; ca_date: string; category: string;
@@ -23,7 +26,10 @@ type Card = {
   detail_en?: string; detail_hi?: string; static_gk_en?: string; static_gk_hi?: string;
   day?: { day_en?: string; day_hi?: string; theme_en?: string; theme_hi?: string } | null;
 };
-type Access = { open: boolean; reason: string; free: boolean; free_until?: string; pass_course_id?: number | null };
+type Access = {
+  open: boolean; reason: string; free: boolean; free_until?: string; pass_course_id?: number | null;
+  window_from?: string | null; free_days?: number; plan?: { name?: string; expires_at?: string } | null;
+};
 type MonthData = { access: Access; month: string; cards: Card[]; locked: boolean; total?: number; blocks: any[] };
 type Lang = "both" | "en" | "hi";
 type PdfKind = "quick" | "notes" | "mcq";
@@ -41,9 +47,9 @@ const BLOCK_SHORT: Record<number, string> = {
   7: "Defence & Science", 8: "Environment", 9: "Sports", 10: "Important Days",
 };
 const KIND: Record<PdfKind, { icon: string; name: string; what: string }> = {
-  quick: { icon: "⚡", name: "Quick Revision", what: "Sirf one-liners" },
+  quick: { icon: "⚡", name: "Quick Revision", what: "One-liners only" },
   notes: { icon: "📖", name: "Detailed Notes", what: "Detail + Static GK" },
-  mcq: { icon: "📝", name: "MCQ Practice", what: "MCQ + poori explanation" },
+  mcq: { icon: "📝", name: "MCQ Practice", what: "MCQs + full explanations" },
 };
 
 const monLabel = (m: string) => (m ? `${MN[Number(m.slice(5, 7)) - 1]} ${m.slice(0, 4)}` : "");
@@ -96,7 +102,8 @@ export default function CAClient({ home, initialMonth, initialData, initialBlock
   const [q, setQ] = useState("");
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const [quiz, setQuiz] = useState<{ scope: "day" | "block"; key: string; title: string } | null>(null);
-  const [sheet, setSheet] = useState<"" | "pdf" | "quiz">("");
+  const [sheet, setSheet] = useState<"" | "pdf" | "quiz" | "plans">("");
+  const [welcome, setWelcome] = useState("");
   const [pdfInfo, setPdfInfo] = useState<Record<string, any>>({});
   const vis = useRef("");
   const plat = useRef("web");
@@ -181,6 +188,8 @@ export default function CAClient({ home, initialMonth, initialData, initialBlock
   // student ko uska apna data aane tak "login kijiye" mat dikhao — skeleton dikhao.
   const confirmed = !!full[month] || (ready && !user);
   const access: Access | undefined = confirmed ? md?.access : undefined;
+  // Band hone par bhi aakhri N din khule (admin: free_days)
+  const dayOk = (d: string) => !!access && (access.open || (!!access.window_from && !!d && d >= access.window_from));
   const locked = !!md?.locked && confirmed;
   const cards = md?.cards || [];
   const showSkeleton = !confirmed || (loading && !full[month]);
@@ -210,8 +219,9 @@ export default function CAClient({ home, initialMonth, initialData, initialBlock
       : { scope: "month", key: month, label: monFull(month) };
   const pdfKey = `${pdfScope.scope}:${pdfScope.key}`;
 
+  const pdfOk = !!access && (access.open || (pdfScope.scope === "day" && dayOk(pdfScope.key)));
   useEffect(() => {
-    if (!ready || !month || !access?.open) return;
+    if (!ready || !month || !pdfOk) return;
     const want = [pdfKey, "all:all"];
     want.forEach((k) => {
       if (pdfInfo[k]) return;
@@ -222,7 +232,7 @@ export default function CAClient({ home, initialMonth, initialData, initialBlock
         .then((d) => setPdfInfo((p) => ({ ...p, [k]: d || { enabled: false } })))
         .catch(() => setPdfInfo((p) => ({ ...p, [k]: { enabled: false } })));
     });
-  }, [ready, month, access?.open, pdfKey, pdfInfo]);
+  }, [ready, month, pdfOk, pdfKey, pdfInfo]);
 
   const pdfUrl = (scope: string, key: string, kind: PdfKind) => `${API_URL}/ca/pdf?${qs({ scope, key, kind })}`;
 
@@ -246,6 +256,26 @@ export default function CAClient({ home, initialMonth, initialData, initialBlock
     window.location.href = "/login";
   }
 
+  // Plan liya — is student ka cache saaf karke mahina dobara lao (ab poora khula)
+  function afterBuy(plan: string, expires?: string) {
+    try {
+      Object.keys(sessionStorage).filter((k) => k.startsWith("ca_m_")).forEach((k) => sessionStorage.removeItem(k));
+    } catch { /* */ }
+    setWelcome(`${plan || "Your plan"} is active${expires ? ` till ${fmtDay(expires)}` : ""}. Happy learning!`);
+    setSheet("");
+    setFull({});
+    setPdfInfo({});
+    loadMonth(month);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  // Band cheez par click: login nahi to login, warna plans
+  function unlock() {
+    if (!access) return;
+    if (access.reason === "login") goLogin();
+    else setSheet("plans");
+  }
+
   function pickMonth(m: string) {
     setMonth(m); setBlock(0); setDay(""); setQ("");
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -254,11 +284,11 @@ export default function CAClient({ home, initialMonth, initialData, initialBlock
   function startQuiz(scope: "day" | "block", key: string, title: string) {
     setSheet("");
     if (!access) return;
-    if (!access.open) { goLogin(); return; }
+    if (!access.open && !(scope === "day" && dayOk(key))) { unlock(); return; }
     setQuiz({ scope, key, title });
   }
 
-  const quizTarget = day ? { scope: "day" as const, key: day, title: `${dayNum(day)} ${MN_FULL[Number(day.slice(5, 7)) - 1]} ka quiz` }
+  const quizTarget = day ? { scope: "day" as const, key: day, title: `Daily quiz — ${dayNum(day)} ${MN_FULL[Number(day.slice(5, 7)) - 1]}` }
     : block ? { scope: "block" as const, key: `${month}:${block}`, title: `${blockNames[String(block)] || BLOCK_SHORT[block]} — ${monLabel(month)}` }
       : null;
 
@@ -267,7 +297,7 @@ export default function CAClient({ home, initialMonth, initialData, initialBlock
     return (
       <main className="v2-wrap" style={{ padding: "40px 16px", minHeight: "50vh" }}>
         <h1 className="v2-h1">Current Affairs</h1>
-        <p style={{ color: "var(--muted)" }}>Jaldi aa raha hai — thodi der baad dekhiye.</p>
+        <p style={{ color: "var(--muted)" }}>Coming soon. Please check back in a little while.</p>
       </main>
     );
   }
@@ -278,34 +308,36 @@ export default function CAClient({ home, initialMonth, initialData, initialBlock
       <div style={{ flex: 1, minWidth: 200 }}>
         <div style={{ fontWeight: 800, fontSize: 16 }}>
           {access.reason === "login"
-            ? (access.free ? `${fmtFree(access.free_until)} tak bilkul FREE — bas login kijiye` : "Aage padhne ke liye login kijiye")
-            : "Poore Current Affairs ke liye CA Pass lijiye"}
+            ? (access.free ? `Free till ${fmtFree(access.free_until)} — just log in` : "Log in to keep reading")
+            : "Unlock all Current Affairs"}
         </div>
         <div style={{ color: "var(--muted)", fontSize: 13, marginTop: 3 }}>
-          {md?.total ? `Is mahine ke ${md.total} one-liners, ` : ""}block-wise quiz aur PDF (Quick, Detailed Notes, MCQ).
+          {access.window_from ? `The last ${access.free_days} days are free. ` : ""}
+          {md?.total ? `Get all ${md.total} one-liners of this month, ` : "Get every one-liner, "}block-wise quizzes and PDFs (Quick, Detailed Notes, MCQ).
         </div>
       </div>
       {access.reason === "login"
-        ? <button className="ca-btn ca-gold" onClick={goLogin}>Login / Sign up — Free</button>
-        : access.pass_course_id
-          ? <Link className="ca-btn ca-gold" href={`/course/${access.pass_course_id}`}>CA Pass lijiye</Link>
-          : null}
+        ? <button className="ca-btn ca-gold" onClick={goLogin}>Log in / Sign up — Free</button>
+        : <CAPlans userId={user?.id} passCourseId={access.pass_course_id} onLogin={goLogin} onDone={afterBuy} />}
     </div>
   );
 
   return (
     <div className="ca">
-      <style dangerouslySetInnerHTML={{ __html: CSS }} />
+      <style dangerouslySetInnerHTML={{ __html: CSS + PLANS_CSS }} />
 
       {/* ── Hero ── */}
       <section className="ca-hero">
         <div className="ca-hero-in">
           <div style={{ flex: 1, minWidth: 240 }}>
             <h1>Current Affairs — {monFull(month)}</h1>
-            <p className="ca-hide-m">Har din ke important one-liners · English + Hindi · Block-wise quiz · PDF (Quick / Notes / MCQ)</p>
+            <p className="ca-hide-m">Important one-liners for every day · English + Hindi · Block-wise quiz · PDF (Quick / Notes / MCQ)</p>
           </div>
           {(md?.access || home?.access)?.free && (
-            <span className="ca-free">🎁 {fmtFree((md?.access || home?.access)?.free_until)} tak bilkul FREE</span>
+            <span className="ca-free">🎁 Free till {fmtFree((md?.access || home?.access)?.free_until)}</span>
+          )}
+          {access?.reason === "plan" && access.plan && (
+            <span className="ca-free">✓ {access.plan.name} · till {fmtDay(access.plan.expires_at)}</span>
           )}
           <div className="ca-stats">
             <div><b>{totalCards.toLocaleString("en-IN")}</b><span>One-liners</span></div>
@@ -340,7 +372,7 @@ export default function CAClient({ home, initialMonth, initialData, initialBlock
             <div style={{ minWidth: 0 }}>
               <h2 className="ca-h2">{monFull(month)} <span>| {monHi(month)}</span></h2>
               <div className="ca-sub">{md?.total ?? cards.length} one-liners · {blockCounts.length} blocks
-                {days[0] ? ` · aakhri update ${dayNum(days[0][0])} ${MN[Number(days[0][0].slice(5, 7)) - 1]}` : ""}</div>
+                {days[0] ? ` · last updated ${dayNum(days[0][0])} ${MN[Number(days[0][0].slice(5, 7)) - 1]}` : ""}</div>
             </div>
           </div>
 
@@ -370,7 +402,7 @@ export default function CAClient({ home, initialMonth, initialData, initialBlock
                 <button key={k} className={lang === k ? "on" : ""} onClick={() => changeLang(k)}>{t}</button>
               ))}
             </div>
-            <input className="ca-search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="🔍 Search — naam, scheme, jagah…" />
+            <input className="ca-search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="🔍 Search — names, schemes, places…" />
           </div>
 
           {(block || day) ? (
@@ -378,12 +410,13 @@ export default function CAClient({ home, initialMonth, initialData, initialBlock
               <b>{day ? `${dayNum(day)} ${MN_FULL[Number(day.slice(5, 7)) - 1]} ${day.slice(0, 4)}` : `${blockNames[String(block)] || BLOCK_SHORT[block]} | ${BLOCK_HI[block] || ""}`}</b>
               <span style={{ flex: 1 }} />
               <span className="ca-sub">{shown.length} one-liners</span>
-              {quizTarget && access?.open && (
+              {quizTarget && (access?.open || (quizTarget.scope === "day" && dayOk(quizTarget.key))) && (
                 <button className="ca-btn ca-gold ca-hide-m" onClick={() => startQuiz(quizTarget.scope, quizTarget.key, quizTarget.title)}>▶ Quiz</button>
               )}
             </div>
           ) : null}
 
+          {welcome && <div className="ca-welcome">🎉 {welcome}<button onClick={() => setWelcome("")} aria-label="Close">✕</button></div>}
           {locked && lockBox}
 
           <div className="ca-grid">
@@ -407,7 +440,7 @@ export default function CAClient({ home, initialMonth, initialData, initialBlock
                     <button className="ca-more" onClick={() => {
                       setOpen((o) => ({ ...o, [c.ref_no]: !isOpen }));
                       if (!isOpen) track("open_card", { ref_no: c.ref_no, block: c.block });
-                    }}>{isOpen ? "− Detail band karo" : "+ Detail & Static GK"}</button>
+                    }}>{isOpen ? "− Hide detail" : "+ Detail & Static GK"}</button>
                   )}
                   {isOpen && (
                     <div className="ca-detail">
@@ -428,7 +461,7 @@ export default function CAClient({ home, initialMonth, initialData, initialBlock
             {showSkeleton && Array.from({ length: 4 }).map((_, i) => <div key={`sk${i}`} className="ca-card ca-sk"><div /><div /><div /></div>)}
           </div>
           {!showSkeleton && !locked && shown.length === 0 && (
-            <div className="ca-empty">{q ? `"${q}" se kuch nahi mila` : "Yahan abhi koi one-liner nahi"}</div>
+            <div className="ca-empty">{q ? `No results for "${q}"` : "No one-liners here yet"}</div>
           )}
           {locked && shown.length > 0 && <div style={{ marginTop: 12 }}>{lockBox}</div>}
         </main>
@@ -437,11 +470,11 @@ export default function CAClient({ home, initialMonth, initialData, initialBlock
         <aside className="ca-rail">
           <QuizBox access={access} quizTarget={quizTarget} blockCounts={blockCounts} month={month}
             blockNames={blockNames} start={startQuiz} days={days} />
-          <PdfBox access={access} info={pdfInfo} pdfKey={pdfKey} label={pdfScope.label} scope={pdfScope.scope}
-            skey={pdfScope.key} url={pdfUrl} onLogin={goLogin} />
+          <PdfBox access={access} ok={pdfOk} info={pdfInfo} pdfKey={pdfKey} label={pdfScope.label} scope={pdfScope.scope}
+            skey={pdfScope.key} url={pdfUrl} onUnlock={unlock} />
           <div className="ca-box">
-            <h3>✈️ Daily update Telegram par</h3>
-            <p>Roz ke one-liners + quiz link seedha phone par.</p>
+            <h3>✈️ Daily updates on Telegram</h3>
+            <p>Daily one-liners and the quiz link, straight to your phone.</p>
             <a className="ca-btn ca-wide" href="https://t.me/Selection_Lab" target="_blank" rel="noreferrer">Join t.me/Selection_Lab</a>
           </div>
         </aside>
@@ -449,25 +482,30 @@ export default function CAClient({ home, initialMonth, initialData, initialBlock
 
       {/* ── Mobile: neeche ki patti ── */}
       <div className="ca-bar">
-        <button className="ca-btn" onClick={() => (!access || access.open ? setSheet("pdf") : goLogin())}>⬇ PDF</button>
+        <button className="ca-btn" onClick={() => (!access || pdfOk ? setSheet("pdf") : unlock())}>⬇ PDF</button>
         <button className="ca-btn ca-gold" onClick={() => {
           if (!access) return;
-          if (!access.open) return goLogin();
           if (quizTarget) startQuiz(quizTarget.scope, quizTarget.key, quizTarget.title);
+          else if (!access.open) unlock();
           else setSheet("quiz");
-        }}>▶ Quiz{quizTarget ? "" : " — block chuniye"}</button>
+        }}>▶ Quiz</button>
       </div>
 
       {sheet && (
         <div className="ca-sheet-bg" onClick={() => setSheet("")}>
           <div className="ca-sheet" onClick={(e) => e.stopPropagation()}>
             <div style={{ display: "flex", alignItems: "center", marginBottom: 8 }}>
-              <b style={{ flex: 1 }}>{sheet === "pdf" ? "📄 PDF download" : "▶ Quiz chuniye"}</b>
-              <button className="ca-btn" onClick={() => setSheet("")}>✕</button>
+              <b style={{ flex: 1 }}>{sheet === "pdf" ? "📄 Download PDF" : sheet === "plans" ? "🎟️ Unlock all Current Affairs" : "▶ Choose a quiz"}</b>
+              <button className="ca-btn" onClick={() => setSheet("")} aria-label="Close">✕</button>
             </div>
-            {sheet === "pdf"
-              ? <PdfBox access={access} info={pdfInfo} pdfKey={pdfKey} label={pdfScope.label} scope={pdfScope.scope}
-                skey={pdfScope.key} url={pdfUrl} onLogin={goLogin} bare />
+            {sheet === "plans" ? (
+              <>
+                <p className="ca-pnote" style={{ marginBottom: 10, fontSize: 13 }}>Every daily one-liner, block-wise quizzes with full explanations, and all PDFs — in English + Hindi.</p>
+                <CAPlans userId={user?.id} passCourseId={access?.pass_course_id} onLogin={goLogin} onDone={afterBuy} />
+              </>
+            ) : sheet === "pdf"
+              ? <PdfBox access={access} ok={pdfOk} info={pdfInfo} pdfKey={pdfKey} label={pdfScope.label} scope={pdfScope.scope}
+                skey={pdfScope.key} url={pdfUrl} onUnlock={unlock} bare />
               : <QuizBox access={access} quizTarget={null} blockCounts={blockCounts} month={month}
                 blockNames={blockNames} start={startQuiz} days={days} bare />}
           </div>
@@ -497,7 +535,7 @@ function QuizBox({ access, quizTarget, blockCounts, month, blockNames, start, da
     <>
       {quizTarget && (
         <button className="ca-btn ca-gold ca-wide" style={{ marginBottom: 10 }}
-          onClick={() => start(quizTarget.scope, quizTarget.key, quizTarget.title)}>▶ {quizTarget.title} — shuru karo</button>
+          onClick={() => start(quizTarget.scope, quizTarget.key, quizTarget.title)}>▶ Start: {quizTarget.title}</button>
       )}
       <div className="ca-cap" style={{ margin: "4px 0 6px" }}>Block-wise quiz · {monLabel(month)}</div>
       {blockCounts.map(([b]) => (
@@ -507,32 +545,34 @@ function QuizBox({ access, quizTarget, blockCounts, month, blockNames, start, da
       ))}
       {days.length > 0 && (
         <>
-          <div className="ca-cap" style={{ margin: "10px 0 6px" }}>Din ka quiz</div>
+          <div className="ca-cap" style={{ margin: "10px 0 6px" }}>Daily quiz</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
             {days.slice(0, 10).map(([d]) => (
-              <button key={d} className="ca-chip" onClick={() => start("day", d, `${dayNum(d)} ${MN_FULL[Number(d.slice(5, 7)) - 1]} ka quiz`)}>
+              <button key={d} className="ca-chip" onClick={() => start("day", d, `Daily quiz — ${dayNum(d)} ${MN_FULL[Number(d.slice(5, 7)) - 1]}`)}>
                 {dayNum(d)} {MN[Number(d.slice(5, 7)) - 1]}
               </button>
             ))}
           </div>
         </>
       )}
-      {access && !access.open && <p style={{ marginTop: 8 }}>Quiz ke liye login kijiye.</p>}
+      {access && !access.open && (
+        <p style={{ marginTop: 8 }}>{access.reason === "login" ? "Log in to take the quizzes." : "Get a plan to unlock all quizzes."}</p>
+      )}
     </>
   );
   if (bare) return body;
   return (
     <div className="ca-box ca-quizbox">
       <h3>▶ Quiz — Current + Static + Statement</h3>
-      <p>Har sawaal ke baad poori explanation (English + Hindi).</p>
+      <p>A full explanation for every question (English + Hindi).</p>
       {body}
     </div>
   );
 }
 
-function PdfBox({ access, info, pdfKey, label, scope, skey, url, onLogin, bare }: {
-  access: Access | undefined; info: Record<string, any>; pdfKey: string; label: string; scope: string; skey: string;
-  url: (scope: string, key: string, kind: PdfKind) => string; onLogin: () => void; bare?: boolean;
+function PdfBox({ access, ok, info, pdfKey, label, scope, skey, url, onUnlock, bare }: {
+  access: Access | undefined; ok: boolean; info: Record<string, any>; pdfKey: string; label: string; scope: string; skey: string;
+  url: (scope: string, key: string, kind: PdfKind) => string; onUnlock: () => void; bare?: boolean;
 }) {
   const cur = info[pdfKey];
   const year = info["all:all"];
@@ -541,7 +581,7 @@ function PdfBox({ access, info, pdfKey, label, scope, skey, url, onLogin, bare }
     if (inf?.kinds && !m) return null;               // ye type yahan nahi (jaise saal ka MCQ)
     if (m?.missing) return null;
     const meta = m?.pages ? `${m.pages} pages · ${m.size_kb >= 1024 ? `${(m.size_kb / 1024).toFixed(1)} MB` : `${m.size_kb} KB`}`
-      : m && !m.ready ? "Taiyaar ho raha hai…" : "";
+      : m && !m.ready ? "Preparing…" : "";
     return (
       <a key={`${sc}${k}${kind}`} className="ca-pdf" href={url(sc, k, kind)} rel="nofollow">
         <span className="ca-pic">{KIND[kind].icon}</span>
@@ -551,22 +591,26 @@ function PdfBox({ access, info, pdfKey, label, scope, skey, url, onLogin, bare }
     );
   };
   if (cur?.enabled === false && year?.enabled === false) return null;
-  const body = !access ? <p>…</p> : !access.open ? (
+  const body = !access ? <p>…</p> : !ok ? (
     <>
-      <p>PDF download ke liye login kijiye — free hai.</p>
-      <button className="ca-btn ca-gold ca-wide" onClick={onLogin}>Login kijiye</button>
+      <p>{access.reason === "login" ? "Log in to download PDFs — it's free." : "Get a plan to download all PDFs."}</p>
+      <button className="ca-btn ca-gold ca-wide" onClick={onUnlock}>{access.reason === "login" ? "Log in" : "See plans"}</button>
     </>
   ) : (
     <>
       <div className="ca-cap" style={{ margin: "2px 0 4px" }}>{label}</div>
       {(["quick", "notes", "mcq"] as PdfKind[]).map((k) => row(scope, skey, k, cur))}
-      <div className="ca-cap" style={{ margin: "10px 0 4px" }}>Poora saal</div>
-      {(["quick", "notes"] as PdfKind[]).map((k) => row("all", "all", k, year, `${KIND[k].name} — saal bhar`))}
-      <p style={{ marginTop: 8, fontSize: 11.5 }}>Print karke padhiye — har PDF English + Hindi me.</p>
+      {access.open && (
+        <>
+          <div className="ca-cap" style={{ margin: "10px 0 4px" }}>Full year</div>
+          {(["quick", "notes"] as PdfKind[]).map((k) => row("all", "all", k, year, `${KIND[k].name} — full year`))}
+        </>
+      )}
+      <p style={{ marginTop: 8, fontSize: 11.5 }}>Print and revise — every PDF is in English + Hindi.</p>
     </>
   );
   if (bare) return body;
-  return <div className="ca-box"><h3>📄 PDF download</h3>{body}</div>;
+  return <div className="ca-box"><h3>📄 Download PDF</h3>{body}</div>;
 }
 
 const CSS = `
@@ -627,6 +671,8 @@ html[data-theme="dark"] .ca .ca-num{background:#2a3f6b}
 @keyframes caP{50%{opacity:.45}}
 .ca .ca-empty{color:var(--muted);text-align:center;padding:30px 0}
 .ca .ca-lock{display:flex;gap:14px;align-items:center;flex-wrap:wrap;background:var(--card);border:2px solid #ffab00;border-radius:16px;padding:14px 16px;margin:8px 0 12px}
+.ca .ca-welcome{display:flex;gap:10px;align-items:center;background:#2e7d461a;border:1px solid #2e7d46;color:var(--ca-green);border-radius:12px;padding:10px 14px;margin:8px 0 12px;font-weight:700;font-size:13.5px}
+.ca .ca-welcome button{margin-left:auto;border:none;background:none;font-size:14px}
 .ca .ca-btn{display:inline-flex;gap:6px;align-items:center;justify-content:center;border:1px solid var(--ca-line);background:var(--card);border-radius:10px;padding:8px 13px;font-weight:700;font-size:13px;text-decoration:none;color:var(--text)}
 .ca .ca-gold{background:#ffab00 !important;border-color:#ffab00 !important;color:#1a1205 !important}
 .ca .ca-wide{width:100%}
