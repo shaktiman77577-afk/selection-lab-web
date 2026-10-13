@@ -6,17 +6,20 @@
  * page.tsx me:  <CurrentAffairsAdmin api={api} />     (tab "currentaffairs")
  * Backend: routers/current_affairs.py (/api/ca/admin/...).
  *
- * Paanch hisse:
+ * Hisse:
  *   Overview  — mahine, cards/MCQs, publish on/off
  *   Upload    — TSV ya pure mahine ka zip → pehle jaanch → phir import (ek-ek file)
  *   Browse    — card, MCQ, sources dekho aur wahin theek karo
  *   Analytics — kitne log aa rahe, naye/purane, quiz, kaun kya padh raha
+ *   Video     — daily Shorts (9:16): slides + script download   (CAVideoAdmin.tsx)
  *   PDF & Ads — PDF download on/off, PDF ke andar ke ads (clickable), links, preview
- *   Settings  — free kab tak, uske baad CA Pass course, login zaroori
+ *   Pricing   — free kab tak, plans (Monthly...), sales, haath se plan (CAPricingAdmin.tsx)
  */
 
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import ImageField from "./ImageField";
+import CAPricingAdmin from "./CAPricingAdmin";
+import CAVideoAdmin from "./CAVideoAdmin";
 
 type ApiFn = (path: string, method?: string, body?: any) => Promise<any>;
 
@@ -40,7 +43,7 @@ const goldBtn: CSSProperties = { ...btn, background: GOLD, color: "#1a1a1a", bor
 const box: CSSProperties = { background: CARD, border: `1px solid ${BORDER}`, borderRadius: 14, padding: 14, marginBottom: 12 };
 const label: CSSProperties = { fontSize: 11.5, color: MUTED, fontWeight: 700, margin: "8px 0 4px" };
 
-type Sub = "overview" | "upload" | "browse" | "analytics" | "pdf" | "settings";
+type Sub = "overview" | "upload" | "browse" | "analytics" | "video" | "pdf" | "pricing";
 
 function Msg({ text, ok }: { text: string; ok?: boolean }) {
   if (!text) return null;
@@ -66,7 +69,7 @@ export default function CurrentAffairsAdmin({ api }: { api: ApiFn }) {
   const [browseAt, setBrowseAt] = useState<{ month: string; block?: number } | null>(null);
   const tabs: [Sub, string][] = [
     ["overview", "📅 Overview"], ["upload", "⬆️ Upload"], ["browse", "🔍 Browse"],
-    ["analytics", "📊 Analytics"], ["pdf", "📄 PDF & Ads"], ["settings", "⚙️ Settings"],
+    ["analytics", "📊 Analytics"], ["video", "🎬 Video"], ["pdf", "📄 PDF & Ads"], ["pricing", "💰 Pricing"],
   ];
   return (
     <div>
@@ -80,8 +83,9 @@ export default function CurrentAffairsAdmin({ api }: { api: ApiFn }) {
       {sub === "upload" && <Upload api={api} />}
       {sub === "browse" && <Browse api={api} start={browseAt} />}
       {sub === "analytics" && <Analytics api={api} />}
+      {sub === "video" && <CAVideoAdmin api={api} />}
       {sub === "pdf" && <PdfAds api={api} />}
-      {sub === "settings" && <Settings api={api} />}
+      {sub === "pricing" && <CAPricingAdmin api={api} />}
     </div>
   );
 }
@@ -124,7 +128,7 @@ function Overview({ api, onBrowse }: { api: ApiFn; onBrowse: (m: string, b?: num
       <div style={{ ...box, fontSize: 12.5, color: MUTED }}>
         {d.free_now
           ? <>🎁 Abhi <b style={{ color: GREEN }}>free</b> hai — <b style={{ color: "#fff" }}>{d.settings.free_until}</b> tak (login zaroori: {d.settings.require_login ? "haan" : "nahi"})</>
-          : <>🔒 Free period khatam. CA Pass course: <b style={{ color: "#fff" }}>{d.settings.pass_course_id || "set nahi"}</b></>}
+          : <>🔒 Free period khatam — students plan lekar padhte hain (💰 Pricing tab)</>}
       </div>
       {d.months.length === 0 && <div style={{ ...box, color: MUTED }}>Abhi koi data nahi. Upload tab se mahine ka zip daaliye.</div>}
       {d.months.map((m: any) => {
@@ -617,7 +621,7 @@ function Analytics({ api }: { api: ApiFn }) {
         {d.free_now
           ? <>🎁 Free period: <b>{d.free_until}</b> tak{daysLeft !== null && <> — <b style={{ color: GOLD }}>{daysLeft} din baaki</b></>}. Ab tak <b>{r.total ?? 0}</b> log aaye, jinme <b>{r.logged_in ?? 0}</b> login wale.</>
           : <>🔒 Free period khatam ({d.free_until || "—"}).</>}
-        {d.conversion && <div style={{ marginTop: 6, color: MUTED }}>CA Pass kharidne wale: <b style={{ color: "#fff" }}>{d.conversion.paid_buyers}</b> (kul access {d.conversion.buyers})</div>}
+        {d.conversion && <div style={{ marginTop: 6, color: MUTED }}>Plan wale abhi: <b style={{ color: "#fff" }}>{d.conversion.active ?? 0}</b> · paise dekar liya: <b style={{ color: "#fff" }}>{d.conversion.paid_buyers}</b> (kul {d.conversion.buyers})</div>}
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 8, marginBottom: 12 }}>
@@ -767,60 +771,6 @@ function PersonSheet({ api, p, onClose }: { api: ApiFn; p: any; onClose: () => v
           </>
         )}
       </div>
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-//  SETTINGS
-// ═══════════════════════════════════════════════════════════════════════════
-function Settings({ api }: { api: ApiFn }) {
-  const [d, setD] = useState<any>(null);
-  const [f, setF] = useState<any>({});
-  const [msg, setMsg] = useState<{ t: string; ok?: boolean }>({ t: "" });
-
-  useEffect(() => {
-    api("/ca/admin/settings").then((x) => { setD(x); setF(x.settings || {}); }).catch((e) => setMsg({ t: e.message }));
-  }, [api]);
-
-  async function save() {
-    setMsg({ t: "" });
-    const body: any = {
-      free_until: f.free_until || "", require_login: !!f.require_login, preview_cards: Number(f.preview_cards || 0),
-    };
-    if (f.pass_course_id) body.pass_course_id = Number(f.pass_course_id); else body.clear_pass = true;
-    try {
-      const r = await api("/ca/admin/settings", "PUT", body);
-      setF(r.settings); setMsg({ t: "Settings save ho gayi", ok: true });
-    } catch (e: any) { setMsg({ t: e.message }); }
-  }
-
-  if (!d) return msg.t ? <Msg text={msg.t} /> : <div style={{ color: MUTED }}>Loading…</div>;
-  return (
-    <div style={box}>
-      <Msg text={msg.t} ok={msg.ok} />
-      <div style={label}>Free kab tak (is din raat 12 baje tak sab ke liye free)</div>
-      <input type="date" value={f.free_until ? String(f.free_until).slice(0, 10) : ""} onChange={(e) => setF({ ...f, free_until: e.target.value })} style={input} />
-      <div style={{ fontSize: 11.5, color: MUTED, marginTop: 4 }}>Aaj: {d.today} · Abhi {d.free_now ? "free hai" : "free nahi hai"}. Khaali chhodne par free band.</div>
-
-      <div style={label}>Free khatam hone ke baad — CA Pass course</div>
-      <select value={f.pass_course_id || ""} onChange={(e) => setF({ ...f, pass_course_id: e.target.value ? Number(e.target.value) : null })} style={input}>
-        <option value="">— abhi koi nahi —</option>
-        {(d.courses || []).map((c: any) => <option key={c.id} value={c.id}>#{c.id} {c.title}{c.price != null ? ` · ₹${c.price}` : ""}</option>)}
-      </select>
-      <div style={{ fontSize: 11.5, color: MUTED, marginTop: 4, lineHeight: 1.5 }}>
-        Courses tab me "CA Pass" naam ka course banaiye (price, coupon sab wahin se chalega), phir yahan chuniye. Jisne wo course liya, uske liye CA khula rahega.
-      </div>
-
-      <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13, margin: "14px 0 4px" }}>
-        <input type="checkbox" checked={!!f.require_login} onChange={(e) => setF({ ...f, require_login: e.target.checked })} />
-        Free period me bhi login zaroori (isse analytics me naam/phone dikhte hain)
-      </label>
-
-      <div style={label}>Lock hone par kitne cards dikhen (preview)</div>
-      <input type="number" min={0} max={20} value={f.preview_cards ?? 3} onChange={(e) => setF({ ...f, preview_cards: e.target.value })} style={{ ...input, width: 120 }} />
-
-      <div style={{ marginTop: 14 }}><button onClick={save} style={goldBtn}>Save settings</button></div>
     </div>
   );
 }
