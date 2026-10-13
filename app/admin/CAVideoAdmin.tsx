@@ -5,7 +5,7 @@
  *
  * Script daily package ke ===SCRIPT=== hisse se aata hai (daily prompt likhta hai,
  * Roman Hinglish). Yahan: din chuno → slides dekho → script theek karo → download
- * (script TXT, slides PNG zip, PDF, PPT).
+ * (script PDF, slides PNG zip, slides PDF, PPT).
  * Backend: routers/ca_video.py (/api/ca/admin/video/...), slides services/ca_video.py.
  */
 
@@ -62,9 +62,9 @@ function Msg({ text, ok }: { text: string; ok?: boolean }) {
 
 const FILES: [string, string, string][] = [
   ["zip", "🖼️ Slides PNG (zip)", "CapCut me daalne ke liye — har slide 1080×1920 + script"],
-  ["txt", "📄 Script (.txt)", "Screen par kya, bolna kya + YouTube title"],
+  ["script", "📄 Script (PDF)", "Screen par kya, bolna kya + YouTube title"],
   ["pptx", "📊 PPT", "Text badalna ho to — bolne wali line Notes me"],
-  ["pdf", "📕 PDF", "Saari slides ek file me"],
+  ["pdf", "📕 Slides PDF", "Saari slides ek file me"],
 ];
 
 export default function CAVideoAdmin({ api }: { api: ApiFn }) {
