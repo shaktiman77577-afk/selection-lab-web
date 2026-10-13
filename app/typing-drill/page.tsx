@@ -81,6 +81,18 @@ export default function TypingDrillPage() {
   const bad = useRef(0);
   const startedAt = useRef<number | null>(null);
   const boxRef = useRef<HTMLInputElement | null>(null);
+  // Phone keyboard (Gboard, Samsung waghera) ka input. Pehle har input par box
+  // khaali kar dete the — par keyboard ka shabd abhi "compose" ho raha hota tha,
+  // to agle akshar ke saath wo pichhle akshar DOBARA bhej deta tha, aur wo galat
+  // key gin jaate the (sahi typing par bhi accuracy ~50%). Ab box ki pichhli
+  // value yaad rakhte hain aur sirf naye jude akshar ginte hain.
+  const lastVal = useRef("");
+  const composing = useRef(false);
+  // Kuch phone keyboard keydown me asli akshar bhi dete hain, par preventDefault
+  // maante nahi — wahi akshar input se dobara aata hai. Ek baar aisa dikh gaya to
+  // us session me sirf input se ginte hain.
+  const keydownChar = useRef<string | null>(null);
+  const inputOnly = useRef(false);
   const [result, setResult] = useState<any>(null);
   const [saveErr, setSaveErr] = useState("");
 
@@ -119,6 +131,9 @@ export default function TypingDrillPage() {
 
   function begin() {
     good.current = 0; bad.current = 0; startedAt.current = null;
+    lastVal.current = ""; composing.current = false;
+    keydownChar.current = null; inputOnly.current = false;
+    if (boxRef.current) boxRef.current.value = "";
     let t = "";
     while (t.length < AHEAD_CHARS + 60) t += (t ? " " : "") + makeLine(stage, "warmup");
     textRef.current = t; posRef.current = 0;
@@ -256,19 +271,48 @@ export default function TypingDrillPage() {
 
   function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.ctrlKey || e.metaKey || e.altKey) return;
-    if (e.key.length === 1) {
-      e.preventDefault();
-      press(e.key);
-    } else if (e.key === "Enter") {
-      e.preventDefault();
-    }
+    // Keyboard abhi shabd compose kar raha hai (phone / IME) — input sambhalega
+    if ((e.nativeEvent as any).isComposing || e.keyCode === 229) return;
+    if (e.key === "Enter") { e.preventDefault(); return; }
+    if (e.key.length !== 1 || inputOnly.current) return;
+    e.preventDefault();
+    keydownChar.current = e.key;
+    press(e.key);
   }
+
   // Phone ke keyboard par keydown me akshar nahi aata — input se pakadte hain
   function onInput(e: React.FormEvent<HTMLInputElement>) {
     const el = e.currentTarget;
     const v = el.value;
-    el.value = "";
-    for (const ch of v) press(ch);
+    const prev = lastVal.current;
+
+    // Keydown me gin chuke akshar ko keyboard ne preventDefault ke baad bhi box
+    // me daal diya — dobara mat gino, aur is session me keydown chhod do.
+    const kd = keydownChar.current;
+    keydownChar.current = null;
+    if (kd !== null && v === prev + kd) {
+      inputOnly.current = true;
+      lastVal.current = v;
+      settle(el);
+      return;
+    }
+
+    // Sirf naye jude akshar. Shabd badla (autocorrect) ya mita (backspace) to
+    // jitna lamba hua utne hi aakhri akshar — mita hua kuch nahi ginte.
+    const added = v.length > prev.length ? v.slice(prev.length) : "";
+    lastVal.current = v;
+    for (const ch of added) press(ch);
+    settle(el);
+  }
+
+  // Box tabhi khaali karo jab keyboard compose na kar raha ho aur shabd poora
+  // ho chuka ho (space) — beech me khaali karne se hi akshar dobara aate the.
+  function settle(el: HTMLInputElement) {
+    if (composing.current) return;
+    if (el.value.endsWith(" ") || el.value.length > 40) {
+      el.value = "";
+      lastVal.current = "";
+    }
   }
 
   const shell = (children: React.ReactNode) => (
@@ -306,7 +350,8 @@ export default function TypingDrillPage() {
         {touchOnly && (
           <div role="note" style={{ border: `1px solid ${GOLD}`, borderRadius: 10, padding: "10px 12px", fontSize: 12.5, lineHeight: 1.6, marginBottom: 12 }}>
             <b>Use a laptop or desktop keyboard.</b> 10-finger typing is learnt on a real keyboard —
-            the exam is on one too. You can look around here on the phone, but practise on a computer.
+            the exam is on one too. Practice on a phone keyboard does not build the right finger habits,
+            and your speed here will not match the exam. Please practise on a computer.
           </div>
         )}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(165px, 1fr))", gap: 8, marginBottom: 14 }}>
@@ -383,6 +428,12 @@ export default function TypingDrillPage() {
             : "Good accuracy. Keep practising this stage daily and the speed will come."}
         </div>
         {saveErr && <p style={{ color: RED, fontSize: 12.5, marginTop: 8 }}>{saveErr}</p>}
+        {touchOnly && (
+          <p style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 8, lineHeight: 1.6 }}>
+            You practised on a phone keyboard. For the real exam, practise on a laptop or desktop
+            keyboard — finger placement and speed there are very different.
+          </p>
+        )}
         <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
           <button onClick={begin} style={{ flex: 1, padding: 12, borderRadius: 10, border: "none", background: GOLD, color: "#1a1a1a", fontWeight: 800, cursor: "pointer" }}>
             Practise again (new pattern)
@@ -455,6 +506,8 @@ export default function TypingDrillPage() {
       </div>
 
       <input ref={boxRef} onKeyDown={onKeyDown} onInput={onInput} autoFocus
+             onCompositionStart={() => { composing.current = true; }}
+             onCompositionEnd={(e) => { composing.current = false; settle(e.currentTarget); }}
              autoCapitalize="none" autoCorrect="off" autoComplete="off" spellCheck={false}
              aria-label="Typing box" style={{ position: "absolute", opacity: 0, width: 1, height: 1, left: -9999 }} />
 
