@@ -63,19 +63,19 @@ export default function CAQuiz({ scope, k, title, lang, qs, ident, onClose }: {
     document.body.style.overflow = "hidden";
     fetch(`${API_URL}/ca/quiz?${qs({ scope, key: k })}`).then(async (r) => {
       const d = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(d.detail || "Quiz nahi khula");
-      if (d.locked) throw new Error("Quiz ke liye login kijiye");
-      if (!d.questions?.length) throw new Error("Is ke liye abhi quiz nahi hai");
+      if (!r.ok) throw new Error(d.detail || "Couldn't open the quiz");
+      if (d.locked) throw new Error(d.access?.reason === "login" ? "Please log in to take this quiz" : "Get a plan to unlock this quiz");
+      if (!d.questions?.length) throw new Error("No quiz is available for this yet");
       setQsList(d.questions);
       t0.current = Date.now();
-    }).catch((e) => setErr(e.message || "Quiz nahi khula"));
+    }).catch((e) => setErr(e.message || "Couldn't open the quiz"));
     return () => { document.body.style.overflow = ""; };
   }, [scope, k, qs]);
 
   async function submit() {
     if (!qsList) return;
     const left = qsList.length - Object.keys(ans).length;
-    if (left > 0 && !confirm(`${left} sawaal chhoote hain. Phir bhi submit karein?`)) return;
+    if (left > 0 && !confirm(`${left} question${left > 1 ? "s are" : " is"} unanswered. Submit anyway?`)) return;
     setBusy(true);
     try {
       const r = await fetch(`${API_URL}/ca/quiz/submit`, {
@@ -83,11 +83,11 @@ export default function CAQuiz({ scope, k, title, lang, qs, ident, onClose }: {
         body: JSON.stringify({ ...ident, scope, key: k, answers: ans, time_sec: Math.round((Date.now() - t0.current) / 1000) }),
       });
       const d = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(d.detail || "Submit nahi hua");
+      if (!r.ok) throw new Error(d.detail || "Couldn't submit the quiz");
       setRes(d);
       window.scrollTo({ top: 0 });
     } catch (e: any) {
-      alert(e.message || "Submit nahi hua — dobara kariye");
+      alert(e.message || "Couldn't submit the quiz. Please try again.");
     }
     setBusy(false);
   }
@@ -102,18 +102,18 @@ export default function CAQuiz({ scope, k, title, lang, qs, ident, onClose }: {
     <div className="caq">
       <style dangerouslySetInnerHTML={{ __html: QCSS }} />
       <div className="caq-top">
-        <button className="caq-x" onClick={onClose} aria-label="Band karo">✕</button>
+        <button className="caq-x" onClick={onClose} aria-label="Close">✕</button>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div className="caq-title">{title}</div>
-          {qsList && !res && <div className="caq-sub">{Object.keys(ans).length}/{qsList.length} jawab diye</div>}
+          {qsList && !res && <div className="caq-sub">{Object.keys(ans).length}/{qsList.length} answered</div>}
           {res && <div className="caq-sub">Result</div>}
         </div>
         {qsList && !res && <button className="caq-btn caq-gold" onClick={submit} disabled={busy}>{busy ? "…" : "Submit"}</button>}
       </div>
 
       <div className="caq-body">
-        {err && <div className="caq-card" style={{ textAlign: "center" }}>{err}<div style={{ marginTop: 12 }}><button className="caq-btn" onClick={onClose}>Wapas</button></div></div>}
-        {!err && !qsList && <div className="caq-card caq-load">Quiz aa raha hai…</div>}
+        {err && <div className="caq-card" style={{ textAlign: "center" }}>{err}<div style={{ marginTop: 12 }}><button className="caq-btn" onClick={onClose}>Back</button></div></div>}
+        {!err && !qsList && <div className="caq-card caq-load">Loading quiz…</div>}
 
         {/* ── Sawaal ── */}
         {qsList && q && !res && (
@@ -146,9 +146,9 @@ export default function CAQuiz({ scope, k, title, lang, qs, ident, onClose }: {
               </div>
             </div>
             <div className="caq-nav">
-              <button className="caq-btn" disabled={i === 0} onClick={() => setI(i - 1)}>← Pichhla</button>
+              <button className="caq-btn" disabled={i === 0} onClick={() => setI(i - 1)}>← Previous</button>
               {i < qsList.length - 1
-                ? <button className="caq-btn caq-gold" onClick={() => setI(i + 1)}>Agla →</button>
+                ? <button className="caq-btn caq-gold" onClick={() => setI(i + 1)}>Next →</button>
                 : <button className="caq-btn caq-gold" onClick={submit} disabled={busy}>Submit</button>}
             </div>
           </>
@@ -161,13 +161,13 @@ export default function CAQuiz({ scope, k, title, lang, qs, ident, onClose }: {
               <div className="caq-big">{res.correct}<span>/{res.total}</span></div>
               <div style={{ fontWeight: 800, fontSize: 16 }}>{res.percent}%</div>
               <div className="caq-pills">
-                <span style={{ color: "#2e7d46" }}>✓ {res.correct} sahi</span>
-                <span style={{ color: "#c0392b" }}>✗ {res.wrong} galat</span>
-                <span>– {res.skipped} chhode</span>
+                <span style={{ color: "#2e7d46" }}>✓ {res.correct} correct</span>
+                <span style={{ color: "#c0392b" }}>✗ {res.wrong} wrong</span>
+                <span>– {res.skipped} skipped</span>
               </div>
             </div>
             <div className="caq-filter">
-              {([["all", "Sab"], ["wrong", "Galat"], ["skipped", "Chhode"]] as const).map(([f, t]) => (
+              {([["all", "All"], ["wrong", "Wrong"], ["skipped", "Skipped"]] as const).map(([f, t]) => (
                 <button key={f} className={filter === f ? "on" : ""} onClick={() => setFilter(f)}>{t}</button>
               ))}
             </div>
@@ -177,7 +177,7 @@ export default function CAQuiz({ scope, k, title, lang, qs, ident, onClose }: {
               return (
                 <div key={x.id} className={`caq-card caq-r ${r.status}`}>
                   <div className="caq-meta"><span>Q{n + 1}</span><span style={{ color: QT_COLOR[x.q_type] || "inherit" }}>{x.q_type}</span>
-                    <span style={{ marginLeft: "auto" }}>{r.status === "correct" ? "✓ Sahi" : r.status === "wrong" ? "✗ Galat" : "– Chhoda"}</span></div>
+                    <span style={{ marginLeft: "auto" }}>{r.status === "correct" ? "✓ Correct" : r.status === "wrong" ? "✗ Wrong" : "– Skipped"}</span></div>
                   {showEn && <div className="caq-q"><Lines text={x.question_en} /></div>}
                   {showHi && <div className={showEn ? "caq-qhi" : "caq-q"}><Lines text={x.question_hi} /></div>}
                   <div className="caq-opts">
