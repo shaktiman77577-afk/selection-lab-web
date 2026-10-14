@@ -20,6 +20,11 @@
  * admin type nahi karta — isliye spelling ki galti se "topic bank me nahi hai"
  * wali dikkat khatam. Purane blueprint (section me seedha topics) kholne par
  * apne aap ek part me badal jaate hain.
+ *
+ * CURRENT AFFAIRS PART (Oct 2026): subject dropdown me "📰 Current Affairs"
+ * chuno -> mahine tick karo + kitne Q. Ye part bank se nahi, seedha CA ke MCQ
+ * se uthta hai; sirf chune hue sawaal mock banate waqt bank me copy hote hain
+ * (backend: routers/question_bank.py, part {source: "ca", ca_months, count}).
  */
 
 import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
@@ -90,7 +95,12 @@ type Part = {
   per_topic: number;        // pool: har topic se kitne
   pool: PoolTopic[];        // pool: chune hue topics
   topics: Topic[];          // fixed: har topic ka count
+  source?: "ca";            // Current Affairs part — bank nahi, CA ke MCQ
+  ca_months?: string[];     // CA: "2026-10", "2026-09" ...
 };
+
+type CaMonth = { month: string; label: string; mcqs: number };
+const CA_VALUE = "__ca__";
 
 type Section = {
   name: string; minutes?: number;
@@ -117,6 +127,7 @@ const BLANK_PART: Part = {
 
 // ── Ginti ─────────────────────────────────────────────────────────────────────────
 function partQ(p: Part): number {
+  if (p.source === "ca") return Number(p.total) || 0;
   return p.mode === "pool"
     ? Number(p.total) || 0
     : (p.topics || []).reduce((s, t) => s + (Number(t.count) || 0), 0);
@@ -208,6 +219,14 @@ function Blueprints({ api, onErr, onOk }: { api: ApiFn; onErr: (s: string) => vo
   const [saving, setSaving] = useState(false);
   const [catalog, setCatalog] = useState<CatSubject[] | null>(null);
   const [catErr, setCatErr] = useState("");
+  const [caMonths, setCaMonths] = useState<CaMonth[]>([]);
+
+  // Current Affairs ke mahine (CA part ke liye) — editor khulte hi ek baar
+  const editing = !!draft;
+  useEffect(() => {
+    if (!editing || caMonths.length) return;
+    api("/qbank/ca-months").then((d) => setCaMonths(d.months || [])).catch(() => {});
+  }, [editing]);
 
   function load() {
     api("/qbank/blueprints").then((d) => setList(d.blueprints || [])).catch((e) => onErr(e.message));
@@ -251,6 +270,11 @@ function Blueprints({ api, onErr, onOk }: { api: ApiFn; onErr: (s: string) => vo
       if (!(sec.name || "").trim()) return onErr("Har section ka naam daaliye");
       if (!(sec.parts || []).length) return onErr(`“${sn}” me kam se kam ek subject jodiye`);
       for (const p of sec.parts || []) {
+        if (p.source === "ca") {
+          if (!(p.ca_months || []).length) return onErr(`“${sn} › Current Affairs” me ek bhi mahina tick nahi hai`);
+          if (!Number(p.total)) return onErr(`“${sn} › Current Affairs” me kitne question, ye daaliye`);
+          continue;
+        }
         if (p.subject_id == null) return onErr(`“${sn}” me ek hissa bina subject ka hai — subject chuniye`);
         if (p.mode === "pool") {
           if (!Number(p.total)) return onErr(`“${sn} › ${p.subject}” me kitne question, ye daaliye`);
@@ -277,7 +301,10 @@ function Blueprints({ api, onErr, onOk }: { api: ApiFn; onErr: (s: string) => vo
         target: Number(sec.target) || undefined,
         mode: "parts",
         parts: (sec.parts || []).map((p) =>
-          p.mode === "pool"
+          p.source === "ca"
+            ? { source: "ca", subject: "Current Affairs", subject_id: null, mode: "pool",
+                ca_months: p.ca_months || [], count: Number(p.total) || 0, total: Number(p.total) || 0 }
+          : p.mode === "pool"
             ? { subject_id: p.subject_id, subject: p.subject, mode: "pool",
                 total: Number(p.total) || 0, per_topic: Math.max(1, Number(p.per_topic) || 1),
                 pool: (p.pool || []).map((t) => ({ topic_id: t.topic_id, topic: t.topic, always: !!t.always })) }
@@ -391,7 +418,7 @@ function Blueprints({ api, onErr, onOk }: { api: ApiFn; onErr: (s: string) => vo
         )}
 
         {draft.sections.map((sec: Section, i: number) => (
-          <SectionEditor key={i} sec={sec} catalog={catalog || []} onChange={(s) => setSec(i, s)}
+          <SectionEditor key={i} sec={sec} catalog={catalog || []} caMonths={caMonths} onChange={(s) => setSec(i, s)}
             onRemove={() => set("sections", draft.sections.filter((_: any, j: number) => j !== i))} />
         ))}
 
@@ -409,8 +436,8 @@ function Blueprints({ api, onErr, onOk }: { api: ApiFn; onErr: (s: string) => vo
   );
 }
 
-function SectionEditor({ sec, catalog, onChange, onRemove }: {
-  sec: Section; catalog: CatSubject[]; onChange: (s: Section) => void; onRemove: () => void;
+function SectionEditor({ sec, catalog, caMonths, onChange, onRemove }: {
+  sec: Section; catalog: CatSubject[]; caMonths: CaMonth[]; onChange: (s: Section) => void; onRemove: () => void;
 }) {
   const parts = sec.parts || [];
   const got = secQ(sec);
@@ -451,7 +478,7 @@ function SectionEditor({ sec, catalog, onChange, onRemove }: {
       </label>
 
       {parts.map((p, i) => (
-        <PartEditor key={i} part={p} catalog={catalog} takenSubjects={used.filter((x) => x !== p.subject_id)}
+        <PartEditor key={i} part={p} catalog={catalog} caMonths={caMonths} takenSubjects={used.filter((x) => x !== p.subject_id)}
           onChange={(np) => setPart(i, np)}
           onRemove={() => onChange({ ...sec, parts: parts.filter((_, j) => j !== i) })} />
       ))}
@@ -474,16 +501,23 @@ function SectionEditor({ sec, catalog, onChange, onRemove }: {
   );
 }
 
-function PartEditor({ part, catalog, takenSubjects, onChange, onRemove }: {
-  part: Part; catalog: CatSubject[]; takenSubjects: number[];
+function PartEditor({ part, catalog, caMonths, takenSubjects, onChange, onRemove }: {
+  part: Part; catalog: CatSubject[]; caMonths: CaMonth[]; takenSubjects: number[];
   onChange: (p: Part) => void; onRemove: () => void;
 }) {
   const [q, setQ] = useState("");
+  if (part.source === "ca") return <CaPartEditor part={part} caMonths={caMonths} onChange={onChange} onRemove={onRemove} />;
   const subject = catalog.find((s) => s.id === part.subject_id) || null;
   const isPool = part.mode === "pool";
   const per = Math.max(1, Number(part.per_topic) || 1);
 
   function pickSubject(idStr: string) {
+    if (idStr === CA_VALUE) {
+      // Current Affairs part — sabse naya mahina pehle se tick
+      onChange({ ...BLANK_PART, source: "ca", subject: "Current Affairs", total: Number(part.total) || 0,
+        ca_months: caMonths.length ? [caMonths[0].month] : [] });
+      return;
+    }
     const s = catalog.find((x) => String(x.id) === idStr);
     if (!s) return;
     // Naya subject: rotation me sab topic tick (jin me question hain), fixed me sab 0
@@ -542,6 +576,7 @@ function PartEditor({ part, catalog, takenSubjects, onChange, onRemove }: {
           value={part.subject_id == null ? "" : String(part.subject_id)}
           onChange={(e) => pickSubject(e.target.value)}>
           <option value="">— subject chuno —</option>
+          <option value={CA_VALUE}>📰 Current Affairs — seedha CA section ke MCQ se</option>
           {catalog.map((s) => (
             <option key={String(s.id)} value={String(s.id)} disabled={s.id != null && takenSubjects.includes(s.id)}>
               {s.name} — {s.questions} Q{s.questions !== s.questions_all ? ` (kul ${s.questions_all})` : ""}
@@ -680,6 +715,58 @@ function PartEditor({ part, catalog, takenSubjects, onChange, onRemove }: {
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+// Current Affairs part: mahine tick + kitne Q. Sawaal CA section ke MCQ se aate hain.
+function CaPartEditor({ part, caMonths, onChange, onRemove }: {
+  part: Part; caMonths: CaMonth[]; onChange: (p: Part) => void; onRemove: () => void;
+}) {
+  const sel = part.ca_months || [];
+  const on = (m: string) => sel.includes(m);
+  const toggle = (m: string, v: boolean) =>
+    onChange({ ...part, ca_months: v ? [...sel.filter((x) => x !== m), m].sort().reverse() : sel.filter((x) => x !== m) });
+  const lastN = (n: number) => onChange({ ...part, ca_months: caMonths.slice(0, n).map((m) => m.month) });
+  const stock = caMonths.filter((m) => on(m.month)).reduce((s, m) => s + m.mcqs, 0);
+  const count = Number(part.total) || 0;
+  return (
+    <div style={{ border: "1px solid rgba(47,127,216,0.45)", borderRadius: 10, padding: 10, marginBottom: 9 }}>
+      <div style={{ display: "flex", gap: 6, marginBottom: 8, alignItems: "center" }}>
+        <div style={{ flex: 1, fontWeight: 800, fontSize: 13.5, color: "#7DB5F0" }}>📰 Current Affairs</div>
+        <button onClick={() => onChange({ ...BLANK_PART })} style={{ ...ghostBtn, padding: "6px 9px", fontSize: 11 }}>Bank subject lo</button>
+        <button onClick={onRemove} style={dangerBtn}>✕</button>
+      </div>
+      <label style={{ display: "block", marginBottom: 8 }}>
+        <div style={{ fontSize: 11, color: MUTED, marginBottom: 4 }}>Current Affairs se kitne Q (har mock me)</div>
+        <input style={{ ...inputStyle, padding: "9px", maxWidth: 140 }} type="number" min={0}
+          value={part.total || ""} onChange={(e) => onChange({ ...part, total: Math.max(0, Number(e.target.value)) })} />
+      </label>
+      <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 6, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 11, color: MUTED }}>Mahine:</span>
+        {[1, 3, 6, 12].map((n) => (
+          <button key={n} onClick={() => lastN(n)} style={{ ...ghostBtn, padding: "5px 9px", fontSize: 11 }}>
+            Aakhri {n}
+          </button>
+        ))}
+        <button onClick={() => onChange({ ...part, ca_months: [] })} style={{ ...ghostBtn, padding: "5px 9px", fontSize: 11 }}>Koi nahi</button>
+      </div>
+      <div style={{ maxHeight: 260, overflowY: "auto", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+        {!caMonths.length && <div style={{ fontSize: 12, color: MUTED, padding: 8 }}>CA ke mahine la rahe hain… (ya abhi CA me MCQ hi nahi)</div>}
+        {caMonths.map((m) => (
+          <label key={m.month} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 2px", borderBottom: "1px solid rgba(255,255,255,0.05)", cursor: "pointer", fontSize: 12.5, color: on(m.month) ? "#fff" : MUTED }}>
+            <input type="checkbox" checked={on(m.month)} onChange={(e) => toggle(m.month, e.target.checked)} />
+            <span style={{ flex: 1 }}>{m.label}</span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: m.mcqs ? MUTED : RED }}>{m.mcqs} Q</span>
+          </label>
+        ))}
+      </div>
+      <div style={{ fontSize: 11, color: MUTED, marginTop: 8, lineHeight: 1.55 }}>
+        {sel.length} mahine chune · kul {stock} CA sawaal · is hisse se <b style={{ color: "#fff" }}>{count} Q</b> har mock me,
+        mahino me barabar baant kar. Series me koi sawaal dobara nahi aata — exam tag ki rok yahan nahi lagti.
+        {count > 0 && stock > 0 && <> Takreeban <b style={{ color: "#fff" }}>{Math.floor(stock / count)}</b> mock tak chalega.</>}
+        {count > stock && <div style={{ color: RED, marginTop: 4 }}>⚠ Chune hue mahino me itne CA sawaal nahi hain — mahine badhao.</div>}
+      </div>
     </div>
   );
 }
