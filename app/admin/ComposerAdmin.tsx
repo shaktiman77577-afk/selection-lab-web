@@ -822,11 +822,15 @@ function Generate({ api, onErr, onOk }: { api: ApiFn; onErr: (s: string) => void
     setResult({ created });
     for (let n = 1; n <= count; n++) {
       try {
-        const d = await api("/qbank/compose", "POST", {
-          blueprint_id: bpId, series_id: seriesId || null,
-          title: count > 1 ? `${title.trim()} ${n}` : title.trim(),
-          count: 1, is_free: n <= freeCount, free_count: 0, price: 0,
-        });
+        // Series ho to number backend tay karta hai — series me pehle se Mock 1-10
+        // hain to agla "Mock Test 11" (har baar 1 se shuru nahi, same naam dobara nahi).
+        // Free bhi number se: sirf Mock 1..freeCount free.
+        const d = await api("/qbank/compose", "POST", seriesId
+          ? { blueprint_id: bpId, series_id: seriesId, title: title.trim(), title_prefix: title.trim(),
+              auto_number: true, count: 1, is_free: false, free_count: freeCount, price: 0 }
+          : { blueprint_id: bpId, series_id: null,
+              title: count > 1 ? `${title.trim()} ${n}` : title.trim(),
+              count: 1, is_free: n <= freeCount, free_count: 0, price: 0 });
         created.push(...(d.created || []));
         setMade(n);
         setResult({ created: [...created] });
@@ -859,7 +863,7 @@ function Generate({ api, onErr, onOk }: { api: ApiFn; onErr: (s: string) => void
         </Field>
 
         <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 10 }}>
-          <Field label="Title" hint={count > 1 ? "Number apne aap lagega: “… 1”, “… 2”" : undefined}>
+          <Field label="Title" hint={seriesId ? "Number apne aap — series me jo aakhri hai uske aage (Mock 1–10 hain to agla 11). Free sirf Mock 1 se “Kitne mock FREE” tak." : count > 1 ? "Number apne aap lagega: “… 1”, “… 2”" : undefined}>
             <input style={inputStyle} value={title} onChange={(e) => setTitle(e.target.value)} /></Field>
           <Field label="Kitne mock"><input style={inputStyle} type="number" min={1} max={30}
             value={count} onChange={(e) => setCount(Math.max(1, Math.min(30, Number(e.target.value))))} /></Field>
