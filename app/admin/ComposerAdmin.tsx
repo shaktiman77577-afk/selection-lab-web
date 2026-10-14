@@ -27,7 +27,7 @@
  * (backend: routers/question_bank.py, part {source: "ca", ca_months, count}).
  */
 
-import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { API_URL } from "@/lib/config";
 import { downloadZip } from "./downloadZip";
 
@@ -784,6 +784,8 @@ function Generate({ api, onErr, onOk }: { api: ApiFn; onErr: (s: string) => void
   const [busy, setBusy] = useState("");
   const [result, setResult] = useState<any | null>(null);
   const [made, setMade] = useState(0);        // kitne mock ban chuke — "3 / 10"
+  const [stopping, setStopping] = useState(false);
+  const stopRef = useRef(false);              // Stop dabaya — jo ban raha hai wo poora, agla nahi
 
   useEffect(() => {
     api("/qbank/blueprints").then((d) => setBps(d.blueprints || [])).catch((e) => onErr(e.message));
@@ -818,9 +820,15 @@ function Generate({ api, onErr, onOk }: { api: ApiFn; onErr: (s: string) => void
       return onErr("Ek se zyada mock banane hain to series choose kijiye — warna repeat rokna mumkin nahi.");
     }
     setBusy("gen"); onErr(""); setMade(0);
+    stopRef.current = false; setStopping(false);
     const created: any[] = [];
     setResult({ created });
     for (let n = 1; n <= count; n++) {
+      if (stopRef.current) {
+        onOk(`Rok diya — ${created.length} / ${count} bane. Baaki nahi banaye.`);
+        setBusy(""); setStopping(false);
+        return;
+      }
       try {
         // Series ho to number backend tay karta hai — series me pehle se Mock 1-10
         // hain to agla "Mock Test 11" (har baar 1 se shuru nahi, same naam dobara nahi).
@@ -890,7 +898,18 @@ function Generate({ api, onErr, onOk }: { api: ApiFn; onErr: (s: string) => void
           <button onClick={generate} disabled={!!busy} style={{ ...goldBtn, flex: 1, opacity: busy ? 0.6 : 1 }}>
             {busy === "gen" ? (count > 1 ? `Ban rahe hain… ${made} / ${count}` : "Ban raha hai…") : "2. Generate"}
           </button>
+          {busy === "gen" && count > 1 && (
+            <button onClick={() => { stopRef.current = true; setStopping(true); }} disabled={stopping}
+              style={{ ...dangerBtn, padding: "11px 14px", fontSize: 13.5, opacity: stopping ? 0.6 : 1 }}>
+              {stopping ? "Ruk raha hai…" : "⏹ Stop"}
+            </button>
+          )}
         </div>
+        {stopping && (
+          <div style={{ fontSize: 11.5, color: MUTED, marginTop: 6 }}>
+            Jo mock abhi ban raha hai wo poora hoga, uske baad aage nahi banega.
+          </div>
+        )}
       </div>
 
       {health && <PoolHealth health={health} />}
@@ -1204,15 +1223,41 @@ function QImage({ api, qid, url, field, label, onFixed }: {
 function Drafts({ api, onErr, onOk }: { api: ApiFn; onErr: (s: string) => void; onOk: (s: string) => void }) {
   const [drafts, setDrafts] = useState<any[]>([]);
   const [openId, setOpenId] = useState(0);
+  const [sel, setSel] = useState<number[]>([]);
+  const [busy, setBusy] = useState("");
 
   function load() {
     // Purane se naye — Mock Test 1 upar, 10 neeche, jaisa series me banta hai.
     // Backend naye se purane bhejta hai (id ghatte kram me).
     api("/qbank/drafts")
-      .then((d) => setDrafts([...(d.drafts || [])].sort((x: any, y: any) => x.id - y.id)))
+      .then((d) => {
+        const list = [...(d.drafts || [])].sort((x: any, y: any) => x.id - y.id);
+        setDrafts(list);
+        setSel((cur) => cur.filter((id) => list.some((x: any) => x.id === id)));
+      })
       .catch((e) => onErr(e.message));
   }
   useEffect(load, []);
+
+  const toggle = (id: number, on: boolean) => setSel((cur) => (on ? [...cur.filter((x) => x !== id), id] : cur.filter((x) => x !== id)));
+  const allOn = drafts.length > 0 && sel.length === drafts.length;
+
+  async function bulk(action: "delete" | "publish", ids: number[]) {
+    if (!ids.length) return onErr("Pehle draft chuniye (checkbox)");
+    const names = drafts.filter((d) => ids.includes(d.id)).map((d) => `${d.title} (#${d.id})`);
+    const msg = action === "delete"
+      ? `Ye ${ids.length} draft hamesha ke liye hat jayenge:\n${names.slice(0, 12).join("\n")}${names.length > 12 ? "\n…" : ""}\n\nPakka?`
+      : `Ye ${ids.length} mock LIVE ho jayenge (students ko dikhenge). Publish ke baad paper badal nahi sakte.\n\nPakka?`;
+    if (!confirm(msg)) return;
+    setBusy(action); onErr("");
+    try {
+      const d = await api("/qbank/drafts/bulk", "POST", { ids, action });
+      onOk(action === "delete" ? `${d.deleted} draft hat gaye` : `${d.published} mock publish ho gaye`);
+      setSel([]);
+      load();
+    } catch (e: any) { onErr(e.message); }
+    setBusy("");
+  }
 
   if (openId) return <Preview api={api} testId={openId} onBack={() => { setOpenId(0); load(); }} onErr={onErr} onOk={onOk} />;
 
@@ -1223,14 +1268,36 @@ function Drafts({ api, onErr, onOk }: { api: ApiFn; onErr: (s: string) => void; 
           Koi draft pending nahi. “⚙️ Generate” se naya mock banao.
         </div>
       )}
+      {drafts.length > 0 && (
+        <div style={{ ...cardBox, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", position: "sticky", top: 60, zIndex: 5 }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 13, cursor: "pointer", flex: 1, minWidth: 140 }}>
+            <input type="checkbox" checked={allOn} onChange={(e) => setSel(e.target.checked ? drafts.map((d) => d.id) : [])} />
+            {sel.length ? `${sel.length} chune` : "Sab chuno"}
+          </label>
+          <button disabled={!!busy || !sel.length} onClick={() => bulk("publish", sel)}
+            style={{ ...goldBtn, padding: "8px 12px", fontSize: 13, opacity: busy || !sel.length ? 0.5 : 1 }}>
+            {busy === "publish" ? "Publish ho rahe…" : `✓ Publish${sel.length ? ` (${sel.length})` : ""}`}
+          </button>
+          <button disabled={!!busy || !sel.length} onClick={() => bulk("delete", sel)}
+            style={{ ...dangerBtn, padding: "8px 12px", fontSize: 13, opacity: busy || !sel.length ? 0.5 : 1 }}>
+            {busy === "delete" ? "Hat rahe…" : `🗑 Delete${sel.length ? ` (${sel.length})` : ""}`}
+          </button>
+        </div>
+      )}
       {drafts.map((d) => (
-        <div key={d.id} style={{ ...cardBox, display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontWeight: 700, fontSize: 14 }}>{d.title}</div>
-            <div style={{ fontSize: 11.5, color: MUTED, marginTop: 3 }}>
-              #{d.id} · {d.total_questions} Q · {d.duration_minutes} min · {d.is_free ? "Free" : "Paid"}
+        <div key={d.id} style={{ ...cardBox, display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center",
+          borderColor: sel.includes(d.id) ? GOLD : undefined }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, flex: 1, cursor: "pointer" }}>
+            <input type="checkbox" checked={sel.includes(d.id)} onChange={(e) => toggle(d.id, e.target.checked)} />
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontWeight: 700, fontSize: 14 }}>{d.title}</div>
+              <div style={{ fontSize: 11.5, color: MUTED, marginTop: 3 }}>
+                #{d.id} · {d.total_questions} Q · {d.duration_minutes} min · {d.is_free ? "Free" : "Paid"}
+              </div>
             </div>
-          </div>
+          </label>
+          <button onClick={() => bulk("delete", [d.id])} disabled={!!busy} title="Ye draft hatao"
+            style={{ ...dangerBtn, padding: "8px 10px", flexShrink: 0 }}>🗑</button>
           <button onClick={() => setOpenId(d.id)} style={{ ...goldBtn, padding: "9px 14px", flexShrink: 0 }}>Open</button>
         </div>
       ))}
