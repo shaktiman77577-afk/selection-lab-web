@@ -16,10 +16,11 @@ const NAV = [
   // Promote karna hai — Courses ke theek baad (Oct 2026)
   { href: "/current-affairs", label: "Current Affairs" },
   { href: "/mock-tests", label: "Mock Tests" },
-  // 960-1079px laptop par jagah kam — tab Descriptive ☰ menu me milta hai
-  { href: "/descriptive", label: "Descriptive", lg: true },
+  { href: "/descriptive", label: "Descriptive" },
   { href: "/tier2", label: "Typing & Skill" },
-  { href: "/blog", label: "Blog" },
+  // 960-1079px laptop par jagah kam — tab Blog upar nahi dikhta (link HTML me rehta
+  // hai, footer / homepage / ☰ menu me bhi — SEO par asar nahi). 1080px+ par dikhta hai.
+  { href: "/blog", label: "Blog", lg: true },
   { href: "/about", label: "About", xl: true },
   { href: "/support", label: "Help", xl: true },
 ] as { href: string; label: string; xl?: boolean; lg?: boolean }[];
