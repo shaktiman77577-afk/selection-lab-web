@@ -60,8 +60,12 @@ export default function CAPlans({ userId, passCourseId, onLogin, onDone }: {
       setPlans(list);
       const best = list.find((x) => x.badge) || list[0];
       if (best) setPick(best.id);
-      // Pichhla payment (verify nahi pahuncha tha) ab mil gaya — seedha khol do
-      if (d?.access?.open && userId) onDone(d.access.plan?.name || "Plan", d.access.plan?.expires_at);
+      // Pichhla payment (verify nahi pahuncha tha) ab mil gaya — seedha khol do.
+      // Sirf asli plan / pass par: free period ya kisi aur wajah se khula ho to
+      // "Plan is active" galat dikhta tha.
+      const why = d?.access?.reason;
+      if (d?.access?.open && userId && (why === "plan" || why === "pass"))
+        onDone(d.access.plan?.name || "Plan", d.access.plan?.expires_at);
     }).catch(() => setPlans([]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);

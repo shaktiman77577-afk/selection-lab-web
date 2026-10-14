@@ -219,7 +219,8 @@ export default function CAClient({ home, initialMonth, initialData, initialBlock
       : { scope: "month", key: month, label: monFull(month) };
   const pdfKey = `${pdfScope.scope}:${pdfScope.key}`;
 
-  const pdfOk = !!access && (access.open || (pdfScope.scope === "day" && dayOk(pdfScope.key)));
+  // PDF sirf poore access par — free wale aakhri din ka bhi nahi (backend bhi yahi maanta hai)
+  const pdfOk = !!access && access.open;
   useEffect(() => {
     if (!ready || !month || !pdfOk) return;
     const want = [pdfKey, "all:all"];
@@ -312,7 +313,7 @@ export default function CAClient({ home, initialMonth, initialData, initialBlock
             : "Unlock all Current Affairs"}
         </div>
         <div style={{ color: "var(--muted)", fontSize: 13, marginTop: 3 }}>
-          {access.window_from ? `The last ${access.free_days} days are free. ` : ""}
+          {access.window_from ? (access.free_days === 1 ? "The latest day is free. " : `The latest ${access.free_days} days are free. `) : ""}
           {md?.total ? `Get all ${md.total} one-liners of this month, ` : "Get every one-liner, "}block-wise quizzes and PDFs (Quick, Detailed Notes, MCQ).
         </div>
       </div>
