@@ -13,15 +13,19 @@ import { IconMenu, IconSearch } from "./Icons";
 
 const NAV = [
   { href: "/courses", label: "Courses" },
+  // Promote karna hai — Courses ke theek baad (Oct 2026)
+  { href: "/current-affairs", label: "Current Affairs" },
   { href: "/mock-tests", label: "Mock Tests" },
-  { href: "/descriptive", label: "Descriptive" },
+  // 960-1079px laptop par jagah kam — tab Descriptive ☰ menu me milta hai
+  { href: "/descriptive", label: "Descriptive", lg: true },
   { href: "/tier2", label: "Typing & Skill" },
   { href: "/blog", label: "Blog" },
   { href: "/about", label: "About", xl: true },
   { href: "/support", label: "Help", xl: true },
-];
+] as { href: string; label: string; xl?: boolean; lg?: boolean }[];
 
-const CHIPS = NAV.slice(0, 5);
+// Phone ki chips (scroll hoti hain) — About/Help chhod kar sab
+const CHIPS = NAV.filter((n) => !n.xl);
 
 export default function SiteHeader() {
   const path = usePathname() || "/";
@@ -52,7 +56,7 @@ export default function SiteHeader() {
           {!inApp && (
             <nav className="v2-nav" aria-label="Main">
               {NAV.map((n) => (
-                <Link key={n.href} href={n.href} className={`v2-navlink${n.xl ? " xl" : ""}`} aria-current={on(n.href) ? "page" : undefined}>
+                <Link key={n.href} href={n.href} className={`v2-navlink${n.xl ? " xl" : ""}${n.lg ? " lg" : ""}`} aria-current={on(n.href) ? "page" : undefined}>
                   {n.label}
                 </Link>
               ))}

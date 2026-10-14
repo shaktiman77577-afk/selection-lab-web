@@ -286,6 +286,8 @@ export default function CAClient({ home, initialMonth, initialData, initialBlock
     setSheet("");
     if (!access) return;
     if (!access.open && !(scope === "day" && dayOk(key))) { unlock(); return; }
+    // Free wala din bina login ke padh sakte hain, par quiz ke liye login
+    if (!access.open && !user) { goLogin(); return; }
     setQuiz({ scope, key, title });
   }
 

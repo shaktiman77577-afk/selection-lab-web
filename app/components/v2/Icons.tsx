@@ -15,6 +15,8 @@ export const IconMock = (p: P) => <Svg {...p}><path d="M14 3H7a2 2 0 0 0-2 2v14a
 export const IconPen = (p: P) => <Svg {...p}><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" /></Svg>;
 export const IconKeyboard = (p: P) => <Svg {...p}><rect x="2" y="6" width="20" height="12" rx="2" /><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10" /></Svg>;
 export const IconBook = (p: P) => <Svg {...p}><path d="M2 4h7a3 3 0 0 1 3 3v13a2 2 0 0 0-2-2H2z" /><path d="M22 4h-7a3 3 0 0 0-3 3v13a2 2 0 0 1 2-2h8z" /></Svg>;
+// Current Affairs Magazine — mudi hui patrika + chamak (homepage tile)
+export const IconMagazine = (p: P) => <Svg {...p}><path d="M5 3h11l3 3v15H5z" /><path d="M8 8h5M8 12h8M8 16h8" /><path d="M16 3v3h3" /></Svg>;
 export const IconNews = (p: P) => <Svg {...p}><path d="M4 4h13a3 3 0 0 1 3 3v13H7a3 3 0 0 1-3-3z" /><path d="M8 8h8M8 12h8M8 16h5" /></Svg>;
 export const IconChart = (p: P) => <Svg {...p}><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" /></Svg>;
 export const IconScreen = (p: P) => <Svg {...p}><rect x="3" y="4" width="18" height="12" rx="2" /><path d="M8 20h8M12 16v4" /></Svg>;

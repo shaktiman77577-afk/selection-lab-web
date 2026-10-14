@@ -28,7 +28,7 @@ import {
   IconKeyboard,
   IconBook,
   IconNews,
-  IconChart,
+  IconMagazine,
   IconScreen,
   IconGlobe,
   IconUser,
@@ -46,7 +46,8 @@ const TILES = [
   { href: "/tier2", title: "Typing / Skill", desc: "Typing, Excel, Word", Icon: IconKeyboard },
   { href: "/courses", title: "Courses", desc: "Video classes, notes", Icon: IconBook },
   { href: "/blog", title: "Blog", desc: "Exam news and tips", Icon: IconNews },
-  { href: "/score-checker", title: "Score Checker", desc: "Your score and rank", Icon: IconChart },
+  // Score Checker ki jagah (Oct 2026) — Score Checker ab ☰ menu aur sitemap me
+  { href: "/current-affairs", title: "Current Affairs Magazine", desc: "Daily news, quiz & PDF", Icon: IconMagazine },
 ];
 
 const WHY = [

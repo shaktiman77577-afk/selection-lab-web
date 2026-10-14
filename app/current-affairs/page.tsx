@@ -1,23 +1,67 @@
 // /current-affairs — Current Affairs (CA Pass): one-liners, quiz, PDF.
 //
-// ABHI CHHUPA HUA HAI (Oct 2026): homepage / header me link nahi, Google ke
-// liye noindex + robots.ts me disallow. Sirf seedhe link se khulta hai.
-// Launch ke waqt: privateMeta ko pageMeta karo, robots.ts se "/current-affairs"
-// hatao, aur SiteHeader / homepage me link jodo.
+// LIVE (14 Oct 2026): Google me khula (index), sitemap me, homepage tile +
+// header + ☰ menu me link. Latest din bina login ke padhne ko — wahi Google
+// bhi dekhta hai. Baaki din / block quiz / PDF plan se. Paid content public
+// HTML me kabhi nahi jaata (server bina login ke mangta hai), isliye Google
+// aur student ek hi cheez dekhte hain — cloaking nahi, paywall markup ki zaroorat nahi.
 //
 // Data: page server par hi mahino ki list + chuna hua mahina le kar banta hai
 // (60 second cache), isliye khulte hi mahine, din, block aur pehle cards dikhte
 // hain. Poore cards login wale student ke liye browser turant mangta hai —
-// login/CA Pass wala content public HTML me nahi daal sakte, warna 31 Dec ke
-// baad paid content bina kharide sabko dikh jaata.
+// plan wala content public HTML me nahi daal sakte, warna paid content bina
+// kharide sabko (aur Google ko) dikh jaata.
 import V2Shell from "@/app/components/v2/V2Shell";
 import SiteHeader from "@/app/components/v2/SiteHeader";
 import SiteFooter from "@/app/components/v2/SiteFooter";
-import { privateMeta } from "@/lib/seo";
+import type { Metadata } from "next";
+import { pageMeta, SITE } from "@/lib/seo";
 import { API_URL } from "@/lib/config";
 import CAClient from "./CAClient";
 
-export const metadata = privateMeta("Current Affairs — Daily One-Liners, Quiz & PDF (English + Hindi)");
+const TITLE = "Daily Current Affairs 2026 in Hindi & English — One-Liners, Quiz & PDF | Selection Lab";
+const DESC = "Daily current affairs one-liners in English and Hindi for SSC, Railway, Banking, State PCS, Police and court exams — " +
+  "today's news free, block-wise quizzes with full explanations and monthly PDF magazines (Quick Revision, Detailed Notes, MCQ).";
+
+// ?m= / ?b= / ?d= wale sab ek hi page ke roop — canonical hamesha /current-affairs
+// (warna Google ko ek jaise dasiyon URL dikhte).
+export const metadata: Metadata = pageMeta({ title: TITLE, description: DESC, path: "/current-affairs" });
+
+const MN = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October",
+  "November", "December"];
+
+/** Google ke liye: ye roz badalne wala educational page hai, aur aaj ke one-liners ki list. */
+function jsonLd(home: any, data: any): string {
+  const latest: string = home?.recent_dates?.[0]?.date || "";
+  const cards: any[] = (data?.cards || []).filter((c: any) => !latest || String(c.ca_date).slice(0, 10) === latest).slice(0, 30);
+  const url = `${SITE}/current-affairs`;
+  const day = latest ? `${Number(latest.slice(8, 10))} ${MN[Number(latest.slice(5, 7)) - 1]} ${latest.slice(0, 4)}` : "";
+  const graph: any[] = [
+    {
+      "@type": "CollectionPage", "@id": url, url, name: "Daily Current Affairs — English + Hindi",
+      description: DESC, inLanguage: ["en", "hi"],
+      ...(latest ? { dateModified: latest } : {}),
+      isPartOf: { "@type": "WebSite", name: "Selection Lab", url: SITE },
+      publisher: { "@type": "Organization", name: "Selection Lab", url: SITE, logo: `${SITE}/logo.png` },
+      about: ["Current Affairs", "General Knowledge", "Government exams"],
+      ...(cards.length ? { mainEntity: {
+        "@type": "ItemList", name: `Current Affairs — ${day}`, numberOfItems: cards.length,
+        itemListElement: cards.map((c, i) => ({
+          "@type": "ListItem", position: i + 1,
+          name: `${String(c.stem_en || "").replace(/[\s—–-]+$/, "")} — ${c.answer_en || ""}`.slice(0, 300),
+        })),
+      } } : {}),
+    },
+    {
+      "@type": "BreadcrumbList",
+      itemListElement: [
+        { "@type": "ListItem", position: 1, name: "Home", item: SITE },
+        { "@type": "ListItem", position: 2, name: "Current Affairs", item: url },
+      ],
+    },
+  ];
+  return JSON.stringify({ "@context": "https://schema.org", "@graph": graph }).replace(/</g, "\\u003c");
+}
 
 async function get(path: string): Promise<any> {
   try {
@@ -43,6 +87,7 @@ export default async function CurrentAffairsPage({ searchParams }: {
   return (
     <V2Shell>
       <SiteHeader />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(home, first) }} />
       <CAClient home={home} initialMonth={month} initialData={first} initialBlock={b >= 1 && b <= 10 ? b : 0}
         initialDay={d} />
       <SiteFooter />

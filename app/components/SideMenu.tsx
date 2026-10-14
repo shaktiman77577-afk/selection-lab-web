@@ -9,9 +9,11 @@ const GOLD = "#FFAB00";
 const MENU: { icon: string; label: string; path: string; auth?: boolean; highlight?: boolean }[] = [
   { icon: "🏠", label: "Home", path: "/" },
   { icon: "📚", label: "Courses", path: "/courses" },
+  { icon: "🗞️", label: "Current Affairs Magazine", path: "/current-affairs", highlight: true },
   { icon: "📝", label: "Mock Tests", path: "/mock-tests" },
   { icon: "✍️", label: "Descriptive Tests", path: "/descriptive" },
   { icon: "⌨️", label: "Typing/Skill Test", path: "/tier2" },
+  { icon: "📊", label: "Score Checker", path: "/score-checker" },
   { icon: "🎯", label: "My Learning", path: "/my-learning", auth: true },
   { icon: "📱", label: "Quiz (In App)", path: "/" },
   { icon: "📰", label: "Blog", path: "/blog" },

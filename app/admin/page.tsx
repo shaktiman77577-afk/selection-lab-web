@@ -279,7 +279,8 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
 
   // Har kaam ka apna rang — rang se pata chalta hai kaunsa section hai,
   // sirf sajावट ke liye nahi.
-  const ACTIONS: { id: Tab; icon: string; title: string; sub: string; color: string; group: string }[] = [
+  // href wala tile apne alag page par le jaata hai (tab nahi khulta)
+  const ACTIONS: { id: Tab; icon: string; title: string; sub: string; color: string; group: string; href?: string }[] = [
     { id: "courses",       icon: "📚", title: "Courses",       sub: "Course banao, price aur content",   color: "#FFAB00", group: "Padhai ka saamaan" },
     { id: "mocktests",     icon: "📝", title: "Mock Tests",    sub: "Series aur test CSV se",            color: "#4A90D9", group: "Padhai ka saamaan" },
     { id: "descriptive",   icon: "✍️", title: "Descriptive",   sub: "Essay, letter, precis practice",     color: "#7C6CE0", group: "Padhai ka saamaan" },
@@ -299,6 +300,8 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     { id: "search",        icon: "🔎", title: "Search",        sub: "What people searched, trending chips", color: "#4A9DE0", group: "App aur Website" },
     { id: "email",         icon: "📧", title: "Email",         sub: "Send mails, read replies",            color: "#7C6CE0", group: "App aur Website" },
     { id: "partners",      icon: "🤝", title: "Partners",      sub: "Applications, payouts, requests",     color: "#2E9E6B", group: "App aur Website" },
+    // Apna alag page /admin/current-affairs — backend bhi "courses" right maangta hai
+    { id: "courses",       icon: "🗞️", title: "Current Affairs", sub: "Upload, Pricing, PDF, Video, Analytics", color: "#2F7FD8", group: "App aur Website", href: "/admin/current-affairs" },
     { id: "blog",          icon: "📰", title: "Blog",          sub: "SEO articles website pe",            color: "#E8734A", group: "App aur Website" },
     { id: "examupdates",   icon: "🔔", title: "Exam Updates",  sub: "Vacancies, dates, admit card, result", color: "#C9A227", group: "App aur Website" },
 
@@ -500,8 +503,8 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 10 }}>
                 {ACTIONS.filter((a) => a.group === g && can(a.id)).map((a) => (
                   <button
-                    key={a.id}
-                    onClick={() => setTab(a.id)}
+                    key={a.href || a.id}
+                    onClick={() => (a.href ? (window.location.href = a.href) : setTab(a.id))}
                     style={{
                       textAlign: "left", cursor: "pointer", padding: "14px 14px 13px",
                       borderRadius: 15, background: CARD,
