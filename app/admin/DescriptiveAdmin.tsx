@@ -208,7 +208,7 @@ function SeriesLevel(props: {
   const [form, setForm] = useState<any>(blank());
 
   function blank() {
-    return { title: "", description: "", thumbnail_url: "", thumbnail_url_mobile: "", price: 0, original_price: 0, validity_days: 180, is_active: true, display_order: 0, bundle_ids: "", visible_on: "both", telegram_group: "", is_featured: false, exam_over: false };
+    return { title: "", description: "", thumbnail_url: "", thumbnail_url_mobile: "", price: 0, original_price: 0, validity_days: 180, is_active: true, display_order: 0, bundle_ids: "", visible_on: "both", telegram_group: "", is_featured: false, exam_over: false, is_pinned: false };
   }
   function startEdit(s: any) {
     setEditId(s.id);
@@ -221,6 +221,7 @@ function SeriesLevel(props: {
       telegram_group: s.telegram_group || "",
       is_featured: !!s.is_featured,
       exam_over: !!s.exam_over,
+      is_pinned: !!s.is_pinned,
     });
     setShowForm(true);
   }
@@ -239,6 +240,7 @@ function SeriesLevel(props: {
         telegram_group: String(form.telegram_group || "").trim() || null,
         is_featured: !!form.is_featured,
         exam_over: !!form.exam_over,
+        is_pinned: !!form.is_pinned,
         bundle_series_ids: String(form.bundle_ids || "")
           .split(",").map((x: string) => parseInt(x.trim(), 10)).filter((n: number) => !isNaN(n)),
       };
@@ -310,6 +312,11 @@ function SeriesLevel(props: {
                 onChange={(e) => setForm({ ...form, exam_over: e.target.checked })} />
               🔒 Exam over — list me sabse last, naya khareed band (jinhone khareeda unka access chalta rahega)
             </label>
+            <label style={{ display: "flex", alignItems: "center", gap: 8, margin: "0 0 12px", fontSize: 14 }}>
+              <input type="checkbox" checked={!!form.is_pinned}
+                onChange={(e) => setForm({ ...form, is_pinned: e.target.checked })} />
+              📌 Pin to top — list me sabse upar (trending se bhi pehle)
+            </label>
             <Field label="Display order"><input type="number" style={inputStyle} value={form.display_order} onChange={(e) => setForm({ ...form, display_order: e.target.value })} /></Field>
           </div>
           <Field label="Description"><textarea rows={2} style={inputStyle} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></Field>
@@ -332,6 +339,7 @@ function SeriesLevel(props: {
             <div style={{ minWidth: 0 }}>
               <div style={{ fontWeight: 800, fontSize: 14 }}>
                 {s.title}{" "}
+                {s.is_pinned ? <span style={{ marginLeft: 4 }}>📌</span> : null}
                 {s.exam_over ? <span style={{ fontSize: 10, fontWeight: 800, color: "#9a917f", border: "1px solid rgba(154,145,127,0.4)", borderRadius: 6, padding: "1px 6px", marginLeft: 4 }}>🔒 EXAM OVER</span> : null}
                 {!s.is_active ? <span style={{ fontSize: 10, color: MUTED, border: `1px solid ${BORDER}`, borderRadius: 6, padding: "1px 6px", marginLeft: 4 }}>INACTIVE</span> : null}
                 {s.visible_on === "hidden" ? <span style={{ fontSize: 10, fontWeight: 900, color: "#ff6b6b", border: "1px solid rgba(255,107,107,0.35)", background: "rgba(255,107,107,0.14)", borderRadius: 6, padding: "1px 6px", marginLeft: 4 }}>HIDDEN</span> : null}

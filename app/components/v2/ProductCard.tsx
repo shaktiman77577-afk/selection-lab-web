@@ -21,6 +21,8 @@ export type CardProps = {
   fallback?: ReactNode;
   /** Exam ho chuka: card faded, "Exam Over" tag, aur bina khareede walon ke liye Buy band */
   examOver?: boolean;
+  /** 🔥 Trending (pichhle 30 din me sale) ya NEW (pichhle 30 din me bana) */
+  tag?: "trending" | "new";
 };
 
 export default function ProductCard(p: CardProps) {
@@ -48,7 +50,13 @@ export default function ProductCard(p: CardProps) {
           <div className="v2-media-empty">{p.fallback}</div>
         )}
         {p.badge ? <span className="v2-badge">{p.badge}</span> : null}
-        {over ? <span className="v2-over-ribbon">Exam Over</span> : null}
+        {over ? (
+          <span className="v2-over-ribbon">Exam Over</span>
+        ) : p.tag === "trending" ? (
+          <span className="v2-over-ribbon v2-trend">🔥 Trending</span>
+        ) : p.tag === "new" ? (
+          <span className="v2-over-ribbon v2-new">New</span>
+        ) : null}
       </div>
 
       <div className="v2-body">

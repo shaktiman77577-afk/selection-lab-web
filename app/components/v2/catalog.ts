@@ -17,6 +17,9 @@ export type CatalogItem = {
   recent: number;
   href: string;
   examOver: boolean;
+  /** backend ka kram: 0 pinned, 1 trending, 2 new, 3 baaki, 4 exam over */
+  rank: number;
+  tag?: "trending" | "new";
 };
 
 export const KIND_LABEL: Record<Kind, string> = {
@@ -60,5 +63,7 @@ export function toItem(kind: Kind, p: any): CatalogItem {
     recent: Number(p.recent_buyers) || 0,
     href,
     examOver: !!p.exam_over,
+    rank: p.exam_over ? 4 : Number.isFinite(Number(p.rank_group)) ? Number(p.rank_group) : 3,
+    tag: p.is_trending ? "trending" : p.is_new ? "new" : undefined,
   };
 }

@@ -193,6 +193,8 @@ html[data-theme="dark"] .v2-brand b { color: var(--v2-gold); }
 .v2-over .v2-media-bg { filter: grayscale(0.9) blur(14px) brightness(0.72); }
 .v2-over-ribbon { position: absolute; top: 10px; right: 10px; z-index: 2; padding: 4px 10px; border-radius: 999px; background: #3b3b3b; color: #fff; font-size: 11px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; }
 .v2-tag.over { background: var(--v2-chip); color: var(--v2-muted); }
+.v2-over-ribbon.v2-trend { background: #e8590c; }
+.v2-over-ribbon.v2-new { background: #2e7d46; }
 .v2-btn-over { background: var(--v2-chip); color: var(--v2-muted) !important; }
 .v2-btn-over:disabled { opacity: 1; cursor: not-allowed; }
 .v2-over-note { margin: 0 0 16px; padding: 12px 14px; border-radius: 12px; background: var(--v2-chip); color: var(--text); font-size: 14px; font-weight: 600; line-height: 1.5; }

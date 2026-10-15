@@ -51,6 +51,8 @@ interface Series {
   languages?: string[];
   has_free?: boolean;
   exam_over?: boolean;   // exam ho chuka: list me last, khareed band
+  is_trending?: boolean; // pichhle 30 din me sale
+  is_new?: boolean;      // pichhle 30 din me bana
   [key: string]: any;
 }
 
@@ -706,9 +708,9 @@ function ExamCard({ s, attempts, narrow, onOpen, onBuy }: {
         >
           {locked ? "🔒 Locked" : free ? "FREE" : "✓ Unlocked"}
         </span>
-        {over && (
-          <span style={{ position: "absolute", top: 10, right: 10, background: "#3b3b3b", color: "#fff", fontSize: 10.5, fontWeight: 800, padding: "4px 10px", borderRadius: 20, lineHeight: 1.3, letterSpacing: "0.04em" }}>
-            EXAM OVER
+        {(over || s.is_trending || s.is_new) && (
+          <span style={{ position: "absolute", top: 10, right: 10, background: over ? "#3b3b3b" : s.is_trending ? "#e8590c" : "#2e7d46", color: "#fff", fontSize: 10.5, fontWeight: 800, padding: "4px 10px", borderRadius: 20, lineHeight: 1.3, letterSpacing: "0.04em" }}>
+            {over ? "EXAM OVER" : s.is_trending ? "🔥 TRENDING" : "NEW"}
           </span>
         )}
       </div>

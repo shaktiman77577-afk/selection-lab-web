@@ -167,6 +167,7 @@ export default function DescriptiveList({ initial }: { initial: Series[] }) {
                 original={Number(s.original_price) || 0}
                 owned={!locked && !free}
                 examOver={!!s.exam_over}
+                tag={s.is_trending ? "trending" : s.is_new ? "new" : undefined}
                 priority={k < 4}
                 fallback={<IconPen size={30} />}
                 badge={

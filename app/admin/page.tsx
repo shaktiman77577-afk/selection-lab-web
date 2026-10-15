@@ -2141,6 +2141,7 @@ const emptyCourse = {
   recent_buyers: 0,
   is_featured: false,
   exam_over: false,
+  is_pinned: false,
   is_active: true,
 };
 
@@ -2337,6 +2338,11 @@ function CoursesTab() {
             onChange={(e) => setEditing({ ...editing, exam_over: e.target.checked })} />
           🔒 Exam over — list me sabse last, naya khareed band (jinhone khareeda unka access chalta rahega)
         </label>
+        <label style={{ display: "flex", alignItems: "center", gap: 8, margin: "0 0 12px", fontSize: 14 }}>
+          <input type="checkbox" checked={!!editing.is_pinned}
+            onChange={(e) => setEditing({ ...editing, is_pinned: e.target.checked })} />
+          📌 Pin to top — list me sabse upar (trending se bhi pehle)
+        </label>
         <label style={{ display: "flex", alignItems: "center", gap: 8, margin: "0 0 16px", fontSize: 14 }}>
           <input
             type="checkbox"
@@ -2388,7 +2394,7 @@ function CoursesTab() {
           )}
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontWeight: 700, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {c.title} {c.is_featured && <span style={{ color: GOLD }}>★</span>}{c.exam_over && <span style={{ color: "#9a917f", fontSize: 11, marginLeft: 6 }}>🔒 EXAM OVER</span>}<HiddenTag on={c.visible_on} />
+              {c.title} {c.is_featured && <span style={{ color: GOLD }}>★</span>}{c.is_pinned && <span style={{ marginLeft: 6 }}>📌</span>}{c.exam_over && <span style={{ color: "#9a917f", fontSize: 11, marginLeft: 6 }}>🔒 EXAM OVER</span>}<HiddenTag on={c.visible_on} />
             </div>
             <div style={{ fontSize: 12.5, color: "#9a917f", marginTop: 2 }}>
               ₹{c.price} {c.is_active === false && "· inactive"}
@@ -3743,7 +3749,7 @@ function MockTestsTab() {
   const [msg, setMsg] = useState("");
 
   // Series form
-  const [sForm, setSForm] = useState<any>({ title: "", description: "", price: "0", original_price: "0", visible_on: "both", thumbnail_url: "", thumbnail_url_mobile: "", bundle_items: [], telegram_group: "", is_featured: false, exam_over: false });
+  const [sForm, setSForm] = useState<any>({ title: "", description: "", price: "0", original_price: "0", visible_on: "both", thumbnail_url: "", thumbnail_url_mobile: "", bundle_items: [], telegram_group: "", is_featured: false, exam_over: false, is_pinned: false });
   const [bCourses, setBCourses] = useState<any[]>([]);
   const [bDesc, setBDesc] = useState<any[]>([]);
   // Live test config — kaunsa test khula hai aur uska form
@@ -3823,13 +3829,14 @@ function MockTestsTab() {
       telegram_group: s.telegram_group || "",
       is_featured: !!s.is_featured,
       exam_over: !!s.exam_over,
+      is_pinned: !!s.is_pinned,
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function cancelEditSeries() {
     setSEditId(null);
-    setSForm({ title: "", description: "", price: "0", original_price: "0", visible_on: "both", thumbnail_url: "", thumbnail_url_mobile: "", bundle_items: [], telegram_group: "", is_featured: false, exam_over: false });
+    setSForm({ title: "", description: "", price: "0", original_price: "0", visible_on: "both", thumbnail_url: "", thumbnail_url_mobile: "", bundle_items: [], telegram_group: "", is_featured: false, exam_over: false, is_pinned: false });
   }
 
   async function createSeries() {
@@ -3852,6 +3859,7 @@ function MockTestsTab() {
         telegram_group: (sForm.telegram_group || "").trim() || null,
         is_featured: !!sForm.is_featured,
         exam_over: !!sForm.exam_over,
+        is_pinned: !!sForm.is_pinned,
       };
       if (sEditId) {
         await api(`/admin-extra/series/${sEditId}`, "PUT", body);
@@ -4174,6 +4182,11 @@ function MockTestsTab() {
               onChange={(e) => setSForm({ ...sForm, exam_over: e.target.checked })} />
             🔒 Exam over — list me sabse last, naya khareed band (jinhone khareeda unka access chalta rahega)
           </label>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, margin: "0 0 12px", fontSize: 14 }}>
+            <input type="checkbox" checked={!!sForm.is_pinned}
+              onChange={(e) => setSForm({ ...sForm, is_pinned: e.target.checked })} />
+            📌 Pin to top — list me sabse upar (trending se bhi pehle)
+          </label>
         <div style={{ margin: "10px 0 12px" }}>
           <BundlePicker
             value={sForm.bundle_items || []}
@@ -4202,7 +4215,7 @@ function MockTestsTab() {
         {seriesList.filter((s) => s.is_active !== false).map((s) => (
           <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 10, borderTop: "1px solid rgba(255,255,255,0.07)", paddingTop: 10, marginTop: 10 }}>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontWeight: 700, fontSize: 13.5 }}>{s.title} {s.is_featured && <span style={{ color: GOLD }}>★</span>}{s.exam_over && <span style={{ color: "#9a917f", fontSize: 11, marginLeft: 6 }}>🔒 EXAM OVER</span>}<HiddenTag on={s.visible_on} /></div>
+              <div style={{ fontWeight: 700, fontSize: 13.5 }}>{s.title} {s.is_featured && <span style={{ color: GOLD }}>★</span>}{s.is_pinned && <span style={{ marginLeft: 6 }}>📌</span>}{s.exam_over && <span style={{ color: "#9a917f", fontSize: 11, marginLeft: 6 }}>🔒 EXAM OVER</span>}<HiddenTag on={s.visible_on} /></div>
               <div style={{ fontSize: 11.5, color: "#9a917f" }}>
                 ID {s.id} · ₹{s.price} · {tests.filter((t) => t.series_id === s.id && t.is_active !== false).length} tests
               </div>
