@@ -29,7 +29,7 @@ const TYPE_META: Record<string, { wl: number; wlLabel: string; marks: [number, n
   },
   Letter: {
     wl: 150, wlLabel: "Word limit (target)", marks: [5, 10, 10],
-    hint: "Format-checked: salutation + subject line + closing (70%) and length (30%), plus spelling & grammar. Raw word count matters less here.",
+    hint: "Format-checked: salutation + subject line + closing (70%) and length (30%), plus spelling & grammar. For an informal letter write the word \"INFORMAL\" in the question — then the subject line is not required and closings like \"Your loving brother\" count.",
   },
   Precis: {
     wl: 100, wlLabel: "Ideal précis length (≈ 1/3 of passage)", marks: [5, 10, 10],
@@ -37,7 +37,7 @@ const TYPE_META: Record<string, { wl: number; wlLabel: string; marks: [number, n
   },
   Translation: {
     wl: 150, wlLabel: "Expected English length", marks: [10, 10, 10],
-    hint: "Put the Hindi passage in the Question box. Scored on length × whether the answer is actually English (leaving Hindi text loses marks), plus spelling & grammar.",
+    hint: "Put the Punjabi (or Hindi) passage in the Question box. Scored on length × whether the answer is actually English (leaving Punjabi/Hindi text loses marks), plus spelling & grammar.",
   },
 };
 
