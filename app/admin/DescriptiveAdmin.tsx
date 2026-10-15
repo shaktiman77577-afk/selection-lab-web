@@ -386,9 +386,16 @@ function TestsLevel(props: {
     finally { setBusy(false); }
   }
 
+  const [showUpload, setShowUpload] = useState(false);
+
   return (
     <div>
-      <button onClick={() => { setShowForm(!showForm); if (showForm) { setEditId(null); setForm(blank()); } }} style={{ ...goldBtn, marginBottom: 14 }}>{showForm ? "Close form" : "+ Add test"}</button>
+      <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
+        <button onClick={() => { setShowForm(!showForm); setShowUpload(false); if (showForm) { setEditId(null); setForm(blank()); } }} style={goldBtn}>{showForm ? "Close form" : "+ Add test"}</button>
+        <button onClick={() => { setShowUpload(!showUpload); setShowForm(false); }} style={ghostBtn}>{showUpload ? "Close upload" : "⬆ TSV upload"}</button>
+      </div>
+
+      {showUpload ? <TsvUpload api={api} series={series} onDone={() => { setShowUpload(false); reload(); }} /> : null}
 
       {showForm ? (
         <div style={{ ...cardBox, marginBottom: 16 }}>
@@ -428,6 +435,82 @@ function TestsLevel(props: {
           </div>
         ))
       )}
+    </div>
+  );
+}
+
+// ===========================================================================
+// TSV UPLOAD — poori series ke tests + questions ek saath
+// ===========================================================================
+function TsvUpload({ api, series, onDone }: { api: ApiFn; series: any; onDone: () => void }) {
+  const [tsv, setTsv] = useState("");
+  const [duration, setDuration] = useState(30);
+  const [firstFree, setFirstFree] = useState(true);
+  const [prev, setPrev] = useState<any>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  async function pick(f: File | undefined) {
+    if (!f) return;
+    setTsv(await f.text()); setPrev(null); setErr("");
+  }
+  async function run(dry: boolean) {
+    setBusy(true); setErr("");
+    try {
+      const d = await api("/admin-extra/desc/upload", "POST", {
+        series_id: series.id, tsv, dry_run: dry, duration_min: Number(duration) || 30, first_free: firstFree,
+      });
+      if (dry) setPrev(d);
+      else { alert(`${d.created_tests} tests, ${d.created_questions} questions ban gaye.`); onDone(); }
+    } catch (e: any) { setErr(e?.message || "Upload fail hua."); }
+    finally { setBusy(false); }
+  }
+
+  const tests: any[] = prev?.tests || [];
+  const fresh = tests.filter((t) => !t.duplicate).length;
+  const blocked = (prev?.errors || []).length > 0 || tests.some((t) => t.warnings.length > 0);
+
+  return (
+    <div style={{ ...cardBox, marginBottom: 16 }}>
+      <h3 style={{ margin: "0 0 6px", fontSize: 15 }}>TSV upload</h3>
+      <p style={{ fontSize: 12, color: MUTED, margin: "0 0 10px", lineHeight: 1.6 }}>
+        Columns: <b>test_no · test_title · q_type · question · word_limit · sample_answer · explanation</b>.
+        Har test me 2 Essay, 2 Letter, 1 Precis, 1 Translation. Cell ke andar new line ke liye <code>\n</code> likhiye.
+        Pehle &quot;Check karo&quot;, phir upload. Same title wala test pehle se ho to skip hoga.
+      </p>
+      <input type="file" accept=".tsv,.txt" onChange={(e) => pick(e.target.files?.[0])} style={{ marginBottom: 8, color: "#fff" }} />
+      <textarea rows={5} style={{ ...inputStyle, fontFamily: "monospace", fontSize: 11.5 }} value={tsv}
+        onChange={(e) => { setTsv(e.target.value); setPrev(null); }} placeholder={"test_no\ttest_title\tq_type\tquestion\t..."} />
+      <div style={{ display: "flex", gap: 10, alignItems: "flex-end", marginTop: 8 }}>
+        <Field label="Duration (min)"><input type="number" style={inputStyle} value={duration} onChange={(e) => setDuration(Number(e.target.value))} /></Field>
+        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, marginBottom: 12, cursor: "pointer" }}>
+          <input type="checkbox" checked={firstFree} onChange={(e) => setFirstFree(e.target.checked)} />
+          Test 1 free
+        </label>
+      </div>
+      <button onClick={() => run(true)} disabled={busy || !tsv.trim()} style={{ ...goldBtn, width: "100%" }}>
+        {busy && !prev ? "Check ho raha hai…" : "Check karo"}
+      </button>
+      {err ? <div style={{ color: "#ff6b6b", fontSize: 12.5, marginTop: 8 }}>{err}</div> : null}
+
+      {prev ? (
+        <div style={{ marginTop: 12 }}>
+          {(prev.errors || []).map((x: string, i: number) => <div key={i} style={{ fontSize: 12, color: "#ff6b6b" }}>✗ {x}</div>)}
+          <div style={{ fontWeight: 800, fontSize: 13, margin: "6px 0" }}>{tests.length} tests · {fresh} naye</div>
+          {tests.map((t) => (
+            <div key={t.test_no} style={{ padding: "8px 0", borderTop: "1px solid rgba(255,255,255,0.07)", opacity: t.duplicate ? 0.5 : 1 }}>
+              <div style={{ fontSize: 13, fontWeight: 700 }}>{t.test_no}. {t.title}{t.duplicate ? " — pehle se hai, skip" : ""}</div>
+              {t.questions.map((q: any, i: number) => (
+                <div key={i} style={{ fontSize: 11.5, color: MUTED }}>{q.q_type} · {q.word_limit} words · {q.marks} marks · {q.question}</div>
+              ))}
+              {t.warnings.map((w: string, i: number) => <div key={i} style={{ fontSize: 11.5, color: GOLD }}>⚠ {w}</div>)}
+            </div>
+          ))}
+          <button onClick={() => run(false)} disabled={busy || blocked || fresh === 0} style={{ ...goldBtn, width: "100%", marginTop: 10 }}>
+            {busy ? "Upload ho raha hai…" : blocked ? "Pehle errors theek kijiye" : `${fresh} tests upload karo`}
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }
