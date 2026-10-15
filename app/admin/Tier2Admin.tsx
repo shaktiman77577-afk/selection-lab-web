@@ -324,7 +324,7 @@ function SeriesLevel(props: {
     return {
       title: "", description: "", thumbnail_url: "", thumbnail_url_mobile: "",
       price: 0, original_price: 0, validity_days: 180, display_order: 0,
-      visible_on: "both", telegram_group: "", bundle_ids: "", is_featured: false,
+      visible_on: "both", telegram_group: "", bundle_ids: "", is_featured: false, exam_over: false,
     };
   }
 
@@ -338,6 +338,7 @@ function SeriesLevel(props: {
       visible_on: s.visible_on || "both", telegram_group: s.telegram_group || "",
       bundle_ids: (s.bundle_items || []).map((b: any) => `${b.type}:${b.id}`).join(", "),
       is_featured: !!s.is_featured,
+      exam_over: !!s.exam_over,
     });
     setShowForm(true);
   }
@@ -367,6 +368,7 @@ function SeriesLevel(props: {
         telegram_group: String(form.telegram_group || "").trim() || null,
         bundle_items,
         is_featured: !!form.is_featured,
+        exam_over: !!form.exam_over,
       };
       if (editId) await api(`/tier2/admin/series/${editId}`, "PUT", body);
       else await api("/tier2/admin/series", "POST", body);
@@ -442,6 +444,11 @@ function SeriesLevel(props: {
               onChange={(e) => setForm({ ...form, is_featured: e.target.checked })} />
             Featured — homepage slider me dikhao (thumbnail se)
           </label>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, margin: "0 0 12px", fontSize: 14 }}>
+            <input type="checkbox" checked={!!form.exam_over}
+              onChange={(e) => setForm({ ...form, exam_over: e.target.checked })} />
+            🔒 Exam over — list me sabse last, naya khareed band (jinhone khareeda unka access chalta rahega)
+          </label>
 
           <Field label="Telegram group link (optional)">
             <input style={inputStyle} placeholder="https://t.me/..." value={form.telegram_group} onChange={(e) => setForm({ ...form, telegram_group: e.target.value })} />
@@ -469,6 +476,7 @@ function SeriesLevel(props: {
             <div style={{ minWidth: 0 }}>
               <div style={{ fontWeight: 800, fontSize: 14 }}>
                 {s.title}{" "}
+                {s.exam_over ? <span style={{ fontSize: 10, fontWeight: 800, color: "#9a917f", border: "1px solid rgba(154,145,127,0.4)", borderRadius: 6, padding: "1px 6px", marginLeft: 4 }}>🔒 EXAM OVER</span> : null}
                 {!s.is_active ? <span style={{ fontSize: 10, color: MUTED, border: `1px solid ${BORDER}`, borderRadius: 6, padding: "1px 6px", marginLeft: 4 }}>HIDDEN</span> : null}
                 {s.visible_on === "hidden" ? <span style={{ fontSize: 10, fontWeight: 900, color: "#ff6b6b", border: "1px solid rgba(255,107,107,0.35)", background: "rgba(255,107,107,0.14)", borderRadius: 6, padding: "1px 6px", marginLeft: 4 }}>HIDDEN</span> : null}
               </div>

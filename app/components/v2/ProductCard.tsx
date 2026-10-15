@@ -19,6 +19,8 @@ export type CardProps = {
   actions?: ReactNode;
   priority?: boolean;
   fallback?: ReactNode;
+  /** Exam ho chuka: card faded, "Exam Over" tag, aur bina khareede walon ke liye Buy band */
+  examOver?: boolean;
 };
 
 export default function ProductCard(p: CardProps) {
@@ -28,9 +30,11 @@ export default function ProductCard(p: CardProps) {
   const off = !free && original > price ? Math.round((1 - price / original) * 100) : 0;
   const src = p.img || p.imgMobile || "";
   const bg = `url(${JSON.stringify(src)})`;
+  const over = !!p.examOver;
+  const lockedOver = over && !p.owned;
 
   return (
-    <article className="v2-card">
+    <article className={`v2-card${over ? " v2-over" : ""}`}>
       <div className={`v2-media${p.imgMobile ? " sq" : ""}`}>
         {src ? (
           <>
@@ -44,6 +48,7 @@ export default function ProductCard(p: CardProps) {
           <div className="v2-media-empty">{p.fallback}</div>
         )}
         {p.badge ? <span className="v2-badge">{p.badge}</span> : null}
+        {over ? <span className="v2-over-ribbon">Exam Over</span> : null}
       </div>
 
       <div className="v2-body">
@@ -57,6 +62,8 @@ export default function ProductCard(p: CardProps) {
         <div className="v2-foot">
           {p.owned ? (
             <span className="v2-tag">OWNED ✓</span>
+          ) : lockedOver ? (
+            <span className="v2-tag over">🔒 EXAM OVER</span>
           ) : free ? (
             <span className="v2-free">FREE</span>
           ) : (
@@ -71,7 +78,15 @@ export default function ProductCard(p: CardProps) {
             </>
           )}
         </div>
-        {p.actions ? <div className="v2-actions">{p.actions}</div> : null}
+        {lockedOver ? (
+          <div className="v2-actions">
+            <button type="button" className="v2-btn v2-btn-sm v2-btn-over" style={{ width: "100%" }} disabled>
+              🔒 Exam Over — Not Available
+            </button>
+          </div>
+        ) : p.actions ? (
+          <div className="v2-actions">{p.actions}</div>
+        ) : null}
       </div>
     </article>
   );

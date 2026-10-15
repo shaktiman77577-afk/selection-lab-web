@@ -185,6 +185,7 @@ export default async function HomePage() {
                   imgMobile={c.thumbnail_url_mobile || undefined}
                   price={Number(c.price) || 0}
                   original={Number(c.original_price) || 0}
+                  examOver={!!c.exam_over}
                   priority={k < 4}
                   fallback={<IconBook size={30} />}
                   meta={Number(c.recent_buyers) > 0 ? <span>{c.recent_buyers} students enrolled recently</span> : c.course_type ? <span>{c.course_type}</span> : undefined}

@@ -259,8 +259,12 @@ export default function CourseDetailPage() {
   const imgMob = String((course as any).thumbnail_url_mobile || "");
   const tg = (course as any).telegram_group as string | undefined;
 
-  const buyLabel = paying ? "Please wait..." : owned ? "✓ Enrolled — My Learning" : price === 0 ? "Enroll Free" : "Buy Now";
+  // Exam ho chuka: naya enroll / khareed band (jinke paas hai unka access chalta rahega)
+  const examOver = !!(course as any).exam_over;
+  const overLocked = examOver && !owned;
+  const buyLabel = paying ? "Please wait..." : owned ? "✓ Enrolled — My Learning" : overLocked ? "🔒 Exam Over" : price === 0 ? "Enroll Free" : "Buy Now";
   const onBuyClick = () => {
+    if (overLocked) return;
     if (owned || price === 0) {
       handleBuy();
       return;
@@ -323,6 +327,12 @@ export default function CourseDetailPage() {
               <span style={{ color: "#c25e00", fontWeight: 700 }}>{course.recent_buyers} people recently purchased this course</span>
             )}
           </div>
+
+          {examOver && (
+            <p className="v2-over-note" style={{ marginTop: 16 }}>
+              {owned ? "🔒 This exam is over. You still have full access to this course." : "🔒 This exam is over, so this course is no longer available for purchase."}
+            </p>
+          )}
 
           {/* Phone par price yahin, Buy neeche ki patti me */}
           <div className="v2-mob" style={{ marginTop: 16 }}>
@@ -460,7 +470,7 @@ export default function CourseDetailPage() {
         <aside className="v2-desk">
           <div className="v2-buycard">
             {priceBlock}
-            <button onClick={onBuyClick} disabled={paying} className={`v2-btn ${owned ? "v2-btn-green" : "v2-btn-gold"}`} style={{ width: "100%", marginTop: 16 }}>
+            <button onClick={onBuyClick} disabled={paying || overLocked} className={`v2-btn ${owned ? "v2-btn-green" : overLocked ? "v2-btn-over" : "v2-btn-gold"}`} style={{ width: "100%", marginTop: 16 }}>
               {buyLabel}
             </button>
             <ul className="v2-points">
@@ -494,7 +504,7 @@ export default function CourseDetailPage() {
             </>
           )}
         </div>
-        <button onClick={onBuyClick} disabled={paying} className={`v2-btn ${owned ? "v2-btn-green" : "v2-btn-gold"}`}>
+        <button onClick={onBuyClick} disabled={paying || overLocked} className={`v2-btn ${owned ? "v2-btn-green" : overLocked ? "v2-btn-over" : "v2-btn-gold"}`}>
           {buyLabel}
         </button>
       </div>

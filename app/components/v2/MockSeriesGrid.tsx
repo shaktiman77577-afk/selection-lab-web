@@ -74,6 +74,7 @@ export default function MockSeriesGrid({ initial }: { initial: any[] }) {
                 price={Number(s.price) || 0}
                 original={Number(s.original_price) || 0}
                 owned={!!s.is_purchased}
+                examOver={!!s.exam_over}
                 description={s.description || undefined}
                 priority={k < 3}
                 fallback={<IconMock size={30} />}

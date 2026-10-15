@@ -58,6 +58,7 @@ export default function SeriesDetailPage() {
   }, [seriesId]);
 
   async function buy() {
+    if (overLocked) return;
     const u = getUser();
     if (!u) {
       router.push("/login");
@@ -125,6 +126,9 @@ export default function SeriesDetailPage() {
   const original = Number(series?.original_price || 0);
   const off = original > price && original > 0 ? Math.round(((original - price) / original) * 100) : 0;
   const forSale = !purchased && price > 0;
+  // Exam ho chuka: naya khareed band (jinke paas hai unka access chalta rahega)
+  const examOver = !!series?.exam_over;
+  const overLocked = examOver && forSale;
 
   function openTest(t: any) {
     if (t.unlocked) router.push(`/descriptive-test/${t.id}`);
@@ -173,6 +177,11 @@ export default function SeriesDetailPage() {
                 {purchased && <span className="ok">✓ Purchased</span>}
                 {!purchased && price <= 0 && <span className="ok">Free series</span>}
               </div>
+              {examOver && (
+                <p className="v2-over-note" style={{ marginTop: 14 }}>
+                  {forSale ? "🔒 This exam is over, so this series is no longer available for purchase." : "🔒 This exam is over. Your access continues as before."}
+                </p>
+              )}
 
               {/* Phone par price yahin */}
               {forSale && (
@@ -230,8 +239,8 @@ export default function SeriesDetailPage() {
                       {original > price && <span className="s">₹{original}</span>}
                       {off > 0 && <span className="v2-tag">{off}% OFF</span>}
                     </div>
-                    <button onClick={buy} disabled={buying} className="v2-btn v2-btn-gold" style={{ width: "100%", marginTop: 16 }}>
-                      {buying ? "Please wait…" : "Unlock full series"}
+                    <button onClick={buy} disabled={buying || overLocked} className={`v2-btn ${overLocked ? "v2-btn-over" : "v2-btn-gold"}`} style={{ width: "100%", marginTop: 16 }}>
+                      {buying ? "Please wait…" : overLocked ? "🔒 Exam Over" : "Unlock full series"}
                     </button>
                     <ul className="v2-points">
                       <li>Unlock all {tests.length} tests</li>
@@ -268,8 +277,8 @@ export default function SeriesDetailPage() {
               </span>
             )}
           </div>
-          <button onClick={buy} disabled={buying} className="v2-btn v2-btn-gold">
-            {buying ? "Please wait…" : "Unlock full series"}
+          <button onClick={buy} disabled={buying || overLocked} className={`v2-btn ${overLocked ? "v2-btn-over" : "v2-btn-gold"}`}>
+            {buying ? "Please wait…" : overLocked ? "🔒 Exam Over" : "Unlock full series"}
           </button>
         </div>
       )}

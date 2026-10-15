@@ -16,6 +16,7 @@ export type CatalogItem = {
   bundleSize: number;
   recent: number;
   href: string;
+  examOver: boolean;
 };
 
 export const KIND_LABEL: Record<Kind, string> = {
@@ -58,5 +59,6 @@ export function toItem(kind: Kind, p: any): CatalogItem {
     bundleSize: bundleCount(p),
     recent: Number(p.recent_buyers) || 0,
     href,
+    examOver: !!p.exam_over,
   };
 }

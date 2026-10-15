@@ -50,6 +50,7 @@ interface Series {
   chart_count?: number;
   languages?: string[];
   has_free?: boolean;
+  exam_over?: boolean;   // exam ho chuka: list me last, khareed band
   [key: string]: any;
 }
 
@@ -224,6 +225,7 @@ export default function Tier2Page() {
   }, [series, syncFromUrl]);
 
   function openBuy() {
+    if (open?.exam_over) return;   // exam ho chuka — khareed band
     if (!getUser()) { router.push("/login"); return; }
     if (open) setBuying(open);
   }
@@ -372,7 +374,12 @@ export default function Tier2Page() {
         {/* ── Series ke andar: sirf do card ── */}
         {open && !section && (
           <>
-            {isLocked(open) && (
+            {open.exam_over && (
+              <div style={{ background: "var(--chip)", borderRadius: 14, padding: 14, marginBottom: 14, fontSize: 14, fontWeight: 600, lineHeight: 1.5 }}>
+                {isLocked(open) ? "🔒 This exam is over, so this series is no longer available for purchase." : "🔒 This exam is over. Your access continues as before."}
+              </div>
+            )}
+            {isLocked(open) && !open.exam_over && (
               <div
                 style={{
                   background: "var(--card)", border: `1px solid ${GOLD}`, borderRadius: 14,
@@ -654,6 +661,8 @@ function ExamCard({ s, attempts, narrow, onOpen, onBuy }: {
   const locked = isLocked(s);
   const free = Number(s.price ?? 0) <= 0;
   const langs = s.languages || [];
+  const over = !!s.exam_over;
+  const overLocked = over && locked;
 
   const bits: string[] = [];
   const typing = (s.typing_test_count || 0) + (s.practice_count || 0);
@@ -681,7 +690,7 @@ function ExamCard({ s, attempts, narrow, onOpen, onBuy }: {
             loading="lazy"
             // Poori chaudai, asli lambai. maxHeight sirf isliye ki koi bahut
             // lamba poster daal de to card do screen ka na ho jaye.
-            style={{ width: "100%", height: "auto", maxHeight: narrow ? 200 : 260, objectFit: "contain", display: "block" }}
+            style={{ width: "100%", height: "auto", maxHeight: narrow ? 200 : 260, objectFit: "contain", display: "block", ...(over ? { filter: "grayscale(0.9)", opacity: 0.7 } : {}) }}
           />
         ) : (
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: narrow ? 90 : 140, fontSize: 34 }}>⌨️</div>
@@ -697,6 +706,11 @@ function ExamCard({ s, attempts, narrow, onOpen, onBuy }: {
         >
           {locked ? "🔒 Locked" : free ? "FREE" : "✓ Unlocked"}
         </span>
+        {over && (
+          <span style={{ position: "absolute", top: 10, right: 10, background: "#3b3b3b", color: "#fff", fontSize: 10.5, fontWeight: 800, padding: "4px 10px", borderRadius: 20, lineHeight: 1.3, letterSpacing: "0.04em" }}>
+            EXAM OVER
+          </span>
+        )}
       </div>
 
       <div style={{ padding: narrow ? 10 : 14, display: "flex", flexDirection: "column", flex: 1 }}>
@@ -723,7 +737,7 @@ function ExamCard({ s, attempts, narrow, onOpen, onBuy }: {
         {/* marginTop auto: grid me har card ka price/button ek hi line par neeche */}
         <div style={{ display: "flex", alignItems: "center", gap: narrow ? 6 : 12, marginTop: "auto", paddingTop: narrow ? 10 : 14, flexWrap: "wrap" }}>
           <div style={{ flex: 1, fontSize: narrow ? 13 : 15, minWidth: 0 }}>
-            {free ? <b style={{ color: "#2e8b4a" }}>FREE</b> : (
+            {overLocked ? <b style={{ color: "var(--muted)", fontSize: 13 }}>🔒 EXAM OVER</b> : free ? <b style={{ color: "#2e8b4a" }}>FREE</b> : (
               <>
                 <b style={{ color: GOLD, fontSize: 17 }}>₹{s.price}</b>
                 {Number(s.original_price) > Number(s.price) && (
@@ -735,16 +749,18 @@ function ExamCard({ s, attempts, narrow, onOpen, onBuy }: {
             )}
           </div>
           <button
-            onClick={(e) => { e.stopPropagation(); locked ? onBuy(s) : onOpen(s); }}
+            onClick={(e) => { e.stopPropagation(); if (overLocked) return; locked ? onBuy(s) : onOpen(s); }}
+            disabled={overLocked}
             style={{
-              background: locked ? GOLD : "transparent",
+              ...(overLocked ? { opacity: 0.7, cursor: "not-allowed" } : {}),
+              background: overLocked ? "var(--chip)" : locked ? GOLD : "transparent",
               color: locked ? "#1a1a1a" : "var(--text)",
               border: locked ? "none" : "1px solid var(--line)",
               borderRadius: 10, padding: narrow ? "8px 12px" : "10px 20px", fontWeight: 800, fontSize: narrow ? 12.5 : 13.5, cursor: "pointer",
               width: narrow ? "100%" : undefined,
             }}
           >
-            {locked ? "Unlock" : "Open"}
+            {overLocked ? "Exam Over" : locked ? "Unlock" : "Open"}
           </button>
         </div>
       </div>

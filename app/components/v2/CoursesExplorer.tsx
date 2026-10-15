@@ -83,12 +83,15 @@ export default function CoursesExplorer({ items }: { items: CatalogItem[] }) {
 
   const matched = useMemo(() => {
     const s = q.trim().toLowerCase();
-    return items.filter((i) => {
-      if (s && !i.title.toLowerCase().includes(s)) return false;
-      if (price === "free" && i.price !== 0) return false;
-      if (price === "paid" && i.price === 0) return false;
-      return true;
-    });
+    return items
+      .filter((i) => {
+        if (s && !i.title.toLowerCase().includes(s)) return false;
+        if (price === "free" && i.price !== 0) return false;
+        if (price === "paid" && i.price === 0) return false;
+        return true;
+      })
+      // exam ho chuka to sabse last me (sort stable hai, baaki kram waisa hi)
+      .sort((a, b) => Number(a.examOver) - Number(b.examOver));
   }, [items, q, price]);
 
   // Har section ki list — bundle "Bundles" me bhi aur apne section me bhi
@@ -164,6 +167,7 @@ export default function CoursesExplorer({ items }: { items: CatalogItem[] }) {
                     price={c.price}
                     original={c.original}
                     owned={c.purchased || owned.has(c.key)}
+                    examOver={c.examOver}
                     priority={k < 4}
                     fallback={ICON[c.kind]}
                     badge={c.bundleSize > 1 ? <span className="v2-ribbon">🎁 BUNDLE PACK · {c.bundleSize} in 1</span> : undefined}
