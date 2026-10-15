@@ -4,8 +4,9 @@
  * CAVideoAdmin.tsx — Current Affairs admin ka "🎬 Video" tab (daily Shorts, 9:16).
  *
  * Script daily package ke ===SCRIPT=== hisse se aata hai (daily prompt likhta hai,
- * Roman Hinglish). Yahan: din chuno → slides dekho → script theek karo → download
- * (script PDF, slides PNG zip, slides PDF, PPT).
+ * Roman Hinglish). Yahan: din chuno → template chuno → photo lagao (INTRO + har NEWS) →
+ * slides dekho → script theek karo → download (script PDF, slides PNG zip, slides PDF, PPT).
+ * Photo ImgBB par jaati hai (ca_video_photos me link) — script save karne par bhi bachi rehti hai.
  * Backend: routers/ca_video.py (/api/ca/admin/video/...), slides services/ca_video.py.
  */
 
@@ -33,7 +34,35 @@ const goldBtn: CSSProperties = { ...btn, background: GOLD, color: "#1a1a1a", bor
 const box: CSSProperties = { background: CARD, border: `1px solid ${BORDER}`, borderRadius: 14, padding: 14, marginBottom: 12 };
 const label: CSSProperties = { fontSize: 11.5, color: MUTED, fontWeight: 700, margin: "8px 0 4px" };
 
-type Row = { part: string; ref_no?: string | null; title: string; points?: string | null; voiceover: string };
+type Row = { part: string; ref_no?: string | null; title: string; points?: string | null; voiceover: string; photo_idea?: string | null };
+
+const TPL_KEY = "ca_video_template";
+const TEMPLATES_FALLBACK = [
+  { id: "classic", name: "Classic · Navy Gold (bina photo)" }, { id: "newspaper", name: "Newspaper" },
+  { id: "glass", name: "Full Photo + Glass Card" }, { id: "minimal", name: "Minimal Light" },
+  { id: "notebook", name: "Notebook + Polaroid" }, { id: "spotlight", name: "Circle Spotlight" },
+];
+
+/** Photo ko browser me hi chhota karo (1600 px JPEG) — mobile data bachta hai, upload jaldi. */
+function shrinkImage(file: File, edge = 1600): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const s = Math.min(1, edge / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement("canvas");
+      c.width = Math.round(img.naturalWidth * s);
+      c.height = Math.round(img.naturalHeight * s);
+      const ctx = c.getContext("2d");
+      if (!ctx) { URL.revokeObjectURL(url); reject(new Error("Photo padhi nahi gayi")); return; }
+      ctx.drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      resolve(c.toDataURL("image/jpeg", 0.9));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Ye image file nahi lagti (JPG / PNG / WEBP)")); };
+    img.src = url;
+  });
+}
 
 const MN = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const dayName = (d: string) => `${Number(d.slice(8, 10))} ${MN[Number(d.slice(5, 7)) - 1]} ${d.slice(0, 4)}`;
@@ -77,6 +106,10 @@ export default function CAVideoAdmin({ api }: { api: ApiFn }) {
   const [big, setBig] = useState<number | null>(null);
   const [busy, setBusy] = useState("");
   const [msg, setMsg] = useState<{ t: string; ok?: boolean }>({ t: "" });
+  const [tpl, setTpl] = useState<string>(() => {
+    try { return localStorage.getItem(TPL_KEY) || "classic"; } catch { return "classic"; }
+  });
+  const [photos, setPhotos] = useState<Record<string, string>>({});
 
   function loadList(pickFirst = false) {
     api("/ca/admin/video").then((x) => {
@@ -90,16 +123,17 @@ export default function CAVideoAdmin({ api }: { api: ApiFn }) {
     setD(null); setSlides(null); setMsg({ t: "" });
     api(`/ca/admin/video/${dd}`).then((x) => {
       setD(x);
-      setRows((x.rows || []).map((r: any) => ({ part: r.part, ref_no: r.ref_no, title: r.title, points: r.points, voiceover: r.voiceover })));
+      setRows((x.rows || []).map((r: any) => ({ part: r.part, ref_no: r.ref_no, title: r.title, points: r.points, voiceover: r.voiceover, photo_idea: r.photo_idea || "" })));
+      setPhotos(x.photos || {});
       setDirty(false);
       preview(dd);
     }).catch((e) => setMsg({ t: e.message }));
   }
   useEffect(() => { if (day) loadDay(day); }, [day]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function preview(dd = day) {
+  async function preview(dd = day, t = tpl) {
     setBusy("preview");
-    try { const r = await api(`/ca/admin/video/${dd}/preview`, "POST", {}); setSlides(r.slides || []); }
+    try { const r = await api(`/ca/admin/video/${dd}/preview`, "POST", { template: t }); setSlides(r.slides || []); }
     catch (e: any) { setMsg({ t: e.message }); }
     setBusy("");
   }
@@ -108,7 +142,7 @@ export default function CAVideoAdmin({ api }: { api: ApiFn }) {
     if (dirty && !confirm("Badlav abhi save nahi hue — purane script se file banegi. Phir bhi?")) return;
     setBusy(kind); setMsg({ t: "" });
     try {
-      const r = await api(`/ca/admin/video/${day}/file`, "POST", { kind });
+      const r = await api(`/ca/admin/video/${day}/file`, "POST", { kind, template: tpl });
       saveB64(r.file_name, r.mime, r.b64);
       setMsg({ t: `${r.file_name} (${r.size_kb >= 1024 ? `${(r.size_kb / 1024).toFixed(1)} MB` : `${r.size_kb} KB`}) download ho gayi`, ok: true });
     } catch (e: any) { setMsg({ t: e.message }); }
@@ -118,7 +152,7 @@ export default function CAVideoAdmin({ api }: { api: ApiFn }) {
   async function save() {
     for (const [i, r] of rows.entries()) {
       if (!r.title.trim() || !r.voiceover.trim()) { setMsg({ t: `Slide ${i + 1}: title aur bolne wali line dono chahiye` }); return; }
-      if (DEVA.test(`${r.title} ${r.points || ""} ${r.voiceover}`)) { setMsg({ t: `Slide ${i + 1}: Hindi lipi (Devanagari) hai — Roman Hinglish likhiye` }); return; }
+      if (DEVA.test(`${r.title} ${r.points || ""} ${r.voiceover} ${r.photo_idea || ""}`)) { setMsg({ t: `Slide ${i + 1}: Hindi lipi (Devanagari) hai — Roman Hinglish likhiye` }); return; }
     }
     setBusy("save"); setMsg({ t: "" });
     try {
@@ -133,6 +167,37 @@ export default function CAVideoAdmin({ api }: { api: ApiFn }) {
     if (!confirm(`${dayName(day)} ka video script hata dein?`)) return;
     try { await api(`/ca/admin/video/${day}`, "DELETE"); setDay(""); setD(null); setSlides(null); loadList(true); }
     catch (e: any) { setMsg({ t: e.message }); }
+  }
+
+  function pickTemplate(t: string) {
+    setTpl(t);
+    try { localStorage.setItem(TPL_KEY, t); } catch { /* private mode — sirf is baar ke liye */ }
+    if (day) { setSlides(null); preview(day, t); }
+  }
+
+  async function uploadPhoto(slot: string, file?: File | null) {
+    if (!file) return;
+    setBusy(`photo:${slot}`); setMsg({ t: "" });
+    try {
+      const b64 = await shrinkImage(file);
+      const r = await api(`/ca/admin/video/${day}/photo`, "POST", { slot, b64 });
+      setPhotos((p) => ({ ...p, [r.slot]: r.url }));
+      setMsg({ t: "Photo lag gayi", ok: true });
+      if (tpl === "classic") setMsg({ t: "Photo lag gayi — Classic template me photo nahi dikhti, upar se koi photo wala template chuniye", ok: true });
+      else preview();
+    } catch (e: any) { setMsg({ t: e.message }); }
+    setBusy("");
+  }
+
+  async function removePhoto(slot: string) {
+    if (!confirm("Ye photo hata dein?")) return;
+    setBusy(`photo:${slot}`);
+    try {
+      await api(`/ca/admin/video/${day}/photo/${encodeURIComponent(slot)}`, "DELETE");
+      setPhotos((p) => { const n = { ...p }; delete n[slot]; return n; });
+      if (tpl !== "classic") preview();
+    } catch (e: any) { setMsg({ t: e.message }); }
+    setBusy("");
   }
 
   function upd(i: number, patch: Partial<Row>) { setRows(rows.map((r, j) => (j === i ? { ...r, ...patch } : r))); setDirty(true); }
@@ -154,13 +219,18 @@ export default function CAVideoAdmin({ api }: { api: ApiFn }) {
   const nNews = rows.filter((r) => r.part === "NEWS").length;
   const cards: Record<string, any> = d?.cards || {};
   const dayCards: any[] = d?.day_cards || [];
+  const templates: { id: string; name: string }[] = d?.templates || TEMPLATES_FALLBACK;
 
   return (
     <div>
       <Msg text={msg.t} ok={msg.ok} />
       <div style={{ ...box, fontSize: 12.5, color: MUTED, lineHeight: 1.6 }}>
         🎬 Har din ka <b style={{ color: "#fff" }}>Shorts video (9:16, 60–90 sec)</b>. Script daily package ke <b style={{ color: "#fff" }}>===SCRIPT===</b> hisse se aata hai
-        (naya daily prompt likhta hai — Roman Hinglish, top 8–10 news). Upload ke baad yahan din chuniye → slides dekhiye → zaroorat ho to script theek kijiye → download.
+        (naya daily prompt likhta hai — Roman Hinglish, top 8–10 news). Upload ke baad yahan din chuniye → template chuniye → photo lagaiye → slides dekhiye → download.
+        <div style={{ marginTop: 6 }}>
+          📷 Photo sirf <b style={{ color: "#fff" }}>apni ya free</b> lagaiye — PIB / sarkari photos, Wikimedia Commons, Pexels, Unsplash.
+          News websites (Hindu, Express…) ki photo YouTube par copyright strike la sakti hai.
+        </div>
       </div>
 
       {(list.days || []).length === 0 ? (
@@ -201,10 +271,15 @@ export default function CAVideoAdmin({ api }: { api: ApiFn }) {
           </div>
 
           <div style={box}>
-            <div style={{ display: "flex", alignItems: "center", marginBottom: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
               <div style={{ flex: 1, fontWeight: 800 }}>👁️ Slides</div>
+              <select style={{ ...input, width: "auto", minWidth: 200 }} value={tpl} disabled={!!busy} onChange={(e) => pickTemplate(e.target.value)}>
+                {templates.map((t) => <option key={t.id} value={t.id}>🎨 {t.name}</option>)}
+              </select>
               <button style={btn} disabled={!!busy} onClick={() => preview()}>{busy === "preview" ? "…" : "↻ Dobara"}</button>
             </div>
+            {d.photos_setup_needed && <Msg text="Photo ke liye table abhi nahi bani. Supabase SQL Editor me sql/2026-10-15_ca_video_photos.sql chalaiye." />}
+            {tpl === "classic" && <div style={{ fontSize: 11.5, color: MUTED, marginBottom: 6 }}>Classic template me photo nahi aati — photo dikhane ke liye koi aur template chuniye.</div>}
             {!slides && <div style={{ color: MUTED, fontSize: 12.5 }}>Slides ban rahi hain…</div>}
             {slides && (
               <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 6 }}>
@@ -253,6 +328,33 @@ export default function CAVideoAdmin({ api }: { api: ApiFn }) {
                       {c && <div style={{ fontSize: 11.5, color: MUTED, marginTop: 4 }}>Card: {String(c.stem_en || "").replace(/[\s—–-]+$/, "")} → <b style={{ color: GREEN }}>{c.answer_en}</b></div>}
                     </>
                   )}
+                  {r.part !== "OUTRO" && (() => {
+                    const slot = r.part === "INTRO" ? "INTRO" : (r.ref_no || "");
+                    const url = slot ? photos[slot] : "";
+                    const working = busy === `photo:${slot}`;
+                    return (
+                      <div style={{ display: "flex", gap: 10, alignItems: "center", margin: "8px 0 2px", flexWrap: "wrap" }}>
+                        {url
+                          ? <img src={url} alt="" style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 8, border: "1px solid rgba(255,255,255,0.15)" }} />
+                          : <div style={{ width: 64, height: 64, borderRadius: 8, border: "1px dashed rgba(255,255,255,0.25)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, opacity: 0.6 }}>📷</div>}
+                        <div style={{ flex: 1, minWidth: 160 }}>
+                          {!slot ? (
+                            <div style={{ fontSize: 11.5, color: YELLOW }}>Pehle card chuniye aur script save kijiye — photo card ke saath judti hai</div>
+                          ) : (
+                            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                              <label style={{ ...btn, display: "inline-block", opacity: busy ? 0.6 : 1, pointerEvents: busy ? "none" : "auto" }}>
+                                {working ? "Lag rahi hai…" : url ? "🔁 Photo badlo" : "📷 Photo lagao"}
+                                <input type="file" accept="image/*" style={{ display: "none" }}
+                                  onChange={(e) => { uploadPhoto(slot, e.target.files?.[0]); e.target.value = ""; }} />
+                              </label>
+                              {url && <button style={{ ...btn, color: RED, borderColor: `${RED}55` }} disabled={!!busy} onClick={() => removePhoto(slot)}>Hatao</button>}
+                            </div>
+                          )}
+                          {r.photo_idea ? <div style={{ fontSize: 11.5, color: MUTED, marginTop: 4 }}>💡 {r.photo_idea}</div> : null}
+                        </div>
+                      </div>
+                    );
+                  })()}
                   <div style={label}>Screen par heading {r.part === "NEWS" ? "(7 words tak)" : ""}</div>
                   <input style={input} value={r.title} onChange={(e) => upd(i, { title: e.target.value })} />
                   <div style={label}>Points (har line ek)</div>
@@ -260,6 +362,12 @@ export default function CAVideoAdmin({ api }: { api: ApiFn }) {
                     onChange={(e) => upd(i, { points: e.target.value.split("\n").join("<br>") })} />
                   <div style={label}>Bolna hai (voiceover) · <span style={{ color: r.part === "NEWS" && (w < 12 || w > 30) ? YELLOW : MUTED }}>{w} words</span></div>
                   <textarea style={{ ...input, resize: "vertical" }} rows={3} value={r.voiceover} onChange={(e) => upd(i, { voiceover: e.target.value })} />
+                  {r.part !== "OUTRO" && (
+                    <>
+                      <div style={label}>Photo idea (kaunsi photo dhoondhni hai — sirf note, link nahi)</div>
+                      <input style={input} value={r.photo_idea || ""} onChange={(e) => upd(i, { photo_idea: e.target.value })} />
+                    </>
+                  )}
                 </div>
               );
             })}
