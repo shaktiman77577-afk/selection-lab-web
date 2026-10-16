@@ -9,6 +9,7 @@
  *  - yahan: Connect YouTube, text badlo, preview, Upload now, auto ON/OFF, purana banner Restore
  *  - saari details (contact, title, progress, exam chips) phone par dikhne wale hisse me
  *  - milestone poora (10K) → "THANK YOU FOR 10K SUBSCRIBERS" banner kuch din, phir wapas progress (15K)
+ *  - upcoming live / premiere → tagline ki jagah laal patti ("LIVE TODAY · 6:00 PM"), khatam hote hi hat jaati hai
  */
 
 import { useEffect, useState, type CSSProperties } from "react";
@@ -51,6 +52,7 @@ type Exam = { label: string; icon: string };
 type Settings = {
   title: string; tagline: string; phone: string; website: string; telegram: string; exams: Exam[];
   celebrate_title: string; celebrate_text: string; celebrate_note: string;
+  show_live: boolean;
 };
 
 export default function YtBannerAdmin({ api }: { api: Api }) {
@@ -201,8 +203,17 @@ export default function YtBannerAdmin({ api }: { api: Api }) {
           <Stat k="Live banner" v={live?.kind === "celebrate" ? "🎉 Thank you" : live?.percent != null ? `${live.percent}%` : live ? "Restore" : "—"} />
         </div>
         <div style={{ fontSize: 12, color: MUTED, marginTop: 8 }}>
-          Aakhri jaanch: {when(st.last_checked_at)} · har {st.check_every_hours} ghante
+          Aakhri jaanch: {when(st.last_checked_at)} · har {st.check_every_min || 30} minute
         </div>
+        {st.live_info && (
+          <div style={{ marginTop: 10, padding: 10, borderRadius: 10, background: "rgba(229,32,44,0.12)", fontSize: 13 }}>
+            <b style={{ color: "#ff5a5a" }}>🔴 {st.live_label}</b>
+            <span style={{ color: MUTED }}> · </span>
+            <a href={`https://www.youtube.com/watch?v=${st.live_info.video_id}`} target="_blank" rel="noreferrer"
+              style={{ color: "#fff" }}>{st.live_info.title}</a>
+            {!form.show_live && <span style={{ color: MUTED }}> (patti band hai)</span>}
+          </div>
+        )}
         {st.celebrating && (
           <div style={{ marginTop: 10, padding: 10, borderRadius: 10, background: "rgba(255,171,0,0.1)", fontSize: 13,
             display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
@@ -267,6 +278,16 @@ export default function YtBannerAdmin({ api }: { api: Api }) {
         <div style={h}>✏️ Banner ka text</div>
         <Field l="Title" v={form.title} on={(v) => setF({ title: v })} />
         <Field l="Tagline" v={form.tagline} on={(v) => setF({ tagline: v })} />
+        {st.live_ready ? (
+          <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13.5, marginTop: 10 }}>
+            <input type="checkbox" checked={form.show_live} onChange={(e) => setF({ show_live: e.target.checked })} />
+            <span>🔴 Live / premiere schedule ho to tagline ki jagah laal patti (&quot;LIVE TODAY · 6:00 PM&quot;)</span>
+          </label>
+        ) : (
+          <div style={{ fontSize: 12.5, color: RED, marginTop: 8 }}>
+            Live patti ke liye Supabase me <b>2026-10-16_yt_banner_live.sql</b> chalaiye.
+          </div>
+        )}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10 }}>
           <Field l="Phone" v={form.phone} on={(v) => setF({ phone: v })} />
           <Field l="Website" v={form.website} on={(v) => setF({ website: v })} />
@@ -377,6 +398,7 @@ export default function YtBannerAdmin({ api }: { api: Api }) {
                 </div>
                 <div style={{ color: MUTED, marginTop: 3 }}>
                   {v.kind === "celebrate" && "🎉 Thank you · "}
+                  {v.live_sig && "🔴 Live patti · "}
                   {SOURCE[v.source] || v.source}
                   {v.percent != null && ` · ${v.percent}% of ${kfmt(v.target)}`}
                 </div>
