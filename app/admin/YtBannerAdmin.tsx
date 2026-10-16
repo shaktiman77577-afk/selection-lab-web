@@ -8,6 +8,7 @@
  *  - target niyam: bar hamesha 50%+ (10K → 15K → 25K ...)
  *  - yahan: Connect YouTube, text badlo, preview, Upload now, auto ON/OFF, purana banner Restore
  *  - saari details (contact, title, progress, exam chips) phone par dikhne wale hisse me
+ *  - milestone poora (10K) → "THANK YOU FOR 10K SUBSCRIBERS" banner kuch din, phir wapas progress (15K)
  */
 
 import { useEffect, useState, type CSSProperties } from "react";
@@ -47,7 +48,10 @@ const kfmt = (n?: number | null) => {
 };
 
 type Exam = { label: string; icon: string };
-type Settings = { title: string; tagline: string; phone: string; website: string; telegram: string; exams: Exam[] };
+type Settings = {
+  title: string; tagline: string; phone: string; website: string; telegram: string; exams: Exam[];
+  celebrate_title: string; celebrate_text: string; celebrate_note: string;
+};
 
 export default function YtBannerAdmin({ api }: { api: Api }) {
   const [st, setSt] = useState<any | null>(null);
@@ -57,6 +61,7 @@ export default function YtBannerAdmin({ api }: { api: Api }) {
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
   const [busy, setBusy] = useState("");
   const [preview, setPreview] = useState<any | null>(null);
+  const [pvKind, setPvKind] = useState<"progress" | "celebrate">("progress");
   const [guides, setGuides] = useState(true);
   const [targetInput, setTargetInput] = useState("");
 
@@ -105,9 +110,16 @@ export default function YtBannerAdmin({ api }: { api: Api }) {
     return d;
   }
 
-  async function makePreview() {
-    const d = await run("preview", () => api("/yt-banner/admin/preview", "POST", { settings: form, refresh_count: true }));
+  async function makePreview(kind: "progress" | "celebrate" = pvKind) {
+    setPvKind(kind);
+    const d = await run("preview", () => api("/yt-banner/admin/preview", "POST", { settings: form, refresh_count: true, kind }));
     if (d) setPreview(d);
+  }
+
+  async function endCelebration() {
+    if (!confirm("Celebration abhi khatam karke progress banner lagayein?")) return;
+    const d = await run("endcel", () => api("/yt-banner/admin/end-celebration", "POST"), "Celebration khatam, progress banner laga");
+    if (d) load();
   }
 
   async function connect() {
@@ -186,11 +198,21 @@ export default function YtBannerAdmin({ api }: { api: Api }) {
           <Stat k="Subscribers" v={st.last_subs ? st.last_subs.toLocaleString("en-IN") : "—"} />
           <Stat k="Target" v={kfmt(st.target)} />
           <Stat k="Bar" v={st.percent != null ? `${st.percent}%` : "—"} />
-          <Stat k="Live banner" v={live?.percent != null ? `${live.percent}%` : live ? "Restore" : "—"} />
+          <Stat k="Live banner" v={live?.kind === "celebrate" ? "🎉 Thank you" : live?.percent != null ? `${live.percent}%` : live ? "Restore" : "—"} />
         </div>
         <div style={{ fontSize: 12, color: MUTED, marginTop: 8 }}>
           Aakhri jaanch: {when(st.last_checked_at)} · har {st.check_every_hours} ghante
         </div>
+        {st.celebrating && (
+          <div style={{ marginTop: 10, padding: 10, borderRadius: 10, background: "rgba(255,171,0,0.1)", fontSize: 13,
+            display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+            <span>🎉 <b style={{ color: GOLD }}>{kfmt(st.celebrate_milestone)}</b> celebration chal raha hai — {when(st.celebrate_until)} tak,
+              phir apne aap progress banner ({kfmt(st.target)} target)</span>
+            <button style={{ ...btn, padding: "6px 10px", fontSize: 12, marginLeft: "auto" }} onClick={endCelebration} disabled={!!busy}>
+              {busy === "endcel" ? "…" : "Abhi khatam karo"}
+            </button>
+          </div>
+        )}
         {st.last_error && (
           <div style={{ marginTop: 10, padding: 10, borderRadius: 10, background: "rgba(255,107,107,0.1)", color: RED, fontSize: 13 }}>
             ⚠️ {st.last_error} <span style={{ color: MUTED }}>({when(st.last_error_at)})</span>
@@ -226,6 +248,18 @@ export default function YtBannerAdmin({ api }: { api: Api }) {
         <div style={{ fontSize: 12, color: MUTED, marginTop: 8, lineHeight: 1.5 }}>
           Target cross hote hi agla target apne aap (×1.5, jaise 10K → 15K → 25K). Bar kabhi 50% se neeche nahi jaata.
         </div>
+
+        <div style={label}>🎉 Milestone poora hone par THANK YOU banner kitne din</div>
+        {st.celebrate_ready ? (
+          <select style={{ ...input, maxWidth: 200 }} value={st.celebrate_days}
+            onChange={(e) => save({ celebrate_days: Number(e.target.value) }, "Celebration ke din badal gaye")}>
+            {[1, 2, 3, 5, 7].map((n) => <option key={n} value={n}>{n} din</option>)}
+          </select>
+        ) : (
+          <div style={{ fontSize: 12.5, color: RED }}>
+            Celebration ke liye Supabase me <b>2026-10-16_yt_banner_celebrate.sql</b> chalaiye.
+          </div>
+        )}
       </div>
 
       {/* ── Text ── */}
@@ -256,6 +290,15 @@ export default function YtBannerAdmin({ api }: { api: Api }) {
             onClick={() => setF({ exams: [...form.exams, { label: "", icon: "book" }] })}>+ Exam</button>
         )}
 
+        <div style={{ ...h, marginTop: 18 }}>🎉 THANK YOU banner ka text</div>
+        <div style={{ fontSize: 12, color: MUTED, lineHeight: 1.5 }}>
+          <b style={{ color: GOLD }}>{"{target}"}</b> = jo milestone poora hua (10K) ·{" "}
+          <b style={{ color: GOLD }}>{"{next}"}</b> = agla target (15K)
+        </div>
+        <Field l="Badi heading" v={form.celebrate_title} on={(v) => setF({ celebrate_title: v })} />
+        <Field l="Doosri line" v={form.celebrate_text} on={(v) => setF({ celebrate_text: v })} />
+        <Field l="Chhoti line" v={form.celebrate_note} on={(v) => setF({ celebrate_note: v })} />
+
         <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
           <button style={goldBtn} disabled={!dirty || busy === "save"} onClick={() => save({ settings: form })}>
             {busy === "save" ? "Save ho raha hai…" : dirty ? "Save" : "Saved"}
@@ -271,8 +314,13 @@ export default function YtBannerAdmin({ api }: { api: Api }) {
       <div style={box}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <div style={{ ...h, marginBottom: 0, flex: 1 }}>👀 Preview</div>
-          <button style={btn} onClick={makePreview} disabled={busy === "preview"}>
-            {busy === "preview" ? "Ban raha hai…" : preview ? "Dobara banao" : "Preview banao"}
+          <button style={pvKind === "progress" && preview ? { ...btn, borderColor: GOLD } : btn}
+            onClick={() => makePreview("progress")} disabled={busy === "preview"}>
+            {busy === "preview" && pvKind === "progress" ? "Ban raha hai…" : "Progress"}
+          </button>
+          <button style={pvKind === "celebrate" && preview ? { ...btn, borderColor: GOLD } : btn}
+            onClick={() => makePreview("celebrate")} disabled={busy === "preview"}>
+            {busy === "preview" && pvKind === "celebrate" ? "Ban raha hai…" : "🎉 Thank you"}
           </button>
           <button style={goldBtn} onClick={uploadNow} disabled={!!busy || !st.connected}>
             {busy === "upload" ? "Lag raha hai…" : "Upload now"}
@@ -291,7 +339,9 @@ export default function YtBannerAdmin({ api }: { api: Api }) {
               )}
             </div>
             <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", fontSize: 12, color: MUTED, marginTop: 8 }}>
-              <span>{preview.subs?.toLocaleString("en-IN")} subscribers · target {preview.target_label} · bar {preview.percent}%</span>
+              <span>{preview.kind === "celebrate"
+                ? `THANK YOU ${preview.milestone_label} · next ${preview.target_label}`
+                : `${preview.subs?.toLocaleString("en-IN")} subscribers · target ${preview.target_label} · bar ${preview.percent}%`}</span>
               <label style={{ display: "flex", gap: 6, alignItems: "center", cursor: "pointer", marginLeft: "auto" }}>
                 <input type="checkbox" checked={guides} onChange={(e) => setGuides(e.target.checked)} />
                 <span><span style={{ color: GREEN }}>Mobile</span> me dikhne wala hissa</span>
@@ -326,6 +376,7 @@ export default function YtBannerAdmin({ api }: { api: Api }) {
                   <span style={{ color: MUTED }}>{when(v.created_at)}</span>
                 </div>
                 <div style={{ color: MUTED, marginTop: 3 }}>
+                  {v.kind === "celebrate" && "🎉 Thank you · "}
                   {SOURCE[v.source] || v.source}
                   {v.percent != null && ` · ${v.percent}% of ${kfmt(v.target)}`}
                 </div>
