@@ -4,7 +4,7 @@
  * app/admin/YtBannerAdmin.tsx — YouTube channel banner (sirf Main Admin).
  *
  * Backend: selection-lab-api routers/yt_banner.py
- *  - har 6 ghante subscriber count, bar 5%+ badle ya target badle → naya banner seedha YouTube par
+ *  - har 30 min subscriber count; dikhne wala count (9.53K) badla → naya banner seedha YouTube par
  *  - target niyam: bar hamesha 50%+ (10K → 15K → 25K ...)
  *  - yahan: Connect YouTube, text badlo, preview, Upload now, auto ON/OFF, purana banner Restore
  *  - saari details (contact, title, progress, exam chips) phone par dikhne wale hisse me
@@ -239,25 +239,19 @@ export default function YtBannerAdmin({ api }: { api: Api }) {
             onChange={(e) => save({ auto_upload: e.target.checked }, e.target.checked ? "Auto-upload ON" : "Auto-upload OFF")} />
           <b style={{ color: st.auto_upload ? GREEN : RED }}>Auto-upload {st.auto_upload ? "ON" : "OFF"}</b>
         </label>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          <div>
-            <div style={label}>Bar kitna badle tab naya banner</div>
-            <select style={input} value={st.threshold} onChange={(e) => save({ threshold: Number(e.target.value) })}>
-              {[3, 5, 10].map((n) => <option key={n} value={n}>{n}%</option>)}
-            </select>
-          </div>
-          <div>
-            <div style={label}>Target (subscribers)</div>
-            <div style={{ display: "flex", gap: 6 }}>
-              <input style={input} inputMode="numeric" value={targetInput}
-                onChange={(e) => setTargetInput(e.target.value.replace(/[^0-9]/g, ""))} />
-              <button style={btn} disabled={!targetInput || Number(targetInput) === st.target || busy === "save"}
-                onClick={() => save({ target: Number(targetInput) }, "Target badal gaya")}>Set</button>
-            </div>
+        <div style={{ maxWidth: 360 }}>
+          <div style={label}>Target (subscribers)</div>
+          <div style={{ display: "flex", gap: 6 }}>
+            <input style={input} inputMode="numeric" value={targetInput}
+              onChange={(e) => setTargetInput(e.target.value.replace(/[^0-9]/g, ""))} />
+            <button style={btn} disabled={!targetInput || Number(targetInput) === st.target || busy === "save"}
+              onClick={() => save({ target: Number(targetInput) }, "Target badal gaya")}>Set</button>
           </div>
         </div>
         <div style={{ fontSize: 12, color: MUTED, marginTop: 8, lineHeight: 1.5 }}>
-          Target cross hote hi agla target apne aap (×1.5, jaise 10K → 15K → 25K). Bar kabhi 50% se neeche nahi jaata.
+          Har 30 minute jaanch — count (jaise 9.53K → 9.54K) badla to banner turant badalta hai. Mail sirf milestone,
+          live aur galti par. Target cross hote hi agla target apne aap (×1.5, jaise 10K → 15K → 25K), bar kabhi 50% se
+          neeche nahi jaata.
         </div>
 
         <div style={label}>🎉 Milestone poora hone par THANK YOU banner kitne din</div>
