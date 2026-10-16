@@ -234,8 +234,22 @@ export function SheetEditor({
 }) {
   const [anchor, setAnchor] = useState({ r: 0, c: 0 });
   const [focus, setFocus] = useState({ r: 0, c: 0 });
-  const [editing, setEditing] = useState<{ r: number; c: number } | null>(null);
+  const [editing, setEditingState] = useState<{ r: number; c: number } | null>(null);
   const [draft, setDraft] = useState("");
+  // Editing ka sach ek ref me bhi. Doosre cell par click karte hi commit
+  // chalta tha, phir input ka onBlur DOOSRI baar commit chalata tha (purane
+  // value ke saath) — undo do baar dabana padta tha aur kabhi purana data
+  // wapas aa jata tha. Ref se pata rehta hai ki commit ho chuka.
+  const editRef = useRef<{ r: number; c: number } | null>(null);
+  const setEditing = (v: { r: number; c: number } | null) => { editRef.current = v; setEditingState(v); };
+  // Mouse wale laptop par fill handle CHHOTA hona chahiye, bilkul Excel jaisa.
+  // Pehle 22px ka tha (ungli ke liye) — laptop par cell ke neeche-daayein
+  // hisse me kahin bhi click karte hi fill shuru ho jata tha, aur table
+  // chunte waqt aakhri likha naam poori table me bhar jata tha.
+  const [coarse, setCoarse] = useState(false);
+  useEffect(() => {
+    try { setCoarse(window.matchMedia("(pointer: coarse)").matches); } catch {}
+  }, []);
   // Excel me har aadmi Ctrl+Z baar-baar dabata hai. Iske bina ek galti par
   // poora cell dobara likhna padta hai.
   const hist = useRef<SheetValue[]>([]);
@@ -401,11 +415,39 @@ export function SheetEditor({
     apply({ ...value, cells });
   }
 
+  /**
+   * Ctrl+Enter — Excel ki tarah: jo likha hai wo chuni hui HAR cell me.
+   * Saadharan Enter sirf us ek cell (active cell) me likhta hai.
+   * Formula ho to har cell ke hisaab se sarakta hai.
+   */
+  function commitAll() {
+    const ed = editRef.current;
+    if (!ed) return;
+    const cells = { ...value.cells };
+    const fmt = { ...(value.fmt || {}) };
+    for (let r = sel.r1; r <= sel.r2; r++)
+      for (let c = sel.c1; c <= sel.c2; c++) {
+        const ref = refOf(r, c);
+        const t = draft.startsWith("=") ? shiftFormula(draft, r - ed.r, c - ed.c) : draft;
+        const pm = /^\s*(-?\d+(?:\.(\d+))?)\s*%\s*$/.exec(t ?? "");
+        if (pm) {
+          cells[ref] = String(Number((Number(pm[1]) / 100).toPrecision(12)));
+          fmt[ref] = fmtBuild({ pct: true, dp: (pm[2] || "").length, comma: false });
+        } else if ((t ?? "").trim() === "") delete cells[ref];
+        else cells[ref] = t;
+      }
+    setEditing(null);
+    setDraft("");
+    apply({ ...value, cells, fmt });
+    wrap.current?.focus();
+  }
+
   function commit(move: "down" | "right" | "left" | null) {
-    if (editing) {
-      set(refOf(editing.r, editing.c), draft);
+    const ed = editRef.current;
+    if (ed) {
       setEditing(null);
       setDraft("");
+      set(refOf(ed.r, ed.c), draft);
     }
     if (!move) return;
     const d = move === "down" ? { r: 1, c: 0 }
@@ -663,7 +705,8 @@ export function SheetEditor({
    * jata hai — aur wahi $ ki jaanch hai.
    */
   function fillTo(to: { r: number; c: number }) {
-    const box = norm({ r: sel.r1, c: sel.c1 }, to);
+    const box = fillBox(to);
+    if (!box) return;
     const srcRows = sel.r2 - sel.r1 + 1;
     const srcCols = sel.c2 - sel.c1 + 1;
     const cells = { ...value.cells };
@@ -715,6 +758,21 @@ export function SheetEditor({
               wrap: Array.from(wrapS).sort(), align, fmt });
       setFocus({ r: box.r2, c: box.c2 });
     }
+  }
+
+  /**
+   * Fill kahan tak jayega — Excel ki tarah SIRF EK DISHA me.
+   *
+   * Pehle kone se tirchha kheenchne par poora aayat (rectangle) bhar jata
+   * tha — ek cell ka naam poori table me. Excel me fill ya to upar-neeche
+   * jaata hai ya daayein-baayein, jidhar mouse zyada door gaya ho.
+   */
+  function fillBox(to: { r: number; c: number }): Box | null {
+    const dr = to.r < sel.r1 ? sel.r1 - to.r : to.r > sel.r2 ? to.r - sel.r2 : 0;
+    const dc = to.c < sel.c1 ? sel.c1 - to.c : to.c > sel.c2 ? to.c - sel.c2 : 0;
+    if (!dr && !dc) return null;
+    if (dr >= dc) return { r1: Math.min(sel.r1, to.r), r2: Math.max(sel.r2, to.r), c1: sel.c1, c2: sel.c2 };
+    return { r1: sel.r1, r2: sel.r2, c1: Math.min(sel.c1, to.c), c2: Math.max(sel.c2, to.c) };
   }
 
   function toggleMerge() {
@@ -862,7 +920,11 @@ export function SheetEditor({
             if (!editing) startEdit(focus.r, focus.c, e.target.value);
             else setDraft(e.target.value);
           }}
-          onKeyDown={(e: RKeyboardEvent) => { if (e.key === "Enter") { e.preventDefault(); commit("down"); } }}
+          onKeyDown={(e: RKeyboardEvent) => {
+            if (e.key !== "Enter") return;
+            e.preventDefault();
+            if (e.ctrlKey || e.metaKey) commitAll(); else commit("down");
+          }}
           placeholder="Cell content — text, a number or =formula"
           spellCheck={false} autoCorrect="off" autoComplete="off"
           style={{ flex: 1, border: "none", outline: "none", padding: "10px 12px",
@@ -911,7 +973,7 @@ export function SheetEditor({
                   const isFocus = focus.r === r && focus.c === c;
                   // Kheenchte waqt dikhe ki kahan tak bharega
                   const inFill = !!fillTarget && !inBox(sel, r, c) &&
-                    inBox(norm({ r: sel.r1, c: sel.c1 }, fillTarget), r, c);
+                    inBox(fillBox(fillTarget), r, c);
                   const raw = value.cells[ref] ?? "";
                   // Formula wale cell me JAWAB dikhta hai, formula nahi —
                   // bilkul Excel ki tarah. Formula upar bar me dikhta hai.
@@ -1011,16 +1073,17 @@ export function SheetEditor({
                           }}
                           title="Drag down to fill"
                           style={{
-                            position: "absolute", right: -5, bottom: -5,
-                            // Ungli ke liye 11px ka nishaan bahut chhota hai.
-                            // Dikhne me utna hi rehta hai, par pakad ka
-                            // daayra bada kar dete hain.
-                            width: 22, height: 22, zIndex: 4,
+                            // Ungli ke liye pakad badi (22px); mouse par Excel
+                            // jitni chhoti, sirf kone par — warna table chunte
+                            // waqt galti se fill chal jata hai.
+                            position: "absolute",
+                            right: coarse ? -5 : -4, bottom: coarse ? -5 : -4,
+                            width: coarse ? 22 : 8, height: coarse ? 22 : 8, zIndex: 4,
                             cursor: "crosshair", touchAction: "none",
                             display: "flex", alignItems: "center", justifyContent: "center",
                           }}
                         >
-                          <span style={{ width: 11, height: 11, background: BLUE,
+                          <span style={{ width: coarse ? 11 : 7, height: coarse ? 11 : 7, background: BLUE,
                                          border: "2px solid #fff", borderRadius: 2,
                                          pointerEvents: "none" }} />
                         </span>
@@ -1032,9 +1095,10 @@ export function SheetEditor({
                           onChange={(e: RChangeEvent<HTMLInputElement>) => setDraft(e.target.value)}
                           onBlur={() => commit(null)}
                           onKeyDown={(e: RKeyboardEvent) => {
-                            if (e.key === "Enter") { e.preventDefault(); commit("down"); }
+                            if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); commitAll(); }
+                            else if (e.key === "Enter") { e.preventDefault(); commit("down"); }
                             else if (e.key === "Tab") { e.preventDefault(); commit(e.shiftKey ? "left" : "right"); }
-                            else if (e.key === "Escape") { e.preventDefault(); setEditing(null); setDraft(""); }
+                            else if (e.key === "Escape") { e.preventDefault(); setEditing(null); setDraft(""); wrap.current?.focus(); }
                           }}
                           spellCheck={false} autoCorrect="off" autoComplete="off"
                           style={{ width: "100%", height: 28, border: "none", outline: "none",
@@ -1057,6 +1121,7 @@ export function SheetEditor({
 
       <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 6, lineHeight: 1.6 }}>
         Tap a cell and type · Enter moves down · Tab moves right ·
+        Ctrl+Enter fills the typed text into all selected cells (as in Excel) ·
         to copy a formula down, drag the <b>blue square</b> at the corner of the cell ·
         to select several cells, <b>press and hold</b>, then drag, and then press{" "}
         <b>B</b> or <b>Merge</b>
