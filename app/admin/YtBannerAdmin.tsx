@@ -7,6 +7,7 @@
  *  - har 6 ghante subscriber count, bar 5%+ badle ya target badle → naya banner seedha YouTube par
  *  - target niyam: bar hamesha 50%+ (10K → 15K → 25K ...)
  *  - yahan: Connect YouTube, text badlo, preview, Upload now, auto ON/OFF, purana banner Restore
+ *  - design sirf mobile wale hisse ka (title, tagline, progress bar, target badge)
  */
 
 import { useEffect, useState, type CSSProperties } from "react";
@@ -33,7 +34,6 @@ const box: CSSProperties = { background: CARD, border: `1px solid ${BORDER}`, bo
 const label: CSSProperties = { fontSize: 11.5, color: MUTED, fontWeight: 700, margin: "10px 0 4px" };
 const h: CSSProperties = { fontWeight: 800, fontSize: 15, marginBottom: 6 };
 
-const ICON_NAME: Record<string, string> = { bank: "🏛️ Bank", book: "📖 Book", people: "👥 People", cap: "🎓 Cap", doc: "📄 Doc" };
 const SOURCE: Record<string, string> = { auto: "Apne aap", manual: "Upload now", restore: "Restore" };
 
 const when = (t?: string | null) =>
@@ -232,29 +232,6 @@ export default function YtBannerAdmin({ api }: { api: Api }) {
         <div style={h}>✏️ Banner ka text</div>
         <Field l="Title" v={form.title} on={(v) => setF({ title: v })} />
         <Field l="Tagline" v={form.tagline} on={(v) => setF({ tagline: v })} />
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10 }}>
-          <Field l="Phone" v={form.phone} on={(v) => setF({ phone: v })} />
-          <Field l="Website" v={form.website} on={(v) => setF({ website: v })} />
-          <Field l="Telegram" v={form.telegram} on={(v) => setF({ telegram: v })} />
-        </div>
-
-        <div style={label}>Exam chips (max {st.max_exams}) — desktop par daayen dikhte hain</div>
-        {form.exams.map((e, i) => (
-          <div key={i} style={{ display: "flex", gap: 6, marginBottom: 6 }}>
-            <input style={{ ...input, flex: 1 }} value={e.label} maxLength={14}
-              onChange={(ev) => setF({ exams: form.exams.map((x, j) => (j === i ? { ...x, label: ev.target.value.toUpperCase() } : x)) })} />
-            <select style={{ ...input, width: 130 }} value={e.icon}
-              onChange={(ev) => setF({ exams: form.exams.map((x, j) => (j === i ? { ...x, icon: ev.target.value } : x)) })}>
-              {(st.icons || []).map((ic: string) => <option key={ic} value={ic}>{ICON_NAME[ic] || ic}</option>)}
-            </select>
-            <button style={{ ...btn, padding: "6px 12px" }} onClick={() => setF({ exams: form.exams.filter((_, j) => j !== i) })}>✕</button>
-          </div>
-        ))}
-        {form.exams.length < st.max_exams && (
-          <button style={{ ...btn, padding: "7px 12px", fontSize: 12.5 }}
-            onClick={() => setF({ exams: [...form.exams, { label: "", icon: "book" }] })}>+ Exam</button>
-        )}
-
         <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
           <button style={goldBtn} disabled={!dirty || busy === "save"} onClick={() => save({ settings: form })}>
             {busy === "save" ? "Save ho raha hai…" : dirty ? "Save" : "Saved"}
@@ -284,8 +261,6 @@ export default function YtBannerAdmin({ api }: { api: Api }) {
               <img src={`data:image/jpeg;base64,${preview.image_b64}`} alt="Banner preview" style={{ width: "100%", display: "block" }} />
               {guides && (
                 <>
-                  {/* Desktop patti: y 508–931 of 1440 */}
-                  <div style={{ position: "absolute", left: 0, right: 0, top: "35.28%", height: "29.38%", border: "2px dashed #4fc3f7" }} />
                   {/* Mobile: x 507–2053 of 2560 */}
                   <div style={{ position: "absolute", top: "35.28%", height: "29.38%", left: "19.8%", width: "60.4%", border: "2px dashed #5dd97c" }} />
                 </>
@@ -295,7 +270,7 @@ export default function YtBannerAdmin({ api }: { api: Api }) {
               <span>{preview.subs?.toLocaleString("en-IN")} subscribers · target {preview.target_label} · bar {preview.percent}%</span>
               <label style={{ display: "flex", gap: 6, alignItems: "center", cursor: "pointer", marginLeft: "auto" }}>
                 <input type="checkbox" checked={guides} onChange={(e) => setGuides(e.target.checked)} />
-                <span><span style={{ color: "#4fc3f7" }}>Desktop</span> / <span style={{ color: GREEN }}>Mobile</span> hissa</span>
+                <span><span style={{ color: GREEN }}>Mobile</span> me dikhne wala hissa</span>
               </label>
             </div>
             {preview.note && <div style={{ fontSize: 12, color: "#f2c94c", marginTop: 6 }}>{preview.note}</div>}
