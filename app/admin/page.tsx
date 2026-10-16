@@ -24,6 +24,7 @@ import BlogPreview from "./BlogPreview";
 import ExamUpdatesAdmin, { ExamDatesBox } from "./ExamUpdatesAdmin";
 import { downloadZip } from "./downloadZip";
 import FixUploadModal, { type FixTarget } from "./FixUpload";
+import YtBannerAdmin from "./YtBannerAdmin";
 
 const GOLD = "#FFAB00";
 const BG = "#0d0b08";
@@ -43,7 +44,7 @@ const TAB_PERM: Record<string, string> = {
   questions: "mocks", qbank: "mocks", composer: "mocks", extractor: "mocks", volatile: "mocks", scorechecker: "mocks",
   blog: "seo", seo: "seo", search: "seo", examupdates: "seo",
   users: "users", tickets: "users", approvals: "users", email: "users", notifications: "users", reviews: "users",
-  health: "owner", team: "owner",
+  health: "owner", team: "owner", ytbanner: "owner",
 };
 function readMe(): Me {
   try {
@@ -58,7 +59,7 @@ function canOpen(me: Me, tab: string): boolean {
   return !!need && need !== "owner" && me.perms.includes(need);
 }
 
-type Tab = "home" | "health" | "seo" | "live" | "tickets" | "dashboard" | "courses" | "questions" | "qbank" | "mocktests" | "blog" | "banners" | "notifications" | "reviews" | "users" | "coupons" | "descriptive" | "appcontent" | "approvals" | "tier2" | "excel" | "nbemsmock" | "search" | "email" | "partners" | "scorechecker" | "composer" | "extractor" | "volatile" | "promos" | "examupdates" | "team";
+type Tab = "home" | "health" | "seo" | "live" | "tickets" | "dashboard" | "courses" | "questions" | "qbank" | "mocktests" | "blog" | "banners" | "notifications" | "reviews" | "users" | "coupons" | "descriptive" | "appcontent" | "approvals" | "tier2" | "excel" | "nbemsmock" | "search" | "email" | "partners" | "scorechecker" | "composer" | "extractor" | "volatile" | "promos" | "examupdates" | "team" | "ytbanner";
 
 // ── API helpers ──────────────────────────────────────────────────────────────
 function token(): string {
@@ -244,6 +245,15 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     setTabState(next);
   }
 
+  // Email / Google callback se seedha section: /admin?tab=ytbanner
+  useEffect(() => {
+    try {
+      const t = new URLSearchParams(window.location.search).get("tab");
+      if (t === "ytbanner" && canOpen(readMe(), t)) setTab("ytbanner");
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     function onPop() {
       // Kisi section me the to home par le aao — page chhodne mat do
@@ -304,6 +314,8 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     { id: "courses",       icon: "🗞️", title: "Current Affairs", sub: "Upload, Pricing, PDF, Video, Analytics", color: "#2F7FD8", group: "App aur Website", href: "/admin/current-affairs" },
     { id: "blog",          icon: "📰", title: "Blog",          sub: "SEO articles website pe",            color: "#E8734A", group: "App aur Website" },
     { id: "examupdates",   icon: "🔔", title: "Exam Updates",  sub: "Vacancies, dates, admit card, result", color: "#C9A227", group: "App aur Website" },
+    // Sirf Main Admin — subscriber milestone wala banner apne aap YouTube par
+    { id: "ytbanner",      icon: "📺", title: "YouTube Banner", sub: "Subscriber progress banner, auto upload, restore", color: "#FF5A1F", group: "App aur Website" },
 
     { id: "users",         icon: "👥", title: "Users",         sub: "Access do, ban karo, history",       color: "#3AA8C1", group: "Log aur Paisa" },
     { id: "coupons",       icon: "🎟️", title: "Coupons",       sub: "Discount code banao",                color: "#3EA96B", group: "Log aur Paisa" },
@@ -557,6 +569,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
           </div>
         )}
         {tab === "team" && can("team") && <TeamAdmin api={api} />}
+        {tab === "ytbanner" && can("ytbanner") && <YtBannerAdmin api={api} />}
         {can(tab) && <>
         {tab === "health" && <HealthTab />}
         {tab === "seo" && <SeoTab onGo={(t) => setTab(t)} />}
