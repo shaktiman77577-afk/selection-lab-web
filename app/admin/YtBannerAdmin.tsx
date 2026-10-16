@@ -7,6 +7,7 @@
  *  - har 6 ghante subscriber count, bar 5%+ badle ya target badle → naya banner seedha YouTube par
  *  - target niyam: bar hamesha 50%+ (10K → 15K → 25K ...)
  *  - yahan: Connect YouTube, text badlo, preview, Upload now, auto ON/OFF, purana banner Restore
+ *  - saari details (contact, title, progress, exam chips) phone par dikhne wale hisse me
  */
 
 import { useEffect, useState, type CSSProperties } from "react";
@@ -238,7 +239,7 @@ export default function YtBannerAdmin({ api }: { api: Api }) {
           <Field l="Telegram" v={form.telegram} on={(v) => setF({ telegram: v })} />
         </div>
 
-        <div style={label}>Exam chips (max {st.max_exams}) — desktop par daayen dikhte hain</div>
+        <div style={label}>Exam chips (max {st.max_exams})</div>
         {form.exams.map((e, i) => (
           <div key={i} style={{ display: "flex", gap: 6, marginBottom: 6 }}>
             <input style={{ ...input, flex: 1 }} value={e.label} maxLength={14}
@@ -284,8 +285,6 @@ export default function YtBannerAdmin({ api }: { api: Api }) {
               <img src={`data:image/jpeg;base64,${preview.image_b64}`} alt="Banner preview" style={{ width: "100%", display: "block" }} />
               {guides && (
                 <>
-                  {/* Desktop patti: y 508–931 of 1440 */}
-                  <div style={{ position: "absolute", left: 0, right: 0, top: "35.28%", height: "29.38%", border: "2px dashed #4fc3f7" }} />
                   {/* Mobile: x 507–2053 of 2560 */}
                   <div style={{ position: "absolute", top: "35.28%", height: "29.38%", left: "19.8%", width: "60.4%", border: "2px dashed #5dd97c" }} />
                 </>
@@ -295,7 +294,7 @@ export default function YtBannerAdmin({ api }: { api: Api }) {
               <span>{preview.subs?.toLocaleString("en-IN")} subscribers · target {preview.target_label} · bar {preview.percent}%</span>
               <label style={{ display: "flex", gap: 6, alignItems: "center", cursor: "pointer", marginLeft: "auto" }}>
                 <input type="checkbox" checked={guides} onChange={(e) => setGuides(e.target.checked)} />
-                <span><span style={{ color: "#4fc3f7" }}>Desktop</span> / <span style={{ color: GREEN }}>Mobile</span> hissa</span>
+                <span><span style={{ color: GREEN }}>Mobile</span> me dikhne wala hissa</span>
               </label>
             </div>
             {preview.note && <div style={{ fontSize: 12, color: "#f2c94c", marginTop: 6 }}>{preview.note}</div>}
