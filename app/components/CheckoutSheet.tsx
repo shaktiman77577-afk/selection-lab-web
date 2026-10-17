@@ -112,7 +112,9 @@ export default function CheckoutSheet({
   const inputStyle: React.CSSProperties = { background: "var(--card)", color: "var(--text)", border: "1px solid var(--line)", borderRadius: 10, padding: "12px 14px", fontSize: 14, outline: "none" };
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "var(--bg)", zIndex: 25, overflowY: "auto" }}>
+    // zIndex 55: site header (50) aur phone ki Buy patti (.v2-mobbar, 40) ke upar,
+    // par payment result modal (.v2-modal, 60) ke neeche
+    <div style={{ position: "fixed", inset: 0, background: "var(--bg)", zIndex: 55, overflowY: "auto" }}>
       <div style={{ maxWidth: 640, margin: "0 auto", padding: "14px 16px 120px" }}>
         {/* Header */}
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
@@ -199,7 +201,7 @@ export default function CheckoutSheet({
       </div>
 
       {/* Sticky Pay bar */}
-      <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, padding: "12px 16px", background: "var(--header)", borderTop: "1px solid var(--line)", zIndex: 26 }}>
+      <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, padding: "12px 16px calc(12px + env(safe-area-inset-bottom))", background: "var(--header)", borderTop: "1px solid var(--line)", zIndex: 56 }}>
         <button
           onClick={() => onPay(applied?.code || null, total)}
           disabled={paying}
