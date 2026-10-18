@@ -25,6 +25,7 @@ type Card = {
   stem_en: string; stem_hi: string; answer_en: string; answer_hi: string;
   detail_en?: string; detail_hi?: string; static_gk_en?: string; static_gk_hi?: string;
   day?: { day_en?: string; day_hi?: string; theme_en?: string; theme_hi?: string } | null;
+  is_update?: boolean;          // purani news ka naya development (daily package me Important = U)
 };
 type Access = {
   open: boolean; reason: string; free: boolean; free_until?: string; pass_course_id?: number | null;
@@ -432,6 +433,7 @@ export default function CAClient({ home, initialMonth, initialData, initialBlock
                     <span className="ca-num">{i + 1}</span>
                     <span className="ca-date">{dayNum(String(c.ca_date))} {MN[Number(String(c.ca_date).slice(5, 7)) - 1]}</span>
                     <span className="ca-cat">{BLOCK_SHORT[c.block] || c.category}</span>
+                    {c.is_update && <span className="ca-upd" title="A new development in a story covered earlier">UPDATE</span>}
                   </div>
                   {lang !== "hi" && (
                     <p className="ca-en">{stem(c.stem_en)} <span className="ca-arr">→</span> <b>{c.answer_en}</b></p>
@@ -660,6 +662,8 @@ const CSS = `
 .ca .ca-num{background:var(--ca-navy);color:#fff;border-radius:7px;padding:1px 7px;font-weight:800}
 html[data-theme="dark"] .ca .ca-num{background:#2a3f6b}
 .ca .ca-date{color:#b7791f;font-weight:700}.ca-cat{color:var(--muted)}
+.ca .ca-upd{margin-left:auto;background:#1c3366;color:#fff;border-radius:6px;padding:1px 7px;font-size:10.5px;font-weight:800;letter-spacing:.4px}
+html[data-theme="dark"] .ca .ca-upd{background:#2a3f6b}
 .ca .ca-en{margin:0;font-size:14.5px;line-height:1.5;font-weight:600}
 .ca .ca-hionly{font-family:var(--font-deva),var(--font-jakarta),sans-serif}
 .ca .ca-hi{margin:6px 0 0;font-size:13.5px;line-height:1.6;color:var(--text2,#4c4536)}
