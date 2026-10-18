@@ -190,6 +190,44 @@ function readDataUrl(f: File): Promise<string> {
   return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result || "")); r.onerror = rej; r.readAsDataURL(f); });
 }
 
+/** Daily prompt ke saath paste karne ke liye — jo news pehle aa chuki (repeat na ho, sirf UPDATE). */
+function Covered({ api }: { api: ApiFn }) {
+  const [days, setDays] = useState(15);
+  const [text, setText] = useState("");
+  const [msg, setMsg] = useState<{ t: string; ok?: boolean }>({ t: "" });
+  const [busy, setBusy] = useState(false);
+  async function copy() {
+    setBusy(true); setMsg({ t: "" });
+    try {
+      const r = await api(`/ca/admin/covered?days=${days}`);
+      setText(r.text || "");
+      try {
+        await navigator.clipboard.writeText(r.text || "");
+        setMsg({ t: `${r.count} topics copy ho gaye (${r.from} se ${r.to}). Daily prompt ke neeche paste kariye.`, ok: true });
+      } catch {
+        setMsg({ t: `${r.count} topics — neeche ke box se select karke copy kariye.`, ok: true });
+      }
+    } catch (e: any) { setMsg({ t: e.message }); }
+    setBusy(false);
+  }
+  return (
+    <div style={box}>
+      <div style={{ fontWeight: 800, marginBottom: 4 }}>📋 Daily prompt ke saath: pichhli news ki list</div>
+      <div style={{ fontSize: 12.5, color: MUTED, marginBottom: 10, lineHeight: 1.5 }}>
+        Har din prompt chalane se pehle ye list copy karke prompt ke saath paste kariye. Prompt in news ko dobara nahi banayega —
+        kisi purani news me naya development ho to sirf <b style={{ color: "#fff" }}>1 UPDATE card + 1 sawaal</b>.
+      </div>
+      <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+        {[7, 15, 30].map((n) => <button key={n} onClick={() => setDays(n)} style={days === n ? goldBtn : btn}>{n} din</button>)}
+        <button onClick={copy} disabled={busy} style={{ ...goldBtn, marginLeft: "auto" }}>{busy ? "…" : "📋 Copy karo"}</button>
+      </div>
+      <div style={{ marginTop: 8 }}><Msg text={msg.t} ok={msg.ok} /></div>
+      {text && <textarea readOnly value={text} rows={6} onFocus={(e) => e.target.select()}
+        style={{ ...input, resize: "vertical", fontFamily: "monospace", fontSize: 11.5 }} />}
+    </div>
+  );
+}
+
 function Upload({ api }: { api: ApiFn }) {
   const [files, setFiles] = useState<any[]>([]);
   const [busy, setBusy] = useState(false);
@@ -257,6 +295,7 @@ function Upload({ api }: { api: ApiFn }) {
 
   return (
     <div>
+      <Covered api={api} />
       <div style={box}>
         <div style={{ fontWeight: 800, marginBottom: 6 }}>TSV ya zip daaliye</div>
         <div style={{ fontSize: 12.5, color: MUTED, marginBottom: 10, lineHeight: 1.5 }}>
@@ -441,6 +480,7 @@ function CardRow({ api, c, hi, open, onToggle, onDeleted }: { api: ApiFn; c: any
     CARD_FIELDS.forEach(([k]) => { if (f[k] !== c[k]) fields[k] = f[k]; });
     if (f.important !== c.important) fields.important = f.important;
     if (f.is_published !== c.is_published) fields.is_published = f.is_published;
+    if (!!f.is_update !== !!c.is_update) fields.is_update = !!f.is_update;
     if (day && c.day) fields.day = day;
     fields.sources = src;
     try { await api(`/ca/admin/card/${encodeURIComponent(c.ref_no)}`, "PUT", { fields }); setMsg({ t: "Save ho gaya", ok: true }); }
@@ -459,6 +499,7 @@ function CardRow({ api, c, hi, open, onToggle, onDeleted }: { api: ApiFn; c: any
         <div style={{ fontSize: 11, color: MUTED, display: "flex", gap: 8 }}>
           <span>{c.ref_no}</span><span>{String(c.ca_date).slice(0, 10)}</span>
           <span style={{ color: c.is_published ? GREEN : "#888" }}>{c.is_published ? "live" : "draft"}</span>
+          {f.is_update && <span style={{ color: "#8fb3ff", fontWeight: 800 }}>UPDATE</span>}
           <span style={{ marginLeft: "auto" }}>{(c.mcqs || []).length} Q</span>
         </div>
         <div style={{ fontSize: 13.5, marginTop: 4, lineHeight: 1.45 }}>{hi ? f.stem_hi : f.stem_en}</div>
@@ -470,6 +511,7 @@ function CardRow({ api, c, hi, open, onToggle, onDeleted }: { api: ApiFn; c: any
           {CARD_FIELDS.map(([k, l, a]) => <Field key={k} k={k} label={l} area={a} value={f[k]} onChange={set} />)}
           <div style={{ display: "flex", gap: 14, margin: "10px 0", fontSize: 13 }}>
             <label><input type="checkbox" checked={!!f.important} onChange={(e) => setF({ ...f, important: e.target.checked })} /> Important</label>
+            <label><input type="checkbox" checked={!!f.is_update} onChange={(e) => setF({ ...f, is_update: e.target.checked })} /> UPDATE (purani news)</label>
             <label><input type="checkbox" checked={!!f.is_published} onChange={(e) => setF({ ...f, is_published: e.target.checked })} /> Published</label>
           </div>
           {day && (

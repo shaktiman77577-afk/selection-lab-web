@@ -43,6 +43,32 @@ const TEMPLATES_FALLBACK = [
   { id: "notebook", name: "Notebook + Polaroid" }, { id: "spotlight", name: "Circle Spotlight" },
 ];
 
+const FREE_SITE = /^https?:\/\/([a-z0-9-]+\.)*(gov\.in|nic\.in|wikimedia\.org|un\.org|who\.int|unesco\.org|worldbank\.org|imf\.org|wto\.org|nasa\.gov|esa\.int)(\/|$)/i;
+
+/** Photo idea ke link se credit ka andaza: pib.gov.in → PIB, wikimedia → Wikimedia Commons. */
+function guessCredit(idea?: string | null): string {
+  const u = String(idea || "").match(/https?:\/\/\S+/)?.[0] || "";
+  if (!u) return "";
+  if (/pib\.gov\.in/i.test(u)) return "PIB";
+  if (/wikimedia\.org/i.test(u)) return "Wikimedia Commons";
+  const host = u.replace(/^https?:\/\/(www\.)?/i, "").split("/")[0];
+  return FREE_SITE.test(u) ? host.slice(0, 40) : "";
+}
+
+/** 💡 Photo idea — link ho to tap karke khulta hai (free site ho to hara, warna peela). */
+function IdeaLine({ text }: { text: string }) {
+  const parts = text.split(/(https?:\/\/\S+)/);
+  return (
+    <div style={{ fontSize: 11.5, color: MUTED, marginTop: 4, wordBreak: "break-word" }}>
+      💡 {parts.map((p, k) => (/^https?:\/\//.test(p)
+        ? <a key={k} href={p} target="_blank" rel="noreferrer" style={{ color: FREE_SITE.test(p) ? GREEN : YELLOW, fontWeight: 700 }}>
+            {FREE_SITE.test(p) ? "🔗 photo kholo" : "⚠️ link (free site nahi)"}
+          </a>
+        : <span key={k}>{p}</span>))}
+    </div>
+  );
+}
+
 /** Photo ko browser me hi chhota karo (1600 px JPEG) — mobile data bachta hai, upload jaldi. */
 function shrinkImage(file: File, edge = 1600): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -110,6 +136,7 @@ export default function CAVideoAdmin({ api }: { api: ApiFn }) {
     try { return localStorage.getItem(TPL_KEY) || "classic"; } catch { return "classic"; }
   });
   const [photos, setPhotos] = useState<Record<string, string>>({});
+  const [credits, setCredits] = useState<Record<string, string>>({});
 
   function loadList(pickFirst = false) {
     api("/ca/admin/video").then((x) => {
@@ -125,6 +152,7 @@ export default function CAVideoAdmin({ api }: { api: ApiFn }) {
       setD(x);
       setRows((x.rows || []).map((r: any) => ({ part: r.part, ref_no: r.ref_no, title: r.title, points: r.points, voiceover: r.voiceover, photo_idea: r.photo_idea || "" })));
       setPhotos(x.photos || {});
+      setCredits(x.credits || {});
       setDirty(false);
       preview(dd);
     }).catch((e) => setMsg({ t: e.message }));
@@ -175,16 +203,29 @@ export default function CAVideoAdmin({ api }: { api: ApiFn }) {
     if (day) { setSlides(null); preview(day, t); }
   }
 
-  async function uploadPhoto(slot: string, file?: File | null) {
+  async function uploadPhoto(slot: string, file?: File | null, idea?: string | null) {
     if (!file) return;
     setBusy(`photo:${slot}`); setMsg({ t: "" });
     try {
       const b64 = await shrinkImage(file);
-      const r = await api(`/ca/admin/video/${day}/photo`, "POST", { slot, b64 });
+      const credit = credits[slot] || guessCredit(idea);
+      const r = await api(`/ca/admin/video/${day}/photo`, "POST", { slot, b64, credit });
       setPhotos((p) => ({ ...p, [r.slot]: r.url }));
+      if (credit) setCredits((c) => ({ ...c, [r.slot]: credit }));
       setMsg({ t: "Photo lag gayi", ok: true });
       if (tpl === "classic") setMsg({ t: "Photo lag gayi — Classic template me photo nahi dikhti, upar se koi photo wala template chuniye", ok: true });
       else preview();
+    } catch (e: any) { setMsg({ t: e.message }); }
+    setBusy("");
+  }
+
+  async function saveCredit(slot: string, credit: string) {
+    setBusy(`photo:${slot}`); setMsg({ t: "" });
+    try {
+      const r = await api(`/ca/admin/video/${day}/photo/${encodeURIComponent(slot)}/credit`, "PUT", { credit });
+      setCredits((c) => ({ ...c, [slot]: r.credit }));
+      setMsg({ t: r.credit ? `Credit save: "Photo: ${r.credit}"` : "Credit hata diya", ok: true });
+      if (tpl !== "classic") preview();
     } catch (e: any) { setMsg({ t: e.message }); }
     setBusy("");
   }
@@ -225,11 +266,12 @@ export default function CAVideoAdmin({ api }: { api: ApiFn }) {
     <div>
       <Msg text={msg.t} ok={msg.ok} />
       <div style={{ ...box, fontSize: 12.5, color: MUTED, lineHeight: 1.6 }}>
-        🎬 Har din ka <b style={{ color: "#fff" }}>Shorts video (9:16, 60–90 sec)</b>. Script daily package ke <b style={{ color: "#fff" }}>===SCRIPT===</b> hisse se aata hai
-        (naya daily prompt likhta hai — Roman Hinglish, top 8–10 news). Upload ke baad yahan din chuniye → template chuniye → photo lagaiye → slides dekhiye → download.
+        🎬 Har din ka <b style={{ color: "#fff" }}>Shorts video (9:16, 60 sec se kam)</b>. Script daily package ke <b style={{ color: "#fff" }}>===SCRIPT===</b> hisse se aata hai
+        (daily prompt likhta hai — Roman Hinglish, din ki 5 sabse badi news). Upload ke baad yahan din chuniye → template chuniye → photo lagaiye → slides dekhiye → download.
         <div style={{ marginTop: 6 }}>
-          📷 Photo sirf <b style={{ color: "#fff" }}>apni ya free</b> lagaiye — PIB / sarkari photos, Wikimedia Commons, Pexels, Unsplash.
-          News websites (Hindu, Express…) ki photo YouTube par copyright strike la sakti hai.
+          📷 Photo sirf <b style={{ color: "#fff" }}>apni ya free</b> lagaiye — PIB / sarkari site, Wikimedia Commons, Pexels, Unsplash. Prompt har news ke saath aisi photo ka link deta hai (💡 ke paas).
+          Photo ke saath <b style={{ color: "#fff" }}>credit</b> bhariye (jaise PIB) — slide par neeche &quot;Photo: PIB&quot; aata hai.
+          News agency / akhbaar (PTI, ANI, Reuters, Hindu, Express…) ki photo YouTube par copyright strike la sakti hai.
         </div>
       </div>
 
@@ -256,8 +298,8 @@ export default function CAVideoAdmin({ api }: { api: ApiFn }) {
           <div style={box}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
               <div style={{ flex: 1, fontWeight: 800 }}>{dayName(day)} · {rows.length} slides · {nNews} news</div>
-              <span style={{ fontSize: 12, color: totalWords > 240 || totalWords < 140 ? YELLOW : GREEN, fontWeight: 700 }}>
-                ~{Math.round(totalWords / 2.6)} sec ({totalWords} words)
+              <span style={{ fontSize: 12, color: totalWords > 150 || totalWords < 90 ? YELLOW : GREEN, fontWeight: 700 }}>
+                ~{Math.round(totalWords / 2.6)} sec ({totalWords} words){totalWords > 150 ? " — 60 sec se upar" : ""}
               </span>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 8 }}>
@@ -279,6 +321,7 @@ export default function CAVideoAdmin({ api }: { api: ApiFn }) {
               <button style={btn} disabled={!!busy} onClick={() => preview()}>{busy === "preview" ? "…" : "↻ Dobara"}</button>
             </div>
             {d.photos_setup_needed && <Msg text="Photo ke liye table abhi nahi bani. Supabase SQL Editor me sql/2026-10-15_ca_video_photos.sql chalaiye." />}
+            {!d.photos_setup_needed && d.credit_setup_needed && <Msg text="Photo credit ke liye sql/2026-10-18_ca_updates.sql chalaiye (tab tak credit save nahi hoga)." />}
             {tpl === "classic" && <div style={{ fontSize: 11.5, color: MUTED, marginBottom: 6 }}>Classic template me photo nahi aati — photo dikhane ke liye koi aur template chuniye.</div>}
             {!slides && <div style={{ color: MUTED, fontSize: 12.5 }}>Slides ban rahi hain…</div>}
             {slides && (
@@ -298,7 +341,7 @@ export default function CAVideoAdmin({ api }: { api: ApiFn }) {
               <button style={btn} onClick={addNews}>+ News slide</button>
               <button style={{ ...btn, color: RED, borderColor: `${RED}55` }} onClick={remove}>🗑 Script hatao</button>
             </div>
-            <div style={{ fontSize: 11.5, color: MUTED, marginBottom: 8 }}>Sirf Roman Hinglish (English letters). Points: har line ek point (2–3). News ki bolne wali line 15–25 words.</div>
+            <div style={{ fontSize: 11.5, color: MUTED, marginBottom: 8 }}>Sirf Roman Hinglish (English letters). 5 news. Points: har line ek point (2–3). News ki bolne wali line 12–18 words · kul 110–145 words (60 sec se kam).</div>
             {rows.map((r, i) => {
               const c = r.ref_no ? cards[r.ref_no] : null;
               const w = words(r.voiceover);
@@ -345,12 +388,21 @@ export default function CAVideoAdmin({ api }: { api: ApiFn }) {
                               <label style={{ ...btn, display: "inline-block", opacity: busy ? 0.6 : 1, pointerEvents: busy ? "none" : "auto" }}>
                                 {working ? "Lag rahi hai…" : url ? "🔁 Photo badlo" : "📷 Photo lagao"}
                                 <input type="file" accept="image/*" style={{ display: "none" }}
-                                  onChange={(e) => { uploadPhoto(slot, e.target.files?.[0]); e.target.value = ""; }} />
+                                  onChange={(e) => { uploadPhoto(slot, e.target.files?.[0], r.photo_idea); e.target.value = ""; }} />
                               </label>
                               {url && <button style={{ ...btn, color: RED, borderColor: `${RED}55` }} disabled={!!busy} onClick={() => removePhoto(slot)}>Hatao</button>}
                             </div>
                           )}
-                          {r.photo_idea ? <div style={{ fontSize: 11.5, color: MUTED, marginTop: 4 }}>💡 {r.photo_idea}</div> : null}
+                          {url && slot && (
+                            <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 6 }}>
+                              <span style={{ fontSize: 11.5, color: MUTED, whiteSpace: "nowrap" }}>Photo:</span>
+                              <input key={`${slot}:${credits[slot] || ""}`} style={{ ...input, padding: 6, maxWidth: 200 }} defaultValue={credits[slot] || ""}
+                                placeholder="PIB / Wikimedia Commons" maxLength={40}
+                                onBlur={(e) => { const v = e.target.value.trim(); if (v !== (credits[slot] || "")) saveCredit(slot, v); }} />
+                              {!credits[slot] && <span style={{ fontSize: 11, color: YELLOW }}>credit bhariye</span>}
+                            </div>
+                          )}
+                          {r.photo_idea ? <IdeaLine text={r.photo_idea} /> : null}
                         </div>
                       </div>
                     );
@@ -360,11 +412,11 @@ export default function CAVideoAdmin({ api }: { api: ApiFn }) {
                   <div style={label}>Points (har line ek)</div>
                   <textarea style={{ ...input, resize: "vertical" }} rows={3} value={String(r.points || "").replace(/<br\s*\/?>/g, "\n")}
                     onChange={(e) => upd(i, { points: e.target.value.split("\n").join("<br>") })} />
-                  <div style={label}>Bolna hai (voiceover) · <span style={{ color: r.part === "NEWS" && (w < 12 || w > 30) ? YELLOW : MUTED }}>{w} words</span></div>
+                  <div style={label}>Bolna hai (voiceover) · <span style={{ color: r.part === "NEWS" && (w < 10 || w > 22) ? YELLOW : MUTED }}>{w} words</span></div>
                   <textarea style={{ ...input, resize: "vertical" }} rows={3} value={r.voiceover} onChange={(e) => upd(i, { voiceover: e.target.value })} />
                   {r.part !== "OUTRO" && (
                     <>
-                      <div style={label}>Photo idea (kaunsi photo dhoondhni hai — sirf note, link nahi)</div>
+                      <div style={label}>Photo idea (kaunsi photo + free site ka link: PIB / .gov.in / Wikimedia)</div>
                       <input style={input} value={r.photo_idea || ""} onChange={(e) => upd(i, { photo_idea: e.target.value })} />
                     </>
                   )}
