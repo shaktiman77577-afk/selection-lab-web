@@ -1,0 +1,27 @@
+/* ── /download — "Download our app" (Oct 2026) ── */
+.v2-dl-grid { display: grid; gap: 16px; margin-top: 22px; }
+@media (min-width: 760px) { .v2-dl-grid { grid-template-columns: 1fr 1fr; align-items: start; } }
+.v2-dl-card { padding: 20px; display: grid; gap: 12px; }
+.v2-dl-head { display: flex; align-items: center; gap: 12px; }
+.v2-dl-head .v2-box-ic { margin: 0; flex: none; }
+.v2-dl-head h2 { margin: 0; font-size: 18px; font-weight: 800; letter-spacing: -0.01em; }
+.v2-dl-badge { display: inline-block; margin-top: 3px; padding: 2px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 800; background: var(--v2-gold-soft); color: var(--v2-gold-ink); }
+.v2-dl-text { margin: 0; font-size: 14.5px; line-height: 1.65; color: var(--text2); }
+.v2-dl-note { margin: 0; font-size: 12.5px; line-height: 1.55; color: var(--v2-muted); }
+.v2-dl-meta { margin: -4px 0 0; font-size: 12.5px; color: var(--v2-muted); }
+.v2-dl-cta { width: 100%; }
+.v2-dl-points { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; font-size: 14px; color: var(--text2); }
+.v2-dl-points li { display: flex; align-items: center; gap: 8px; }
+.v2-dl-points svg, .v2-dl-ok svg { color: var(--v2-green); flex: none; }
+.v2-dl-ok { display: flex; align-items: center; gap: 8px; padding: 11px 13px; border-radius: 12px; font-size: 14px; font-weight: 700; background: rgba(46, 125, 70, 0.10); color: var(--text); }
+.v2-dl-warn { margin: 0; padding: 10px 13px; border-radius: 12px; font-size: 13.5px; background: var(--v2-gold-wash); border: 1px solid rgba(255, 171, 0, 0.45); color: var(--text2); }
+.v2-dl-err { margin: 0; font-size: 13.5px; font-weight: 700; color: var(--v2-red); }
+.v2-dl-form { display: grid; gap: 8px; }
+.v2-dl-form label { font-size: 13.5px; font-weight: 800; }
+.v2-dl-form input { height: 46px; padding: 0 14px; border-radius: 12px; border: 1px solid var(--v2-line2); background: var(--bg); color: var(--text); font-size: 15px; width: 100%; }
+.v2-dl-form input:focus { outline: none; border-color: var(--v2-gold); box-shadow: 0 0 0 3px rgba(255, 171, 0, 0.25); }
+.v2-dl-link { justify-self: start; padding: 0; border: 0; background: none; color: var(--v2-gold-ink); font-weight: 700; font-size: 13.5px; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.v2-dl-steps { margin: 0; padding: 0; list-style: none; counter-reset: dl; display: grid; gap: 14px; }
+.v2-dl-steps li { counter-increment: dl; display: grid; gap: 6px; padding-left: 38px; position: relative; font-size: 14px; color: var(--text2); line-height: 1.55; }
+.v2-dl-steps li::before { content: counter(dl); position: absolute; left: 0; top: 0; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--v2-gold); color: var(--v2-ink); font-weight: 800; font-size: 13px; }
+.v2-dl-steps li b:first-child { color: var(--text); font-size: 14.5px; }

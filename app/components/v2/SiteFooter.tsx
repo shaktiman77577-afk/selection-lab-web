@@ -6,6 +6,7 @@ const LEARN = [
   ["/descriptive", "Descriptive"],
   ["/tier2", "Typing / Skill Test"],
   ["/blog", "Blog"],
+  ["/download", "Download App"],
 ];
 const COMPANY = [
   ["/about", "About"],
