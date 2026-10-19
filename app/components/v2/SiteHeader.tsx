@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { getUser } from "@/lib/api";
 import { isAppMode } from "@/lib/appMode";
+import { SHOW_CURRENT_AFFAIRS } from "@/lib/config";
 import SideMenu from "@/app/components/SideMenu";
 import ThemeToggle from "@/app/components/ThemeToggle";
 import { IconMenu, IconSearch } from "./Icons";
@@ -14,7 +15,7 @@ import { IconMenu, IconSearch } from "./Icons";
 const NAV = [
   { href: "/courses", label: "Courses" },
   // Promote karna hai — Courses ke theek baad (Oct 2026)
-  { href: "/current-affairs", label: "Current Affairs" },
+  { href: "/current-affairs", label: "Current Affairs", ca: true },
   { href: "/mock-tests", label: "Mock Tests" },
   { href: "/descriptive", label: "Descriptive" },
   { href: "/tier2", label: "Typing & Skill" },
@@ -23,10 +24,12 @@ const NAV = [
   { href: "/blog", label: "Blog", lg: true },
   { href: "/about", label: "About", xl: true },
   { href: "/support", label: "Help", xl: true },
-] as { href: string; label: string; xl?: boolean; lg?: boolean }[];
+] as { href: string; label: string; xl?: boolean; lg?: boolean; ca?: boolean }[];
+// Current Affairs band ho to uska link nahi (lib/config.ts)
+const NAV_ON = NAV.filter((n) => SHOW_CURRENT_AFFAIRS || !n.ca);
 
 // Phone ki chips (scroll hoti hain) — About/Help chhod kar sab
-const CHIPS = NAV.filter((n) => !n.xl);
+const CHIPS = NAV_ON.filter((n) => !n.xl);
 
 export default function SiteHeader() {
   const path = usePathname() || "/";
@@ -56,7 +59,7 @@ export default function SiteHeader() {
 
           {!inApp && (
             <nav className="v2-nav" aria-label="Main">
-              {NAV.map((n) => (
+              {NAV_ON.map((n) => (
                 <Link key={n.href} href={n.href} className={`v2-navlink${n.xl ? " xl" : ""}${n.lg ? " lg" : ""}`} aria-current={on(n.href) ? "page" : undefined}>
                   {n.label}
                 </Link>
