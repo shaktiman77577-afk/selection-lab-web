@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { API, SITE } from "@/lib/seo";
+import { SHOW_CURRENT_AFFAIRS } from "@/lib/config";
 
 // Google ko website ke saare public pages ki list.
 // Pehle yahan "selectionlab.in" (bina www) tha, jabki site www par chalti hai —
@@ -19,8 +20,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${SITE}/office-practice`, changeFrequency: "monthly", priority: 0.6 },
     { url: `${SITE}/tier2/excel`, changeFrequency: "monthly", priority: 0.6 },
     { url: `${SITE}/blog`, changeFrequency: "daily", priority: 0.8 },
-    // Roz naya CA — latest din bina login ke padhne ko (SEO)
-    { url: `${SITE}/current-affairs`, changeFrequency: "daily", priority: 0.9, lastModified: now },
+    // Roz naya CA — latest din bina login ke padhne ko (SEO). Band ho to sitemap me nahi (lib/config.ts)
+    ...(SHOW_CURRENT_AFFAIRS
+      ? [{ url: `${SITE}/current-affairs`, changeFrequency: "daily" as const, priority: 0.9, lastModified: now }]
+      : []),
     { url: `${SITE}/about`, changeFrequency: "monthly", priority: 0.5 },
     { url: `${SITE}/contact`, changeFrequency: "monthly", priority: 0.5 },
     { url: `${SITE}/partner`, changeFrequency: "monthly", priority: 0.4 },

@@ -3,10 +3,11 @@
 import { useRouter } from "next/navigation";
 import { getUser, logout } from "@/lib/api";
 import { isAppMode, closeApp } from "@/lib/appMode";
+import { SHOW_CURRENT_AFFAIRS } from "@/lib/config";
 
 const GOLD = "#FFAB00";
 
-const MENU: { icon: string; label: string; path: string; auth?: boolean; highlight?: boolean }[] = [
+const ALL_MENU: { icon: string; label: string; path: string; auth?: boolean; highlight?: boolean }[] = [
   { icon: "🏠", label: "Home", path: "/" },
   { icon: "📚", label: "Courses", path: "/courses" },
   { icon: "🗞️", label: "Current Affairs Magazine", path: "/current-affairs", highlight: true },
@@ -25,6 +26,8 @@ const MENU: { icon: string; label: string; path: string; auth?: boolean; highlig
   { icon: "🔒", label: "Privacy Policy", path: "/privacy" },
   { icon: "📃", label: "Terms of Service", path: "/terms" },
 ];
+// Current Affairs band ho to menu me nahi (lib/config.ts)
+const MENU = ALL_MENU.filter((m) => SHOW_CURRENT_AFFAIRS || m.path !== "/current-affairs");
 
 export default function SideMenu({ open, onClose }: { open: boolean; onClose: () => void }) {
   const router = useRouter();

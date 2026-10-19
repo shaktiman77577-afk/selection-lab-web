@@ -11,12 +11,16 @@
 // hain. Poore cards login wale student ke liye browser turant mangta hai —
 // plan wala content public HTML me nahi daal sakte, warna paid content bina
 // kharide sabko (aur Google ko) dikh jaata.
+//
+// BAND (19 Oct 2026): lib/config.ts me SHOW_CURRENT_AFFAIRS = false — page par sirf
+// "Coming soon" (Google ke liye noindex), saare links hate. true karte hi pehle jaisa.
+import Link from "next/link";
 import V2Shell from "@/app/components/v2/V2Shell";
 import SiteHeader from "@/app/components/v2/SiteHeader";
 import SiteFooter from "@/app/components/v2/SiteFooter";
 import type { Metadata } from "next";
 import { pageMeta, SITE } from "@/lib/seo";
-import { API_URL } from "@/lib/config";
+import { API_URL, SHOW_CURRENT_AFFAIRS } from "@/lib/config";
 import CAClient from "./CAClient";
 
 const TITLE = "Daily Current Affairs 2026 in Hindi & English — One-Liners, Quiz & PDF | Selection Lab";
@@ -25,7 +29,9 @@ const DESC = "Daily current affairs one-liners in English and Hindi for SSC, Rai
 
 // ?m= / ?b= / ?d= wale sab ek hi page ke roop — canonical hamesha /current-affairs
 // (warna Google ko ek jaise dasiyon URL dikhte).
-export const metadata: Metadata = pageMeta({ title: TITLE, description: DESC, path: "/current-affairs" });
+export const metadata: Metadata = SHOW_CURRENT_AFFAIRS
+  ? pageMeta({ title: TITLE, description: DESC, path: "/current-affairs" })
+  : { title: "Current Affairs — Coming soon", robots: { index: false, follow: true } };
 
 const MN = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October",
   "November", "December"];
@@ -60,7 +66,7 @@ function jsonLd(home: any, data: any): string {
       ],
     },
   ];
-  return JSON.stringify({ "@context": "https://schema.org", "@graph": graph }).replace(/</g, "\\u003c");
+  return JSON.stringify({ "@context": "https://schema.org", "@graph": graph }).replace(/</g, "\\" + "u003c");
 }
 
 async function get(path: string): Promise<any> {
@@ -76,6 +82,21 @@ async function get(path: string): Promise<any> {
 export default async function CurrentAffairsPage({ searchParams }: {
   searchParams: Promise<{ m?: string; b?: string; d?: string }>;
 }) {
+  if (!SHOW_CURRENT_AFFAIRS) {
+    return (
+      <V2Shell>
+        <SiteHeader />
+        <main className="v2-wrap v2-main" style={{ minHeight: "50vh", textAlign: "center", paddingTop: 48 }}>
+          <h1 className="v2-h1">Current Affairs</h1>
+          <p style={{ color: "var(--muted)", marginTop: 10 }}>Coming soon. Meanwhile, practise with our mock tests.</p>
+          <p style={{ marginTop: 18 }}>
+            <Link href="/mock-tests" className="v2-btn v2-btn-gold">Go to Mock Tests</Link>
+          </p>
+        </main>
+        <SiteFooter />
+      </V2Shell>
+    );
+  }
   const sp = await searchParams;
   const home = (await get("/ca/home")) || { months: [], recent_dates: [], blocks: {}, access: null };
   const months: string[] = (home.months || []).map((m: any) => m.month);

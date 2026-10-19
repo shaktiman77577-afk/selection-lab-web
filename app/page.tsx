@@ -29,12 +29,14 @@ import {
   IconBook,
   IconNews,
   IconMagazine,
+  IconChart,
   IconScreen,
   IconGlobe,
   IconUser,
   IconTag,
   IconPlay,
 } from "@/app/components/v2/Icons";
+import { SHOW_CURRENT_AFFAIRS } from "@/lib/config";
 import { getCoursesServer, getBannersServer, getFeaturedSeriesServer } from "@/lib/serverApi";
 import { courseImage, courseTitle, bannerImage } from "@/lib/supabase";
 
@@ -46,8 +48,10 @@ const TILES = [
   { href: "/tier2", title: "Typing / Skill", desc: "Typing, Excel, Word", Icon: IconKeyboard },
   { href: "/courses", title: "Courses", desc: "Video classes, notes", Icon: IconBook },
   { href: "/blog", title: "Blog", desc: "Exam news and tips", Icon: IconNews },
-  // Score Checker ki jagah (Oct 2026) — Score Checker ab ☰ menu aur sitemap me
-  { href: "/current-affairs", title: "Current Affairs Magazine", desc: "Daily news, quiz & PDF", Icon: IconMagazine },
+  // Current Affairs chalu ho to uski tile, warna pehle wali Score Checker (lib/config.ts)
+  SHOW_CURRENT_AFFAIRS
+    ? { href: "/current-affairs", title: "Current Affairs Magazine", desc: "Daily news, quiz & PDF", Icon: IconMagazine }
+    : { href: "/score-checker", title: "Score Checker", desc: "Your score and rank", Icon: IconChart },
 ];
 
 const WHY = [
