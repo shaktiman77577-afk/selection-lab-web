@@ -5,8 +5,10 @@
 //  Windows card: latest installer (.exe) — link backend deta hai (GitHub ki
 //  latest release se), isliye naye version par yahan kuch nahi badalna.
 //
-//  Android card: app abhi Play Store closed testing me hai.
-//    login nahi        -> "Log in to request access"
+//  Android card: app abhi Play Store closed testing me hai. LOGIN ZAROORI NAHI —
+//  sirf Gmail. Submit ki hui Gmail browser me yaad rehti hai (sl_tester_gmail),
+//  isliye dobara aane par status apne aap dikhta hai. Login ho to request
+//  account se bhi jud jaati hai (token layout.tsx ka script khud bhejta hai).
 //    request nahi      -> Gmail form
 //    pending           -> "Request received", Gmail badal bhi sakte hain
 //    added             -> Step 1 Join as tester, Step 2 Play Store
@@ -16,18 +18,12 @@
 //  Admin ke switch (sab default OFF): Download page OFF = "Coming soon";
 //  Android / Windows OFF = wo card nahi dikhta.
 //
-//  Purana session (Sep 2026 se pehle ka login): browser me naam hai par
-//  token (sl_token) nahi — backend "Not authenticated" deta hai. Aise bachche
-//  ko "Please log in again" dikhta hai; button purana session hata kar login
-//  par le jaata hai aur login ke baad wapas yahin.
-//
 //  Backend: routers/testers.py (/api/testers/...). Admin: app/admin/ClosedTestersAdmin.tsx
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { API_URL } from "@/lib/config";
-import { getUser, getToken, logout } from "@/lib/api";
+import { getToken } from "@/lib/api";
 import { isDesktopApp } from "@/lib/desktop";
 import V2Shell from "@/app/components/v2/V2Shell";
 import SiteHeader from "@/app/components/v2/SiteHeader";
@@ -47,6 +43,22 @@ type Me = {
   opt_in_url?: string | null;
   play_url?: string | null;
 };
+
+const SAVED_KEY = "sl_tester_gmail";
+
+function savedGmail(): string {
+  try {
+    return localStorage.getItem(SAVED_KEY) || "";
+  } catch {
+    return "";
+  }
+}
+
+function rememberGmail(g: string) {
+  try {
+    localStorage.setItem(SAVED_KEY, g);
+  } catch {}
+}
 
 const GMAIL_RE = /^[a-z0-9](?:[a-z0-9.+_-]{0,62}[a-z0-9])?@gmail\.com$/;
 
@@ -77,59 +89,46 @@ function IconCheck({ size = 16 }: { size?: number }) {
 }
 
 export default function DownloadPage() {
-  const router = useRouter();
   const [cfg, setCfg] = useState<Config | null>(null);
   const [cfgErr, setCfgErr] = useState(false);
-  const [loggedIn, setLoggedIn] = useState<boolean | null>(null);
   const [inDesktop, setInDesktop] = useState(false);
   const [me, setMe] = useState<Me | null>(null);
-  const [meLoading, setMeLoading] = useState(false);
+  const [meLoading, setMeLoading] = useState(true);
 
   const [gmail, setGmail] = useState("");
   const [editing, setEditing] = useState(false);
   const [sending, setSending] = useState(false);
   const [err, setErr] = useState("");
-  // Naam save hai par token nahi / token expire — dobara login chahiye
-  const [relogin, setRelogin] = useState(false);
 
   useEffect(() => {
     setInDesktop(isDesktopApp());
-    const u = getUser();
-    const hasToken = !!getToken();
-    setLoggedIn(!!u);
-    if (u && !hasToken) setRelogin(true);
 
     fetch(`${API_URL}/testers/config`)
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((d) => setCfg(d))
       .catch(() => setCfgErr(true));
 
-    if (u && hasToken) {
-      setMeLoading(true);
-      fetch(`${API_URL}/testers/me`)
-        .then((r) => {
-          if (r.status === 401 || r.status === 403) setRelogin(true);
-          return r.ok ? r.json() : null;
-        })
-        .then((d) => {
-          if (d) {
-            setMe(d);
-            if (d.gmail) setGmail(d.gmail);
-          }
-        })
-        .catch(() => {})
-        .finally(() => setMeLoading(false));
-    }
+    // Pehle account se (login ho to), warna browser me yaad Gmail se haal
+    (async () => {
+      let d: Me | null = null;
+      try {
+        if (getToken()) {
+          const r = await fetch(`${API_URL}/testers/me`);
+          if (r.ok) d = await r.json();
+        }
+        const saved = savedGmail();
+        if ((!d || d.status === "none") && saved) {
+          const r = await fetch(`${API_URL}/testers/status?gmail=${encodeURIComponent(saved)}`);
+          if (r.ok) d = await r.json();
+        }
+      } catch {}
+      if (d) {
+        setMe(d);
+        if (d.gmail) setGmail(d.gmail);
+      }
+      setMeLoading(false);
+    })();
   }, []);
-
-  function goLogin() {
-    try {
-      sessionStorage.setItem("sl_after_login", "/download");
-    } catch {}
-    // Purana (bina token wala) session hatao, taaki naya login token ke saath ho
-    if (relogin) logout();
-    router.push("/login");
-  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -144,23 +143,15 @@ export default function DownloadPage() {
       const r = await fetch(`${API_URL}/testers/request`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ gmail: g }),
+        body: JSON.stringify({ gmail: g, previous: editing ? me?.gmail || undefined : undefined }),
       });
       const d = await r.json().catch(() => ({}));
-      if (r.status === 401 || r.status === 403) {
-        // 403 "Android early access is not open" alag hai — wo seedha dikhao
-        if (typeof d.detail === "string" && /not open/i.test(d.detail)) {
-          setErr(d.detail);
-          return;
-        }
-        setRelogin(true);
-        return;
-      }
       if (!r.ok) {
         setErr(typeof d.detail === "string" ? d.detail : "Something went wrong. Please try again.");
         return;
       }
       setMe(d);
+      if (d?.gmail) rememberGmail(d.gmail);
       setEditing(false);
     } catch {
       setErr("Could not reach the server. Please check your internet and try again.");
@@ -200,32 +191,7 @@ export default function DownloadPage() {
       </p>
     );
 
-    if (relogin) {
-      return (
-        <>
-          {intro}
-          <p className="v2-dl-warn">For your security, please log in again to request access.</p>
-          <button className="v2-btn v2-btn-gold v2-dl-cta" onClick={goLogin}>
-            Log in again
-          </button>
-          <p className="v2-dl-note">It takes a few seconds. You will come straight back to this page.</p>
-        </>
-      );
-    }
-
-    if (loggedIn === false) {
-      return (
-        <>
-          {intro}
-          <button className="v2-btn v2-btn-gold v2-dl-cta" onClick={goLogin}>
-            Log in to request access
-          </button>
-          <p className="v2-dl-note">You need a Selection Lab account so we can tell you when you are added.</p>
-        </>
-      );
-    }
-
-    if (loggedIn === null || meLoading) return <p className="v2-sub">Loading…</p>;
+    if (meLoading) return <p className="v2-sub">Loading…</p>;
 
     const status = me?.status || "none";
 
@@ -296,7 +262,10 @@ export default function DownloadPage() {
             onChange={(e) => setGmail(e.target.value)}
             disabled={sending}
           />
-          <p className="v2-dl-note">Use the same Gmail account that is signed in to the Play Store on your phone.</p>
+          <p className="v2-dl-note">
+            Use the same Gmail account that is signed in to the Play Store on your phone. We will email you when you are
+            added.
+          </p>
           {err && <p className="v2-dl-err">{err}</p>}
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
             <button type="submit" className="v2-btn v2-btn-gold" disabled={sending}>

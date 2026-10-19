@@ -22,7 +22,7 @@ import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "r
 
 type ApiFn = (path: string, method?: string, body?: any) => Promise<any>;
 type Row = {
-  id: number; user_id: number; gmail: string; status: "pending" | "added" | "rejected";
+  id: number; user_id: number | null; gmail: string; status: "pending" | "added" | "rejected";
   created_at?: string; added_at?: string | null; emailed_at?: string | null;
   name?: string | null; email?: string | null; phone?: string | null;
 };
@@ -329,7 +329,10 @@ export default function ClosedTestersAdmin({ api }: { api: ApiFn }) {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontWeight: 800, fontSize: 14.5, wordBreak: "break-all" }}>{r.gmail}</div>
                 <div style={{ fontSize: 12.5, color: MUTED, marginTop: 3 }}>
-                  {r.name || "—"}{r.phone ? ` · ${r.phone}` : ""} · #{r.user_id} · {when(r.created_at)}
+                  {r.user_id
+                    ? <>{r.name || "—"}{r.phone ? ` · ${r.phone}` : ""} · #{r.user_id}</>
+                    : <>Bina login (sirf Gmail)</>}
+                  {" · "}{when(r.created_at)}
                 </div>
               </div>
               <div style={{ textAlign: "right", flex: "none", fontSize: 12 }}>
