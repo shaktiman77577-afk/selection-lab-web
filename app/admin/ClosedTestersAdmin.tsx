@@ -11,6 +11,8 @@
  *      ("You're in") aur website par "Join as tester" + Play Store link.
  * Settings: Play Console ka opt-in link (email me yahi jaata hai), Play Store
  * link, aur "App ab public hai" switch (on = sabko seedha Play Store button).
+ * Upar 3 switch (sab default OFF): Download page / Android / Windows —
+ * website par kya dikhe. Turant save hote hain.
  *
  * Page: /admin/testers (app/admin/testers/page.tsx).
  * Base: /testers/admin  (backend routers/testers.py, right: users)
@@ -24,7 +26,16 @@ type Row = {
   created_at?: string; added_at?: string | null; emailed_at?: string | null;
   name?: string | null; email?: string | null; phone?: string | null;
 };
-type Settings = { opt_in_url: string; play_url: string; android_public: boolean };
+type Settings = {
+  opt_in_url: string; play_url: string; android_public: boolean;
+  page_on: boolean; android_on: boolean; windows_on: boolean;
+};
+type SwitchKey = "page_on" | "android_on" | "windows_on";
+const SWITCHES: [SwitchKey, string, string][] = [
+  ["page_on", "Download page", "Off = menu, footer, home se link gayab; /download par \"Coming soon\""],
+  ["android_on", "Android card", "Play Store closed testing / public — Gmail request isi se chalti hai"],
+  ["windows_on", "Windows card", "GitHub ki latest release se .exe download"],
+];
 
 const GOLD = "#FFAB00";
 const CARD = "#16130e";
@@ -66,7 +77,9 @@ export default function ClosedTestersAdmin({ api }: { api: ApiFn }) {
   const [rows, setRows] = useState<Row[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [settings, setSettings] = useState<Settings | null>(null);
-  const [form, setForm] = useState<Settings>({ opt_in_url: "", play_url: "", android_public: false });
+  const [form, setForm] = useState<Settings>({
+    opt_in_url: "", play_url: "", android_public: false, page_on: false, android_on: false, windows_on: false,
+  });
   const [sel, setSel] = useState<Set<number>>(new Set());
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -149,11 +162,30 @@ export default function ClosedTestersAdmin({ api }: { api: ApiFn }) {
     }
   }
 
+  // Switch dabate hi save — alag se "Save" nahi dabana
+  async function flip(k: SwitchKey) {
+    if (!settings) return;
+    const v = !settings[k];
+    setBusy(true);
+    setMsg(null);
+    try {
+      const d = await api("/testers/admin/settings", "POST", { [k]: v });
+      setSettings(d.settings);
+      setForm((f) => ({ ...f, [k]: d.settings[k] }));
+      setMsg({ ok: true, text: `${SWITCHES.find((x) => x[0] === k)?.[1]} ${v ? "ON" : "OFF"} — website par ~1 minute me dikhega` });
+    } catch (e: any) {
+      setMsg({ ok: false, text: e?.message || "Save nahi hua" });
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function saveSettings() {
     setBusy(true);
     setMsg(null);
     try {
-      const d = await api("/testers/admin/settings", "POST", form);
+      const { opt_in_url, play_url, android_public } = form;
+      const d = await api("/testers/admin/settings", "POST", { opt_in_url, play_url, android_public });
       setSettings(d.settings);
       setForm(d.settings);
       setMsg({ ok: true, text: "Settings save ho gayi" });
@@ -173,6 +205,35 @@ export default function ClosedTestersAdmin({ api }: { api: ApiFn }) {
         Website ke <b>/download</b> page se aayi requests. Tarika: <b>1.</b> Emails copy → <b>2.</b> Play Console → Testing → Closed
         testing → Testers → email list me paste → Save → <b>3.</b> Yahan select karke <b>Mark as added</b> (student ko email jaata hai).
       </p>
+
+      {/* Website par kya dikhe — 3 switch */}
+      {settings && (
+        <div style={{ ...cardBox, marginBottom: 14, display: "grid", gap: 10 }}>
+          <div style={{ fontSize: 14, fontWeight: 800 }}>🌐 Website par kya dikhe</div>
+          {SWITCHES.map(([k, label, hint]) => {
+            const on = settings[k];
+            const blocked = k !== "page_on" && !settings.page_on;
+            return (
+              <div key={k} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, fontSize: 14 }}>{label}</div>
+                  <div style={{ fontSize: 12, color: MUTED, lineHeight: 1.45 }}>
+                    {hint}{blocked && on ? " · Download page OFF hai, isliye abhi chhupa hai" : ""}
+                  </div>
+                </div>
+                <button onClick={() => flip(k)} disabled={busy} aria-pressed={on}
+                  style={{
+                    flex: "none", minWidth: 64, padding: "8px 12px", borderRadius: 999, fontWeight: 800, fontSize: 12.5,
+                    cursor: "pointer", border: `1px solid ${on ? GREEN : BORDER}`,
+                    background: on ? "rgba(93,217,124,0.15)" : "transparent", color: on ? GREEN : MUTED,
+                  }}>
+                  {on ? "ON" : "OFF"}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {settings?.android_public && (
         <div style={{ ...cardBox, borderColor: GREEN, marginBottom: 12, fontSize: 13.5 }}>

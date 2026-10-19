@@ -13,6 +13,9 @@
 //    rejected          -> dobara form (chhota sa note)
 //  Admin "App is public" kar de to sabko seedha Play Store button.
 //
+//  Admin ke switch (sab default OFF): Download page OFF = "Coming soon";
+//  Android / Windows OFF = wo card nahi dikhta.
+//
 //  Backend: routers/testers.py (/api/testers/...). Admin: app/admin/ClosedTestersAdmin.tsx
 
 import { useEffect, useState } from "react";
@@ -27,7 +30,11 @@ import SiteFooter from "@/app/components/v2/SiteFooter";
 import "./download.css";
 
 type WinInfo = { url: string; version: string | null; size_mb: number | null; ready: boolean };
-type Config = { android: { mode: "closed" | "public"; play_url: string | null }; windows: WinInfo };
+type Config = {
+  page_on?: boolean;
+  android: { on?: boolean; mode: "closed" | "public"; play_url: string | null };
+  windows: WinInfo & { on?: boolean };
+};
 type Me = {
   mode: "closed" | "public";
   status: "none" | "pending" | "added" | "rejected" | "public";
@@ -146,6 +153,9 @@ export default function DownloadPage() {
   const androidPublic = cfg?.android.mode === "public" || me?.status === "public";
   const playUrl = me?.play_url || cfg?.android.play_url || "";
   const win = cfg?.windows;
+  const showAndroid = !!cfg?.page_on && !!cfg?.android.on;
+  const showWindows = !!cfg?.page_on && !!cfg?.windows.on;
+  const comingSoon = !!cfg && !showAndroid && !showWindows;
 
   // ── Android card body ──
   function androidBody() {
@@ -349,7 +359,24 @@ export default function DownloadPage() {
             </div>
           )}
 
-          <div className="v2-dl-grid">
+          {!cfg && !cfgErr && <p className="v2-sub" style={{ marginTop: 22 }}>Loading…</p>}
+
+          {comingSoon && (
+            <section className="v2-box v2-dl-card" style={{ marginTop: 22, textAlign: "center", justifyItems: "center" }}>
+              <div className="v2-box-ic">
+                <IconPhone />
+              </div>
+              <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>Coming soon</h2>
+              <p className="v2-dl-text">Our apps are almost ready. Please check back soon.</p>
+              <Link href="/" className="v2-btn v2-btn-gold">
+                Back to home
+              </Link>
+            </section>
+          )}
+
+          {(showAndroid || showWindows) && (
+          <div className={`v2-dl-grid${showAndroid && showWindows ? "" : " one"}`}>
+            {showAndroid && (
             <section className="v2-box v2-dl-card" aria-labelledby="dl-android">
               <div className="v2-dl-head">
                 <div className="v2-box-ic">
@@ -362,7 +389,9 @@ export default function DownloadPage() {
               </div>
               {androidBody()}
             </section>
+            )}
 
+            {showWindows && (
             <section className="v2-box v2-dl-card" aria-labelledby="dl-windows">
               <div className="v2-dl-head">
                 <div className="v2-box-ic">
@@ -375,7 +404,9 @@ export default function DownloadPage() {
               </div>
               {windowsBody()}
             </section>
+            )}
           </div>
+          )}
 
           <p className="v2-sub" style={{ marginTop: 22, textAlign: "center" }}>
             Need help? <Link href="/support" style={{ color: "var(--v2-gold-ink)", fontWeight: 700 }}>Contact support</Link>
