@@ -268,6 +268,16 @@ export default async function HomePage() {
           <CommunitySection />
         </div>
 
+        <section className="v2-sec v2-band gold">
+          <div>
+            <b>Get the Selection Lab app</b>
+            <p>Get early access to our Android app on Google Play, or install the Windows app on your PC.</p>
+          </div>
+          <Link href="/download" className="v2-btn v2-btn-gold">
+            Download the app
+          </Link>
+        </section>
+
         <section className="v2-sec v2-band navy">
           <div>
             <b>Teach on YouTube or Telegram?</b>

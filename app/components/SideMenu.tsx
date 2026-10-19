@@ -15,6 +15,7 @@ const ALL_MENU: { icon: string; label: string; path: string; auth?: boolean; hig
   { icon: "✍️", label: "Descriptive Tests", path: "/descriptive" },
   { icon: "⌨️", label: "Typing/Skill Test", path: "/tier2" },
   { icon: "📊", label: "Score Checker", path: "/score-checker" },
+  { icon: "📲", label: "Download App", path: "/download" },
   { icon: "🎯", label: "My Learning", path: "/my-learning", auth: true },
   { icon: "📱", label: "Quiz (In App)", path: "/" },
   { icon: "📰", label: "Blog", path: "/blog" },
