@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Tinos } from "next/font/google";
-import ActivityBeacon from "@/app/components/ActivityBeacon";
 import PromoPopup from "@/app/components/PromoPopup";
 import AccountPopup from "@/app/components/AccountPopup";
 import "./globals.css";
@@ -145,8 +144,7 @@ export default function RootLayout({
         <style dangerouslySetInnerHTML={{ __html: themeCss }} />
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable} ${tinos.variable}`} style={{ margin: 0 }}>
-        {/* Admin panel me "kaun online hai" isi se chalta hai. Kuch render nahi karta. */}
-        <ActivityBeacon />
+        {/* "Kaun online hai" ab API server khud normal requests se jaanta hai — alag heartbeat nahi (Oct 2026) */}
         {/* Google ke liye: ye site kiski hai aur search kaise hota hai */}
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ORG_LD }} />
         {children}
