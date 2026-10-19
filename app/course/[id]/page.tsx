@@ -11,6 +11,8 @@ import { API_URL } from "@/lib/config";
 import { getUser, User } from "@/lib/api";
 import { getCourses, Course, courseTitle, courseImage } from "@/lib/supabase";
 import CheckoutSheet from "@/app/components/CheckoutSheet";
+import RichText from "@/app/components/v2/RichText";
+import PdfPreview from "@/app/components/v2/PdfPreview";
 import V2Shell from "@/app/components/v2/V2Shell";
 import SiteHeader from "@/app/components/v2/SiteHeader";
 import SiteFooter from "@/app/components/v2/SiteFooter";
@@ -44,6 +46,9 @@ export default function CourseDetailPage() {
   const [showCheckout, setShowCheckout] = useState(false);
   // Bundle me kya-kya milega — kharidne se PEHLE dikhna zaroori hai
   const [bundle, setBundle] = useState<any[]>([]);
+  // Course ke andar kya hai (PDF / video) — bundle jaisa card + PDF ka free preview
+  const [content, setContent] = useState<any[]>([]);
+  const [showPreview, setShowPreview] = useState(false);
 
   useEffect(() => {
     const u = getUser();
@@ -65,7 +70,10 @@ export default function CourseDetailPage() {
     // Content endpoint bundle ki list bhi deta hai — login ki zaroorat nahi
     fetch(`${API_URL}/courses/${courseId}/content`)
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => setBundle(d?.bundle || []))
+      .then((d) => {
+        setBundle(d?.bundle || []);
+        setContent(Array.isArray(d?.content) ? d.content : []);
+      })
       .catch(() => {});
     loadReviews();
     // Load Razorpay checkout script once
@@ -259,6 +267,17 @@ export default function CourseDetailPage() {
   const imgMob = String((course as any).thumbnail_url_mobile || "");
   const tg = (course as any).telegram_group as string | undefined;
 
+  // PDF course: free preview button (kharida hua ho to poori PDF hi khulti hai)
+  const isPdf = (it: any) => String(it?.content_type || "").toLowerCase() === "pdf";
+  const hasPdf = bundle.length === 0 && content.some(isPdf);
+  const canPreview = hasPdf && !owned;
+  const firstPdfId = content.find(isPdf)?.id;
+  const previewBtn = (style?: React.CSSProperties) => (
+    <button type="button" onClick={() => setShowPreview(true)} className="v2-btn v2-btn-outline" style={{ width: "100%", ...style }}>
+      👁 Preview free pages
+    </button>
+  );
+
   // Exam ho chuka: naya enroll / khareed band (jinke paas hai unka access chalta rahega)
   const examOver = !!(course as any).exam_over;
   const overLocked = examOver && !owned;
@@ -337,6 +356,7 @@ export default function CourseDetailPage() {
           {/* Phone par price yahin, Buy neeche ki patti me */}
           <div className="v2-mob" style={{ marginTop: 16 }}>
             {priceBlock}
+            {canPreview && previewBtn({ marginTop: 14 })}
           </div>
 
           {/* Bundle me kya-kya milega — kharidne se pehle saaf dikhna chahiye */}
@@ -375,6 +395,54 @@ export default function CourseDetailPage() {
             </div>
           )}
 
+          {/* Course me kya-kya hai (PDF / video) — bundle wale card jaisa */}
+          {bundle.length === 0 && content.length > 0 && (
+            <div className="v2-bundle" style={{ marginTop: 22 }}>
+              <h2 style={{ margin: 0, fontSize: 17, fontWeight: 800 }}>
+                This course includes {content.length} {content.length === 1 ? "item" : "things"}
+              </h2>
+              <p className="v2-sub" style={{ marginTop: 4 }}>
+                {owned
+                  ? "Everything below is unlocked for you — tap to open."
+                  : canPreview
+                  ? "Buy once and everything below unlocks. See the first pages free before you buy."
+                  : "Buy once and everything below unlocks together."}
+              </p>
+              {content.map((it: any) => {
+                const pdf = isPdf(it);
+                const inner = (
+                  <>
+                    <span style={{ fontSize: 22, width: 40, textAlign: "center", flex: "none" }} aria-hidden="true">
+                      {pdf ? "📄" : "▶️"}
+                    </span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div className="k">{pdf ? "PDF" : "VIDEO"}</div>
+                      <div className="t">{it.title}</div>
+                    </div>
+                    {owned ? (
+                      <IconRight size={18} />
+                    ) : pdf && it.id === firstPdfId ? (
+                      <button type="button" className="v2-mini gold" onClick={() => setShowPreview(true)}>
+                        Preview
+                      </button>
+                    ) : it.locked ? (
+                      <IconLock size={16} />
+                    ) : null}
+                  </>
+                );
+                return owned ? (
+                  <Link key={it.id} href={`/learn/${courseId}`} className="v2-row">
+                    {inner}
+                  </Link>
+                ) : (
+                  <div key={it.id} className="v2-row" style={{ opacity: 0.95 }}>
+                    {inner}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
           {/* Dedicated Telegram group — sabko dikhta hai, kharida ho ya na ho */}
           {tg && (
             <a href={tg} target="_blank" rel="noreferrer" className="v2-tgcard">
@@ -390,7 +458,8 @@ export default function CourseDetailPage() {
           {course.description && (
             <>
               <h2 className="v2-section-title">About this course</h2>
-              <p className="v2-prose">{course.description}</p>
+              {/* **bold**, ### heading, - list ab format hokar dikhte hain */}
+              <RichText text={course.description} />
             </>
           )}
 
@@ -473,6 +542,7 @@ export default function CourseDetailPage() {
             <button onClick={onBuyClick} disabled={paying || overLocked} className={`v2-btn ${owned ? "v2-btn-green" : overLocked ? "v2-btn-over" : "v2-btn-gold"}`} style={{ width: "100%", marginTop: 16 }}>
               {buyLabel}
             </button>
+            {canPreview && previewBtn({ marginTop: 10 })}
             <ul className="v2-points">
               <li>Unlocks right after payment</li>
               <li>Also available in the Selection Lab app</li>
@@ -521,6 +591,25 @@ export default function CourseDetailPage() {
           original={original}
           paying={paying}
           onPay={(code) => handleBuy(code)}
+        />
+      )}
+
+      {/* PDF free preview — sirf images, PDF/link kabhi nahi */}
+      {canPreview && (
+        <PdfPreview
+          courseId={courseId}
+          title={courseTitle(course)}
+          open={showPreview}
+          onClose={() => setShowPreview(false)}
+          buyLabel={overLocked ? undefined : price === 0 ? "Enroll Free" : `Buy full book · ₹${price}`}
+          onBuy={
+            overLocked
+              ? undefined
+              : () => {
+                  setShowPreview(false);
+                  onBuyClick();
+                }
+          }
         />
       )}
 
