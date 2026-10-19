@@ -12,6 +12,7 @@ import SiteHeader from "@/app/components/v2/SiteHeader";
 import SiteFooter from "@/app/components/v2/SiteFooter";
 import HeroCarousel, { type Slide } from "@/app/components/v2/HeroCarousel";
 import ProductCard from "@/app/components/v2/ProductCard";
+import { DownloadBand } from "@/app/components/v2/DownloadLinks";
 import {
   AnnouncementBar,
   SearchBox,
@@ -268,15 +269,8 @@ export default async function HomePage() {
           <CommunitySection />
         </div>
 
-        <section className="v2-sec v2-band gold">
-          <div>
-            <b>Get the Selection Lab app</b>
-            <p>Get early access to our Android app on Google Play, or install the Windows app on your PC.</p>
-          </div>
-          <Link href="/download" className="v2-btn v2-btn-gold">
-            Download the app
-          </Link>
-        </section>
+        {/* Admin ne Download page ON kiya ho tabhi dikhta hai */}
+        <DownloadBand />
 
         <section className="v2-sec v2-band navy">
           <div>
