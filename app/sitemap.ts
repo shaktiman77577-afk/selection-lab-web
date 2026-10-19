@@ -24,6 +24,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...(SHOW_CURRENT_AFFAIRS
       ? [{ url: `${SITE}/current-affairs`, changeFrequency: "daily" as const, priority: 0.9, lastModified: now }]
       : []),
+    { url: `${SITE}/download`, changeFrequency: "weekly", priority: 0.6 },
     { url: `${SITE}/about`, changeFrequency: "monthly", priority: 0.5 },
     { url: `${SITE}/contact`, changeFrequency: "monthly", priority: 0.5 },
     { url: `${SITE}/partner`, changeFrequency: "monthly", priority: 0.4 },

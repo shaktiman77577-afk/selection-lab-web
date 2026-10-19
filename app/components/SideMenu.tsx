@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { getUser, logout } from "@/lib/api";
 import { isAppMode, closeApp } from "@/lib/appMode";
 import { SHOW_CURRENT_AFFAIRS } from "@/lib/config";
+import { useDownloadVisible } from "@/lib/downloadConfig";
 
 const GOLD = "#FFAB00";
 
@@ -15,6 +16,7 @@ const ALL_MENU: { icon: string; label: string; path: string; auth?: boolean; hig
   { icon: "✍️", label: "Descriptive Tests", path: "/descriptive" },
   { icon: "⌨️", label: "Typing/Skill Test", path: "/tier2" },
   { icon: "📊", label: "Score Checker", path: "/score-checker" },
+  { icon: "📲", label: "Download App", path: "/download" },
   { icon: "🎯", label: "My Learning", path: "/my-learning", auth: true },
   { icon: "📱", label: "Quiz (In App)", path: "/" },
   { icon: "📰", label: "Blog", path: "/blog" },
@@ -31,6 +33,8 @@ const MENU = ALL_MENU.filter((m) => SHOW_CURRENT_AFFAIRS || m.path !== "/current
 
 export default function SideMenu({ open, onClose }: { open: boolean; onClose: () => void }) {
   const router = useRouter();
+  // "Download App" sirf tab jab admin ne Download page ON kiya ho (default OFF)
+  const downloadOn = useDownloadVisible();
   if (!open) return null;
 
   // App ke andar (WebView): site ka poora menu nahi — Home/Courses/Logout
@@ -140,7 +144,7 @@ export default function SideMenu({ open, onClose }: { open: boolean; onClose: ()
 
         {/* Menu items */}
         <nav style={{ flex: 1, padding: "8px 0" }}>
-          {MENU.map((m) => (
+          {MENU.filter((m) => downloadOn || m.path !== "/download").map((m) => (
             <div
               key={m.label}
               onClick={() => go(m)}

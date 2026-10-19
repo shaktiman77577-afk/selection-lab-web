@@ -12,6 +12,7 @@ import SiteHeader from "@/app/components/v2/SiteHeader";
 import SiteFooter from "@/app/components/v2/SiteFooter";
 import HeroCarousel, { type Slide } from "@/app/components/v2/HeroCarousel";
 import ProductCard from "@/app/components/v2/ProductCard";
+import { DownloadBand } from "@/app/components/v2/DownloadLinks";
 import {
   AnnouncementBar,
   SearchBox,
@@ -267,6 +268,9 @@ export default async function HomePage() {
         <div className="v2-sec">
           <CommunitySection />
         </div>
+
+        {/* Admin ne Download page ON kiya ho tabhi dikhta hai */}
+        <DownloadBand />
 
         <section className="v2-sec v2-band navy">
           <div>
