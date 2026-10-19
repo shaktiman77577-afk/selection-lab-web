@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { DownloadFooterItem } from "./DownloadLinks";
 
 const LEARN = [
   ["/courses", "Courses"],
@@ -6,7 +7,6 @@ const LEARN = [
   ["/descriptive", "Descriptive"],
   ["/tier2", "Typing / Skill Test"],
   ["/blog", "Blog"],
-  ["/download", "Download App"],
 ];
 const COMPANY = [
   ["/about", "About"],
@@ -19,7 +19,7 @@ const LEGAL = [
   ["/terms", "Terms"],
 ];
 
-function Col({ title, items }: { title: string; items: string[][] }) {
+function Col({ title, items, extra }: { title: string; items: string[][]; extra?: React.ReactNode }) {
   return (
     <div>
       <h3>{title}</h3>
@@ -29,6 +29,7 @@ function Col({ title, items }: { title: string; items: string[][] }) {
             <Link href={href}>{label}</Link>
           </li>
         ))}
+        {extra}
       </ul>
     </div>
   );
@@ -48,7 +49,7 @@ export default function SiteFooter() {
             Your selection, our mission. Courses, mock tests and skill tests for government exams — in Hindi and English.
           </p>
         </div>
-        <Col title="LEARN" items={LEARN} />
+        <Col title="LEARN" items={LEARN} extra={<DownloadFooterItem />} />
         <Col title="COMPANY" items={COMPANY} />
         <Col title="LEGAL" items={LEGAL} />
       </div>
