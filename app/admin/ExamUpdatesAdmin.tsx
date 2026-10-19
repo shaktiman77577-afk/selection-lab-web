@@ -5,6 +5,8 @@
  *
  * page.tsx me:  <ExamUpdatesAdmin api={api} />     (tab "examupdates")
  *               <ExamDatesBox api={api} onOpen={...} />   (admin home par)
+ * Admin home wale ExamDatesBox (onOpen ke saath) ke upar "Closed Testers" ka
+ * card bhi yahin se aata hai — dekho TestersHomeCard.tsx
  * Backend: routers/exam_updates.py. Website: /exam-updates.
  *
  * Teen hisse: List · TSV upload (pehle check, phir drafts) · Edit (dates,
@@ -13,6 +15,7 @@
 
 import { useEffect, useState, type CSSProperties } from "react";
 import ImageField from "./ImageField";
+import TestersHomeCard from "./TestersHomeCard";
 
 type ApiFn = (path: string, method?: string, body?: any) => Promise<any>;
 
@@ -75,8 +78,12 @@ export function ExamDatesBox({ api, onOpen }: { api: ApiFn; onOpen?: () => void 
   useEffect(() => {
     api("/exam-updates/admin/upcoming?days=3").then((d) => setItems(d.items || [])).catch(() => setItems([]));
   }, [api]);
-  if (!items || items.length === 0) return null;
+  // Sirf admin home par (onOpen wala) — Exam Updates ke andar nahi
+  const testers = onOpen ? <TestersHomeCard api={api} /> : null;
+  if (!items || items.length === 0) return testers;
   return (
+    <>
+    {testers}
     <div style={{ ...box, borderColor: "rgba(255,171,0,0.55)" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
         <div style={{ fontWeight: 800, fontSize: 14 }}>📅 Aaj aur agle 3 din — exam dates</div>
@@ -90,6 +97,7 @@ export function ExamDatesBox({ api, onOpen }: { api: ApiFn; onOpen?: () => void 
         </div>
       ))}
     </div>
+    </>
   );
 }
 
