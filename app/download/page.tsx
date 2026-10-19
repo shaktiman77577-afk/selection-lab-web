@@ -16,13 +16,18 @@
 //  Admin ke switch (sab default OFF): Download page OFF = "Coming soon";
 //  Android / Windows OFF = wo card nahi dikhta.
 //
+//  Purana session (Sep 2026 se pehle ka login): browser me naam hai par
+//  token (sl_token) nahi — backend "Not authenticated" deta hai. Aise bachche
+//  ko "Please log in again" dikhta hai; button purana session hata kar login
+//  par le jaata hai aur login ke baad wapas yahin.
+//
 //  Backend: routers/testers.py (/api/testers/...). Admin: app/admin/ClosedTestersAdmin.tsx
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { API_URL } from "@/lib/config";
-import { getUser } from "@/lib/api";
+import { getUser, getToken, logout } from "@/lib/api";
 import { isDesktopApp } from "@/lib/desktop";
 import V2Shell from "@/app/components/v2/V2Shell";
 import SiteHeader from "@/app/components/v2/SiteHeader";
@@ -84,21 +89,28 @@ export default function DownloadPage() {
   const [editing, setEditing] = useState(false);
   const [sending, setSending] = useState(false);
   const [err, setErr] = useState("");
+  // Naam save hai par token nahi / token expire — dobara login chahiye
+  const [relogin, setRelogin] = useState(false);
 
   useEffect(() => {
     setInDesktop(isDesktopApp());
     const u = getUser();
+    const hasToken = !!getToken();
     setLoggedIn(!!u);
+    if (u && !hasToken) setRelogin(true);
 
     fetch(`${API_URL}/testers/config`)
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((d) => setCfg(d))
       .catch(() => setCfgErr(true));
 
-    if (u) {
+    if (u && hasToken) {
       setMeLoading(true);
       fetch(`${API_URL}/testers/me`)
-        .then((r) => (r.ok ? r.json() : null))
+        .then((r) => {
+          if (r.status === 401 || r.status === 403) setRelogin(true);
+          return r.ok ? r.json() : null;
+        })
         .then((d) => {
           if (d) {
             setMe(d);
@@ -114,6 +126,8 @@ export default function DownloadPage() {
     try {
       sessionStorage.setItem("sl_after_login", "/download");
     } catch {}
+    // Purana (bina token wala) session hatao, taaki naya login token ke saath ho
+    if (relogin) logout();
     router.push("/login");
   }
 
@@ -133,8 +147,13 @@ export default function DownloadPage() {
         body: JSON.stringify({ gmail: g }),
       });
       const d = await r.json().catch(() => ({}));
-      if (r.status === 401) {
-        setErr("Your session has expired. Please log in again.");
+      if (r.status === 401 || r.status === 403) {
+        // 403 "Android early access is not open" alag hai — wo seedha dikhao
+        if (typeof d.detail === "string" && /not open/i.test(d.detail)) {
+          setErr(d.detail);
+          return;
+        }
+        setRelogin(true);
         return;
       }
       if (!r.ok) {
@@ -180,6 +199,19 @@ export default function DownloadPage() {
         access.
       </p>
     );
+
+    if (relogin) {
+      return (
+        <>
+          {intro}
+          <p className="v2-dl-warn">For your security, please log in again to request access.</p>
+          <button className="v2-btn v2-btn-gold v2-dl-cta" onClick={goLogin}>
+            Log in again
+          </button>
+          <p className="v2-dl-note">It takes a few seconds. You will come straight back to this page.</p>
+        </>
+      );
+    }
 
     if (loggedIn === false) {
       return (
