@@ -215,25 +215,31 @@ export default function CourseContentAdmin({ course, onBack }: { course: any; on
     setBusyId(null);
   }
 
-  // PDF: seedha download (Supabase ka ?download= file ko "save" karwata hai).
-  // Video: YouTube link khulta hai.
-  function openOrDownload(it: any) {
-    if (!it.url) {
-      setError("Is item ka link khaali hai");
+  // PDF: bucket private hai — backend se 5 minute ka download link (asli file,
+  // bina watermark). Video: YouTube link khulta hai.
+  async function openOrDownload(it: any) {
+    if (it.content_type !== "pdf") {
+      if (!it.url) {
+        setError("Is item ka link khaali hai");
+        return;
+      }
+      window.open(it.url, "_blank", "noopener,noreferrer");
       return;
     }
-    if (it.content_type === "pdf") {
-      const name = `${String(it.title || "notes").replace(/[^\w\s-]/g, "").trim() || "notes"}.pdf`;
-      const sep = it.url.includes("?") ? "&" : "?";
+    setBusyId(it.id);
+    setError("");
+    try {
+      const d = await api(`/admin-extra/content/${it.id}/download-link`);
       const a = document.createElement("a");
-      a.href = `${it.url}${sep}download=${encodeURIComponent(name)}`;
+      a.href = d.url;
       a.rel = "noopener";
       document.body.appendChild(a);
       a.click();
       a.remove();
-    } else {
-      window.open(it.url, "_blank", "noopener,noreferrer");
+    } catch (e: any) {
+      setError(e.message);
     }
+    setBusyId(null);
   }
 
   return (
