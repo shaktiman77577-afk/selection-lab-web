@@ -4,7 +4,7 @@
 // Courses tab → "Content" kholne par yahi dikhta hai. page.tsx wale purane
 // ContentManager ki jagah. Naya kya hai:
 //   • Add karte waqt "Email + app notification" — sirf kharidne walon ko
-//   • Har item par: 👁 Check (khol ke dekho), ✏️ Edit (naam, order, PDF badlo),
+//   • Har item par: ⬇️ Download (PDF) / ▶ Open (video), ✏️ Edit (naam, order, PDF badlo),
 //     🙈 Hide / Show, 📧 Notify (dobara bhejo), 🗑 Delete (hamesha ke liye)
 // Backend: selection-lab-api → routers/course_content_admin.py
 
@@ -215,12 +215,25 @@ export default function CourseContentAdmin({ course, onBack }: { course: any; on
     setBusyId(null);
   }
 
-  function check(it: any) {
+  // PDF: seedha download (Supabase ka ?download= file ko "save" karwata hai).
+  // Video: YouTube link khulta hai.
+  function openOrDownload(it: any) {
     if (!it.url) {
       setError("Is item ka link khaali hai");
       return;
     }
-    window.open(it.url, "_blank", "noopener,noreferrer");
+    if (it.content_type === "pdf") {
+      const name = `${String(it.title || "notes").replace(/[^\w\s-]/g, "").trim() || "notes"}.pdf`;
+      const sep = it.url.includes("?") ? "&" : "?";
+      const a = document.createElement("a");
+      a.href = `${it.url}${sep}download=${encodeURIComponent(name)}`;
+      a.rel = "noopener";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } else {
+      window.open(it.url, "_blank", "noopener,noreferrer");
+    }
   }
 
   return (
@@ -309,7 +322,7 @@ export default function CourseContentAdmin({ course, onBack }: { course: any; on
               </div>
             </div>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 10, opacity: busy ? 0.5 : 1, pointerEvents: busy ? "none" : "auto" }}>
-              <button onClick={() => check(it)} style={chipBtn}>👁 Check</button>
+              <button onClick={() => openOrDownload(it)} style={chipBtn}>{it.content_type === "pdf" ? "⬇️ Download" : "▶ Open"}</button>
               <button onClick={() => setEditing({ ...it })} style={chipBtn}>✏️ Edit</button>
               <button onClick={() => toggleHide(it)} style={{ ...chipBtn, color: hidden ? "#5dd97c" : "#ffcf6b" }}>
                 {hidden ? "👁 Show" : "🙈 Hide"}
