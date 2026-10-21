@@ -57,6 +57,67 @@ function monthName(m: string) {
   return `${n} ${y}`;
 }
 
+// ── Bot CSV (Telegram Quiz Bot ke liye) ────────────────────────────────────
+// Bot ka upload format: Question,A,B,C,D,Answer,Explanation,Topic
+// Topic "Sep-2026" jaisa hota hai — bot isi se naya mahina pakadta hai aur quiz ka
+// naam "September Current Affairs + GK Quiz" banata hai.
+
+/** HTML → saaf text: <br> = nayi line, baaki tags hata do, &amp; jaise entities khol do. */
+function plainText(s: unknown): string {
+  if (s == null) return "";
+  let t = String(s)
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(p|div|li|h\d)>/gi, "\n")
+    .replace(/<[^>]*>/g, "");
+  if (t.includes("&") && typeof DOMParser !== "undefined") {
+    t = new DOMParser().parseFromString(`<!doctype html><body>${t.replace(/</g, "&lt;")}`, "text/html").body.textContent || t;
+  }
+  return t.replace(/\r/g, "").replace(/ /g, " ").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+function csvCell(s: string) {
+  return `"${s.replace(/"/g, '""')}"`;
+}
+
+/** Ek mahine ke saare cards. API ek baar me 600 tak deti hai, isliye bade mahine block-wise aate hain. */
+async function fetchMonthCards(api: ApiFn, m: any): Promise<any[]> {
+  if ((m.cards || 0) <= 600) return (await api(`/ca/admin/cards?month=${m.month}`)).cards || [];
+  const byRef = new Map<string, any>();
+  for (const b of Object.keys(m.blocks || {})) {
+    if (b === "0") continue;
+    for (const c of (await api(`/ca/admin/cards?month=${m.month}&block=${b}`)).cards || []) byRef.set(c.ref_no, c);
+  }
+  if (m.blocks?.["0"]) {
+    for (const c of (await api(`/ca/admin/cards?month=${m.month}`)).cards || []) if (!c.block) byRef.set(c.ref_no, c);
+  }
+  return [...byRef.values()];
+}
+
+async function downloadBotCsv(api: ApiFn, m: any): Promise<{ rows: number; skipped: number; file: string }> {
+  const cards = await fetchMonthCards(api, m);
+  const topic = monthName(m.month).replace(" ", "-");          // "Sep-2026"
+  const lines = [["Question", "A", "B", "C", "D", "Answer", "Explanation", "Topic"].map(csvCell).join(",")];
+  let rows = 0, skipped = 0;
+  for (const c of cards) {
+    for (const q of c.mcqs || []) {
+      const cells = [q.question_en, q.option_a_en, q.option_b_en, q.option_c_en, q.option_d_en].map(plainText);
+      const ans = String(q.correct_answer || "").trim().toUpperCase();
+      if (cells.some((x) => !x) || !["A", "B", "C", "D"].includes(ans)) { skipped++; continue; }
+      lines.push([...cells, ans, plainText(q.explanation_en), topic].map(csvCell).join(","));
+      rows++;
+    }
+  }
+  const file = `bot-ca-${topic}.csv`;
+  if (rows) {
+    const url = URL.createObjectURL(new Blob(["﻿" + lines.join("\r\n") + "\r\n"], { type: "text/csv;charset=utf-8" }));
+    const a = document.createElement("a");
+    a.href = url; a.download = file;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+  }
+  return { rows, skipped, file };
+}
+
 function fmtTime(s?: string) {
   if (!s) return "—";
   try {
@@ -98,9 +159,26 @@ function Overview({ api, onBrowse }: { api: ApiFn; onBrowse: (m: string, b?: num
   const [err, setErr] = useState("");
   const [open, setOpen] = useState<string | null>(null);
   const [busy, setBusy] = useState("");
+  const [csvBusy, setCsvBusy] = useState("");
+  const [csvNote, setCsvNote] = useState<Record<string, { ok: boolean; text: string }>>({});
 
   function load() {
     api("/ca/admin/overview").then(setD).catch((e) => setErr(e.message));
+  }
+
+  async function botCsv(m: any) {
+    setCsvBusy(m.month);
+    setCsvNote((n) => ({ ...n, [m.month]: { ok: true, text: "Ban rahi hai…" } }));
+    try {
+      const r = await downloadBotCsv(api, m);
+      const text = r.rows
+        ? `✅ ${r.file} — ${r.rows} MCQs${r.skipped ? ` (${r.skipped} adhoore chhode)` : ""}. Bot me: Admin → Upload CSV → Current Affairs.`
+        : "Is mahine me koi poora MCQ nahi mila.";
+      setCsvNote((n) => ({ ...n, [m.month]: { ok: r.rows > 0, text } }));
+    } catch (e: any) {
+      setCsvNote((n) => ({ ...n, [m.month]: { ok: false, text: e.message || "Download nahi ho paaya" } }));
+    }
+    setCsvBusy("");
   }
   useEffect(load, [api]);
 
@@ -150,6 +228,17 @@ function Overview({ api, onBrowse }: { api: ApiFn; onBrowse: (m: string, b?: num
               <button disabled={busy === m.month} onClick={() => publish(m.month, !allPub)} style={allPub ? btn : goldBtn}>
                 {allPub ? "Hide" : "Publish"}
               </button>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+              <button disabled={csvBusy === m.month || !m.mcqs} onClick={() => botCsv(m)}
+                style={{ ...btn, padding: "6px 10px", fontSize: 12, opacity: csvBusy === m.month || !m.mcqs ? 0.6 : 1 }}>
+                {csvBusy === m.month ? "⏳ Bot CSV…" : "⬇️ Bot CSV"}
+              </button>
+              {csvNote[m.month] && (
+                <span style={{ fontSize: 11.5, color: csvNote[m.month].ok ? MUTED : RED, flex: 1, minWidth: 160 }}>
+                  {csvNote[m.month].text}
+                </span>
+              )}
             </div>
             {open === m.month && (
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 6, marginTop: 10 }}>
