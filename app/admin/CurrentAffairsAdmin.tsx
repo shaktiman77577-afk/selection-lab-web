@@ -58,7 +58,7 @@ function monthName(m: string) {
 }
 
 // ── Bot CSV (Telegram Quiz Bot ke liye) ────────────────────────────────────
-// Bot ka upload format: Question,A,B,C,D,Answer,Explanation,Topic
+// Bot ka upload format: Question,A,B,C,D,Answer,Explanation,Topic — bilingual (English | हिंदी)
 // Topic "Sep-2026" jaisa hota hai — bot isi se naya mahina pakadta hai aur quiz ka
 // naam "September Current Affairs + GK Quiz" banata hai.
 
@@ -72,7 +72,13 @@ function plainText(s: unknown): string {
   if (t.includes("&") && typeof DOMParser !== "undefined") {
     t = new DOMParser().parseFromString(`<!doctype html><body>${t.replace(/</g, "&lt;")}`, "text/html").body.textContent || t;
   }
-  return t.replace(/\r/g, "").replace(/ /g, " ").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+  return t.replace(/\r/g, "").split(String.fromCharCode(160)).join(" ").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+/** Bot ka purana bilingual format: "English | हिंदी" ek hi cell me. Hindi na ho (ya same ho) to sirf English. */
+function both(en: unknown, hi: unknown, sep = " | "): string {
+  const e = plainText(en), h = plainText(hi);
+  return h && h !== e ? (e ? `${e}${sep}${h}` : h) : e;
 }
 
 function csvCell(s: string) {
@@ -100,16 +106,17 @@ async function downloadBotCsv(api: ApiFn, m: any): Promise<{ rows: number; skipp
   let rows = 0, skipped = 0;
   for (const c of cards) {
     for (const q of c.mcqs || []) {
-      const cells = [q.question_en, q.option_a_en, q.option_b_en, q.option_c_en, q.option_d_en].map(plainText);
+      const cells = ["question", "option_a", "option_b", "option_c", "option_d"].map((k) => both(q[`${k}_en`], q[`${k}_hi`]));
       const ans = String(q.correct_answer || "").trim().toUpperCase();
       if (cells.some((x) => !x) || !["A", "B", "C", "D"].includes(ans)) { skipped++; continue; }
-      lines.push([...cells, ans, plainText(q.explanation_en), topic].map(csvCell).join(","));
+      // Explanation lambi hoti hai (kai line) — English ke neeche khaali line, phir Hindi
+      lines.push([...cells, ans, both(q.explanation_en, q.explanation_hi, "\n\n"), topic].map(csvCell).join(","));
       rows++;
     }
   }
   const file = `bot-ca-${topic}.csv`;
   if (rows) {
-    const url = URL.createObjectURL(new Blob(["﻿" + lines.join("\r\n") + "\r\n"], { type: "text/csv;charset=utf-8" }));
+    const url = URL.createObjectURL(new Blob([String.fromCharCode(0xfeff) + lines.join("\r\n") + "\r\n"], { type: "text/csv;charset=utf-8" }));
     const a = document.createElement("a");
     a.href = url; a.download = file;
     document.body.appendChild(a); a.click(); a.remove();
