@@ -6,6 +6,7 @@ import { STATUS_COLOR, fmtDate as fmt, WIDE_CSS } from "@/lib/examUpdates";
 import V2Shell from "@/app/components/v2/V2Shell";
 import SiteHeader from "@/app/components/v2/SiteHeader";
 import SiteFooter from "@/app/components/v2/SiteFooter";
+import { TAG, LIST_TTL } from "@/lib/cacheTags";
 
 /**
  * /exam-updates — sarkari vacancies (job notifications) ki list.
@@ -24,7 +25,7 @@ const API_URL = "https://api.selectionlab.online/api";
 
 async function getExams() {
   try {
-    const res = await fetch(`${API_URL}/exam-updates/`, { next: { revalidate: 60 } });
+    const res = await fetch(`${API_URL}/exam-updates/`, { next: { revalidate: LIST_TTL, tags: [TAG.examUpdates] } });
     if (!res.ok) return [];
     const d = await res.json();
     return d.exams || [];

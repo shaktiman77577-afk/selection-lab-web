@@ -9,6 +9,7 @@
  * Ab har route ka server hissa (layout.tsx / page.tsx) yahan se metadata banata hai.
  */
 import type { Metadata } from "next";
+import { TAG, DETAIL_TTL } from "./cacheTags";
 
 export const SITE = "https://www.selectionlab.in";
 export const API = "https://api.selectionlab.online/api";
@@ -21,12 +22,17 @@ export type ShareInfo = {
   validity_days?: number | null; updated_at?: string | null; indexable: boolean;
 };
 
-/** Backend /api/share — 10 minute cache. Na mile to null (page phir bhi khulta hai). */
+// Har kind ka cache tag — admin us cheez ko badle to preview bhi turant naya (lib/cacheTags.ts)
+const SHARE_TAG: Record<ShareKind, string> = {
+  course: TAG.courses, mock: TAG.mocks, tier2: TAG.tier2, descriptive: TAG.descriptive,
+};
+
+/** Backend /api/share — 1 din backup cache. Na mile to null (page phir bhi khulta hai). */
 export async function getShare(kind: ShareKind, id: string | number): Promise<ShareInfo | null> {
   const n = Number(id);
   if (!Number.isFinite(n) || n <= 0) return null;
   try {
-    const r = await fetch(`${API}/share/${kind}/${n}`, { next: { revalidate: 600 } });
+    const r = await fetch(`${API}/share/${kind}/${n}`, { next: { revalidate: DETAIL_TTL, tags: [SHARE_TAG[kind]] } });
     if (!r.ok) return null;
     return (await r.json()) as ShareInfo;
   } catch {

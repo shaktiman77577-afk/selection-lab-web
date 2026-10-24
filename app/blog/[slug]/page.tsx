@@ -5,6 +5,7 @@ import { BLOG_CSS } from "@/lib/blogHtml";
 import V2Shell from "@/app/components/v2/V2Shell";
 import SiteHeader from "@/app/components/v2/SiteHeader";
 import SiteFooter from "@/app/components/v2/SiteFooter";
+import { TAG, DETAIL_TTL } from "@/lib/cacheTags";
 
 // Website redesign (Oct 2026): sirf bahar ka frame badla (naya header/footer,
 // breadcrumb, CTA band). Post render karne, SEO metadata aur structured data
@@ -15,7 +16,7 @@ const API_URL = "https://api.selectionlab.online/api";
 
 async function getPost(slug: string) {
   try {
-    const res = await fetch(`${API_URL}/blog/${slug}`, { next: { revalidate: 300 } });
+    const res = await fetch(`${API_URL}/blog/${slug}`, { next: { revalidate: DETAIL_TTL, tags: [TAG.blog] } });
     if (!res.ok) return null;
     const d = await res.json();
     return d.post || null;

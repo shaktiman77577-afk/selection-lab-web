@@ -7,7 +7,8 @@ import SiteFooter from "@/app/components/v2/SiteFooter";
 import DescriptiveList from "@/app/components/v2/DescriptiveList";
 import { getDescriptiveSeriesServer } from "@/lib/serverApi";
 
-export const revalidate = 60;
+// Backup 6 ghante — admin ka badlav turant aata hai (lib/cacheTags.ts)
+export const revalidate = 21600;
 
 export default async function DescriptivePage() {
   const series = await getDescriptiveSeriesServer();

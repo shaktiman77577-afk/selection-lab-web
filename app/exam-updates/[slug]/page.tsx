@@ -7,6 +7,7 @@ import { STATUS_COLOR, fmtDate, WIDE_CSS } from "@/lib/examUpdates";
 import V2Shell from "@/app/components/v2/V2Shell";
 import SiteHeader from "@/app/components/v2/SiteHeader";
 import SiteFooter from "@/app/components/v2/SiteFooter";
+import { TAG, LIST_TTL } from "@/lib/cacheTags";
 
 /**
  * /exam-updates/[slug] — ek vacancy ki poori jaankari.
@@ -21,7 +22,7 @@ const SITE = "https://www.selectionlab.in";
 
 async function getExam(slug: string) {
   try {
-    const res = await fetch(`${API_URL}/exam-updates/${slug}`, { next: { revalidate: 60 } });
+    const res = await fetch(`${API_URL}/exam-updates/${slug}`, { next: { revalidate: LIST_TTL, tags: [TAG.examUpdates] } });
     if (!res.ok) return null;
     const d = await res.json();
     return d.exam || null;

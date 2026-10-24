@@ -2,7 +2,7 @@
 //
 // Pehle ye poora browser me banta tha: page khulta, phir courses/banners
 // mangta - isliye pehle "Loading..." aur Google ko khaali page. Ab server par
-// data ke saath banta hai (60 sec cache), aur sirf chalne wale hisse
+// data ke saath banta hai (cache, admin badle to turant naya), aur sirf chalne wale hisse
 // (carousel, search, live test, login button) browser me chalte hain.
 //
 // Rang wahi gold/beige; laptop par poora top menu aur 4-column grid.
@@ -41,7 +41,8 @@ import { SHOW_CURRENT_AFFAIRS } from "@/lib/config";
 import { getCoursesServer, getBannersServer, getFeaturedSeriesServer } from "@/lib/serverApi";
 import { courseImage, courseTitle, bannerImage } from "@/lib/supabase";
 
-export const revalidate = 60;
+// Backup 6 ghante — admin ka badlav turant aata hai (lib/cacheTags.ts)
+export const revalidate = 21600;
 
 const TILES = [
   { href: "/mock-tests", title: "Mock Tests", desc: "Real exam interface", Icon: IconMock },

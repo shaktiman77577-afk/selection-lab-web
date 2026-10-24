@@ -5,7 +5,7 @@
 // par khulta hai). Bundle apne aap pehchana jata hai (bundle_items me ek se
 // zyada cheezein) aur har jagah "BUNDLE PACK · N in 1" ribbon lagta hai.
 //
-// Data server par aata hai (60 sec cache) taaki page turant dikhe; login wale
+// Data server par aata hai (cache, admin badle to turant naya) taaki page turant dikhe; login wale
 // student ke "Purchased" nishaan browser me alag se aate hain.
 // SEO title/description app/courses/layout.tsx me hain (waisa hi).
 import Link from "next/link";
@@ -16,7 +16,8 @@ import CoursesExplorer from "@/app/components/v2/CoursesExplorer";
 import { toItem, type CatalogItem } from "@/app/components/v2/catalog";
 import { getCoursesServer, getMockSeriesServer, getDescriptiveSeriesServer, getTier2SeriesServer } from "@/lib/serverApi";
 
-export const revalidate = 60;
+// Backup 6 ghante — admin ka badlav turant aata hai (lib/cacheTags.ts)
+export const revalidate = 21600;
 
 export default async function CoursesPage() {
   const [courses, mocks, desc, tier2] = await Promise.all([

@@ -9,6 +9,7 @@ import SiteHeader from "@/app/components/v2/SiteHeader";
 import SiteFooter from "@/app/components/v2/SiteFooter";
 import { IconNews } from "@/app/components/v2/Icons";
 import { STATUS_COLOR, fmtDate } from "@/lib/examUpdates";
+import { TAG, LIST_TTL } from "@/lib/cacheTags";
 
 export const metadata: Metadata = pageMeta({
   title: "Blog — Exam Updates & Study Material",
@@ -21,7 +22,7 @@ const API_URL = "https://api.selectionlab.online/api";
 // Exam Updates (job notifications) — blog ke upar hi dikhte hain, alag menu nahi
 async function getExamUpdates() {
   try {
-    const res = await fetch(`${API_URL}/exam-updates/`, { next: { revalidate: 60 } });
+    const res = await fetch(`${API_URL}/exam-updates/`, { next: { revalidate: LIST_TTL, tags: [TAG.examUpdates] } });
     if (!res.ok) return [];
     const d = await res.json();
     return d.exams || [];
@@ -32,7 +33,7 @@ async function getExamUpdates() {
 
 async function getPosts() {
   try {
-    const res = await fetch(`${API_URL}/blog/`, { next: { revalidate: 300 } });
+    const res = await fetch(`${API_URL}/blog/`, { next: { revalidate: LIST_TTL, tags: [TAG.blog] } });
     if (!res.ok) return [];
     const d = await res.json();
     return d.posts || [];

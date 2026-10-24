@@ -7,7 +7,7 @@
 // aur student ek hi cheez dekhte hain — cloaking nahi, paywall markup ki zaroorat nahi.
 //
 // Data: page server par hi mahino ki list + chuna hua mahina le kar banta hai
-// (60 second cache), isliye khulte hi mahine, din, block aur pehle cards dikhte
+// (cache, admin badle to turant naya), isliye khulte hi mahine, din, block aur pehle cards dikhte
 // hain. Poore cards login wale student ke liye browser turant mangta hai —
 // plan wala content public HTML me nahi daal sakte, warna paid content bina
 // kharide sabko (aur Google ko) dikh jaata.
@@ -22,6 +22,7 @@ import type { Metadata } from "next";
 import { pageMeta, SITE } from "@/lib/seo";
 import { API_URL, SHOW_CURRENT_AFFAIRS } from "@/lib/config";
 import CAClient from "./CAClient";
+import { TAG, LIST_TTL } from "@/lib/cacheTags";
 
 const TITLE = "Daily Current Affairs 2026 in Hindi & English — One-Liners, Quiz & PDF | Selection Lab";
 const DESC = "Daily current affairs one-liners in English and Hindi for SSC, Railway, Banking, State PCS, Police and court exams — " +
@@ -71,7 +72,7 @@ function jsonLd(home: any, data: any): string {
 
 async function get(path: string): Promise<any> {
   try {
-    const res = await fetch(`${API_URL}${path}`, { next: { revalidate: 60 } });
+    const res = await fetch(`${API_URL}${path}`, { next: { revalidate: LIST_TTL, tags: [TAG.ca] } });
     if (!res.ok) return null;
     return await res.json();
   } catch {
